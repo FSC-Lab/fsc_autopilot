@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="tracking_control" type="tracking_control_node" name="tracking_control" output="screen">
+    <rosparam command="load" file="$(find tracking_control)/config/params.json" />
+  </node>
+</launch>

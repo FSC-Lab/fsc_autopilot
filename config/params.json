@@ -1,0 +1,18 @@
+{
+  "tracking_controller": {
+    "min_acc": 0.0,
+    "max_acc": 100.0,
+    "motor_curve": [
+      0.1,
+      0.2
+    ],
+    "k_pos": {
+      "x": 1.0,
+      "y": 1.0,
+      "z": 10.0
+    }
+  },
+  "attitude_controller": {
+    "tau": 0.5
+  }
+}

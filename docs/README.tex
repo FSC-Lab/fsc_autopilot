@@ -1,0 +1,67 @@
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage[]{mathtools}
+\theoremstyle{plain}
+\newtheorem{defn}{Definition}
+\usepackage{hyperref}
+\usepackage[]{listings}
+\title{Tracking Controller}
+\author{H S Helson Go}
+
+\begin{document}
+\maketitle
+
+This package is initially a port of \href{https://github.com/Jaeyoung-Lim/mavros_controllers}{\lstinline!mavros_controllers!}, specifically it \lstinline!src/geometric_controller.cpp! to functional-styled python accelerated by \href{https://github.com/google/jax}{jax}.
+It was then backported to C++.
+
+This package implements the tracking control law:
+\begin{defn}
+    A quadrotor has states
+    \begin{equation}
+        \{\mathbf{p},\mathbf{R},\mathbf{v}\},
+    \end{equation}
+    respectively its absolute position, attitude (body-to-earth rotation), and velocity.
+
+    Given control references
+    \begin{equation}
+        \left\{\mathbf{p}_d,\mathbf{v}_d,\psi_d,\left[,\mathbf{a}_d\right]\right\}
+    \end{equation}
+    respectively \emph{absolute} position, attitude, velocity and acceleration setpoints, the position error is defined as
+    \begin{equation}
+        \mathbf{e}_p = \mathbf{p} - \mathbf{p}_d,
+    \end{equation}
+    and the velocity error as
+    \begin{equation}
+        \mathbf{e}_v = \mathbf{v} - \mathbf{v}_d.
+    \end{equation}
+
+    Given parameters \(\mathbf{k}_p\in\mathbb{R}^3\), \(\mathbf{k}_v\in\mathbb{R}^3\), \(\mathbf{D}\in\mathbb{R}^{3\times 3}\), respectively the position control gain, velocity control gain, and the drag model matrix, the tracking control law computes acceleration setpoints
+    \begin{equation}
+        \mathbf{a}_{sp} = -\mathbf{k}_p\circ\mathbf{e}_p - \mathbf{k}_v\circ\mathbf{e}_v - \mathbf{R}_d\mathbf{D}\mathbf{R}_d\mathbf{v}_d + g\mathbf{1}_3 + \mathbf{a}_d
+    \end{equation}
+    where \(\circ\) is element-wise multiplication, \(\mathbf{R}_d = \mathtt{accelerationVectorToRotation}(\mathbf{a}_d + g\mathbf{1}_3, \psi_d)\).
+
+    \(\mathtt{accelerationVectorToRotation}\) is a quasi-Gram-Schmidt process to compute a spatial rotation to align a quadrotor's body-z axis with a desired acceleration vector.
+
+
+\end{defn}
+and the attitude control law
+\begin{defn}
+    Given control references
+    \begin{equation}
+        \{\mathbf{R}_d = \mathtt{accelerationVectorToRotation}(\mathbf{a}_{sp},\psi_d)\},
+    \end{equation}
+    the attitude error is
+    \begin{equation}
+        \mathbf{e}_r = \frac{1}{2} \left(\mathbf{R}_d^\top\mathbf{R} - \mathbf{R}^\top\mathbf{R}_d\right)^\vee
+    \end{equation}
+
+    The attitude control law computes angular velocity setpoints
+    \begin{equation}
+        \boldsymbol{\omega}_{sp} = -\frac{2}{\tau}\mathbf{e}_r
+    \end{equation}
+\end{defn}
+
+\end{document}
