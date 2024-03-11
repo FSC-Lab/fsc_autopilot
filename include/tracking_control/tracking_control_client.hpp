@@ -1,36 +1,40 @@
 #ifndef TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
 #define TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
 
+#include <geometry_msgs/msg/detail/twist_stamped__struct.hpp>
+#include <rclcpp/subscription.hpp>
 #include <string>
+#include <trajectory_msgs/msg/detail/joint_trajectory_point__struct.hpp>
 #include <unordered_map>
 
-#include "geometry_msgs/PoseStamped.h"
-#include "geometry_msgs/TwistStamped.h"
-#include "ros/forwards.h"
-#include "ros/node_handle.h"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
+#include "mavros_msgs/msg/attitude_target.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
-#include "trajectory_msgs/JointTrajectoryPoint.h"
+#include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
 namespace nodelib {
-class TrackingControlClient {
+using namespace std::string_literals;
+class TrackingControlClient : public rclcpp::Node {
  public:
   using AttitudeController = control::NonlinearGeometricController<double>;
   using TrackingController = control::TrackingController<double>;
-  TrackingControlClient();
+  explicit TrackingControlClient(const std::string& name = ""s);
 
  private:
   using MotorCurveType = math::Polynomial<double>;
-  void poseCb(const geometry_msgs::PoseStampedConstPtr& msg);
+  void poseCb(const geometry_msgs::msg::PoseStamped::ConstSharedPtr& msg);
 
-  void twistCb(const geometry_msgs::TwistStampedConstPtr& msg);
+  void twistCb(const geometry_msgs::msg::TwistStamped::ConstSharedPtr& msg);
 
-  void setpointCb(const trajectory_msgs::JointTrajectoryPointConstPtr& msg);
+  void setpointCb(
+      const trajectory_msgs::msg::JointTrajectoryPoint::ConstSharedPtr& msg);
 
-  void mainLoop(const ros::TimerEvent& event);
+  void mainLoop();
 
-  ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;
   AttitudeController att_ctrl_;
 
@@ -47,12 +51,15 @@ class TrackingControlClient {
 
   AttitudeController::Parameters ac_params_;
   TrackingController::Parameters tc_params_;
-  std::unordered_map<std::string, ros::Subscriber> subs_;
-  ros::Publisher setpoint_pub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr twist_sub_;
+  rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr
+      target_sub_;
+  rclcpp::Publisher<mavros_msgs::msg::AttitudeTarget>::SharedPtr setpoint_pub_;
 
   MotorCurveType motor_curve_;
 
-  ros::Timer timer_;
+  rclcpp::TimerBase::SharedPtr timer_;
 };
 
 }  // namespace nodelib

@@ -59,6 +59,7 @@ Checks: >
   -misc-const-correctness,
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
+  -modernize-avoid-bind,
   -modernize-avoid-c-arrays,
   -modernize-use-trailing-return-type,
   -readability-convert-member-functions-to-static,
