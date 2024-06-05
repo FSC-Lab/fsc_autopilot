@@ -161,24 +161,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
     return;
   }
 
+  // define output messages
   mavros_msgs::AttitudeTarget pld;
   pld.header.stamp = event.current_real;
   pld.thrust = std::clamp(
       static_cast<float>(motor_curve_.vals(pos_ctrl_out.thrust)), 0.0F, 1.0F);
-
-  if (enable_inner_controller_) {
-    ROS_DEBUG("Running inner controller");
-    const auto &[inner_success, att_ctrl_out, att_ctrl_err] =
-        att_ctrl_.run(att_ctrl_state_, {pos_ctrl_out.orientation});
-
-    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
-    tf2::toMsg(att_ctrl_out.body_rate, pld.body_rate);
-  } else {
-    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE &
-                    mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE &
-                    mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
-    pld.orientation = tf2::toMsg(pos_ctrl_out.orientation);
-  }
 
   geometry_msgs::Vector3Stamped pld_pos_err;
   pld_pos_err.header.stamp = event.current_real;
@@ -191,10 +178,29 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   geometry_msgs::Vector3Stamped pld_att_err;
   pld_att_err.header.stamp = event.current_real;
 
-  // convert radians to degrees
-  pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
-  pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;
-  pld_att_err.vector.z = att_ctrl_err.attitude_error.z() * 180.0 / M_PI;
+  if (enable_inner_controller_) {
+    ROS_DEBUG("Running inner controller");
+    const auto &[inner_success, att_ctrl_out, att_ctrl_err] =
+        att_ctrl_.run(att_ctrl_state_, {pos_ctrl_out.orientation});
+
+    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+
+    pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
+    pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;
+    pld_att_err.vector.z = att_ctrl_err.attitude_error.z() * 180.0 / M_PI;
+
+    tf2::toMsg(att_ctrl_out.body_rate, pld.body_rate);
+  } else {
+    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE &
+                    mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE &
+                    mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+    pld.orientation = tf2::toMsg(pos_ctrl_out.orientation);
+
+    // update attitude error to be 0 (because inner controller is disabled)
+    pld_att_err.vector.x = 0.0;
+    pld_att_err.vector.y = 0.0;
+    pld_att_err.vector.z = 0.0;
+  }
 
   setpoint_pub_.publish(pld);
   setpoint_pos_error_pub_.publish(pld_pos_err);
