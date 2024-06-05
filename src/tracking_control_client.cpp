@@ -2,13 +2,14 @@
 
 #include "Eigen/src/Core/util/Meta.h"
 #include "fmt/core.h"
+#include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/internal/internal.hpp"
 #include "tracking_control/tracking_controller.hpp"
 
 namespace nodelib {
-using namespace std::string_literals; // NOLINT
+using namespace std::string_literals;  // NOLINT
 
 void validateAndSetVector(std::string_view name, const std::vector<double> &src,
                           Eigen::Ref<Eigen::VectorXd> dst) {
@@ -33,14 +34,14 @@ TrackingControlClient::TrackingControlClient() {
   const ros::Rate update_rate(pnh.param("tracking_controller/rate", 30));
   constexpr auto kDefaultKPosXY = 1.0;
   constexpr auto kDefaultKPosZ = 10.0;
-  tc_params_.k_pos << // Force a line break
+  tc_params_.k_pos <<  // Force a line break
       pnh.param("tracking_controller/k_pos/x", kDefaultKPosXY),
       pnh.param("tracking_controller/k_pos/y", kDefaultKPosXY),
       pnh.param("tracking_controller/k_pos/z", kDefaultKPosZ);
 
   constexpr auto kDefaultKVelXY = 1.5;
   constexpr auto kDefaultkVelZ = 3.3;
-  tc_params_.k_vel << // Force a line break
+  tc_params_.k_vel <<  // Force a line break
       pnh.param("tracking_controller/k_vel/x", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
@@ -65,13 +66,15 @@ TrackingControlClient::TrackingControlClient() {
                 tc_params_.de_height_threshold);
   tc_params_.de_gain =
       pnh.param("tracking_controller/de/gain", tc_params_.de_gain);
-  
-  if (!pnh.getParam("tracking_controller/vehicle_mass", tc_params_.vehicle_mass)) {
+
+  if (!pnh.getParam("tracking_controller/vehicle_mass",
+                    tc_params_.vehicle_mass)) {
     ROS_FATAL("Vehicle mass unspecified in parameters!");
     std::terminate();
   }
 
-  ROS_INFO_STREAM(::fmt::format("Tracking controller gains are {}", tc_params_));
+  ROS_INFO_STREAM(
+      ::fmt::format("Tracking controller gains are {}", tc_params_));
   constexpr auto kDefaultAttitudeControllerTau = 0.1;
   ac_params_.time_constant =
       pnh.param("attitude_controller/tau", kDefaultAttitudeControllerTau);
@@ -97,9 +100,10 @@ TrackingControlClient::TrackingControlClient() {
 
   const auto mavros_ns = pnh.param("mavros_ns", "/mavros"s);
 
-  subs_.emplace("pose"s,
-                nh_.subscribe(fmt::format("{}/local_position/pose", mavros_ns),
-                              1, &TrackingControlClient::poseCb, this));
+  subs_.emplace(
+      "pose"s,
+      nh_.subscribe(fmt::format("{}/local_position/adjusted", mavros_ns), 1,
+                    &TrackingControlClient::poseCb, this));
   subs_.emplace(
       "twist"s,
       nh_.subscribe(fmt::format("{}/local_position/velocity_local", mavros_ns),
@@ -114,6 +118,13 @@ TrackingControlClient::TrackingControlClient() {
                               &TrackingControlClient::setpointCb, this));
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       fmt::format("{}/setpoint_raw/attitude", mavros_ns), 1);
+  setpoint_pos_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
+      "tracking_controller/setpoint_pos_error", 1);
+  setpoint_vel_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
+      "tracking_controller/setpoint_vel_error", 1);
+  setpoint_attitude_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
+      "tracking_controller/setpoint_attitude_error", 1);
+
   timer_ = nh_.createTimer(update_rate, &TrackingControlClient::mainLoop, this);
 }
 
@@ -144,7 +155,7 @@ void TrackingControlClient::setpointCb(
 void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   const auto &[outer_success, pos_ctrl_out, pos_ctrl_err] =
       tracking_ctrl_.run(state_, refs_);
-  
+
   if (!outer_success) {
     ROS_ERROR("Outer controller failed!");
     return;
@@ -169,6 +180,25 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
     pld.orientation = tf2::toMsg(pos_ctrl_out.orientation);
   }
 
+  geometry_msgs::Vector3Stamped pld_pos_err;
+  pld_pos_err.header.stamp = event.current_real;
+  tf2::toMsg(pos_ctrl_err.position_error, pld_pos_err.vector);
+
+  geometry_msgs::Vector3Stamped pld_vel_err;
+  pld_vel_err.header.stamp = event.current_real;
+  tf2::toMsg(pos_ctrl_err.velocity_error, pld_vel_err.vector);
+
+  geometry_msgs::Vector3Stamped pld_att_err;
+  pld_att_err.header.stamp = event.current_real;
+
+  // convert radians to degrees
+  pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
+  pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;
+  pld_att_err.vector.z = att_ctrl_err.attitude_error.z() * 180.0 / M_PI;
+
   setpoint_pub_.publish(pld);
+  setpoint_pos_error_pub_.publish(pld_pos_err);
+  setpoint_vel_error_pub_.publish(pld_vel_err);
+  setpoint_attitude_error_pub_.publish(pld_att_err);
 }
-} // namespace nodelib
+}  // namespace nodelib
