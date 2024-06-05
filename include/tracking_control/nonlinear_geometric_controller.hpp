@@ -67,7 +67,7 @@ struct NonlinearGeometricController
 
     const auto body_rate_sp =
         -Scalar(2) / params_.time_constant * attitude_error;
-    return {body_rate_sp, attitude_error};
+    return {true, body_rate_sp, attitude_error};
   }
   const Parameters& params() const { return params_; }
 

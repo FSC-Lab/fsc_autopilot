@@ -26,6 +26,7 @@ class ControllerBase {
   using Parameters = typename ControllerTraits<Derived>::Parameters;
 
   struct Result {
+    bool success{false};
     Output output;
     Error error;
   };
