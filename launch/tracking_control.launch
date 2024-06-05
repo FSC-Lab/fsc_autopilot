@@ -1,5 +1,9 @@
 <launch>
+  <!-- Tracking Control Node -->
   <node pkg="tracking_control" type="tracking_control_node" name="tracking_control" output="screen">
     <rosparam command="load" file="$(find tracking_control)/config/params.json" />
   </node>
+
+  <!-- Set Home Node -->
+  <node pkg="override_set_home" type="set_home_node" name="override_set_home" output="screen" />
 </launch>

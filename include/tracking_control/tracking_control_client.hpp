@@ -46,6 +46,9 @@ class TrackingControlClient {
   TrackingController::Parameters tc_params_;
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
+  ros::Publisher setpoint_pos_error_pub_;
+  ros::Publisher setpoint_vel_error_pub_;
+  ros::Publisher setpoint_attitude_error_pub_;
 
   MotorCurveType motor_curve_;
 
