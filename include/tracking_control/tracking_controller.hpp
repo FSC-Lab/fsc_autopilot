@@ -10,33 +10,39 @@
 #include "tracking_control/rotor_drag_model.hpp"
 
 namespace control {
-template <typename Scalar> class TrackingController;
+template <typename Scalar>
+class TrackingController;
 
-template <typename Scalar> struct TrackingControllerState {
+template <typename Scalar>
+struct TrackingControllerState {
   Vector3<Scalar> position{Vector3<Scalar>::Zero()};
   Quaternion<Scalar> orientation{Quaternion<Scalar>::Identity()};
   Vector3<Scalar> velocity{Vector3<Scalar>::Zero()};
   Vector3<Scalar> acceleration{Vector3<Scalar>::Zero()};
 };
 
-template <typename Scalar> struct TrackingControllerReference {
+template <typename Scalar>
+struct TrackingControllerReference {
   Vector3<Scalar> position{Vector3<Scalar>::Zero()};
   Vector3<Scalar> velocity{Vector3<Scalar>::Zero()};
   Vector3<Scalar> acceleration{Vector3<Scalar>::Zero()};
   Scalar yaw{0};
 };
 
-template <typename Scalar> struct TrackingControllerError {
+template <typename Scalar>
+struct TrackingControllerError {
   Vector3<Scalar> position_error{Vector3<Scalar>::Zero()};
   Vector3<Scalar> velocity_error{Vector3<Scalar>::Zero()};
 };
 
-template <typename Scalar> struct TrackingControllerOutput {
+template <typename Scalar>
+struct TrackingControllerOutput {
   Scalar thrust;
   Quaternion<Scalar> orientation;
 };
 
-template <typename Scalar> struct TrackingControllerParameters {
+template <typename Scalar>
+struct TrackingControllerParameters {
   static constexpr Scalar kDefaultKpXY{1.0};
   static constexpr Scalar kDefaultKpZ{10.0};
   Vector3<Scalar> k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};
@@ -67,7 +73,8 @@ template <typename Scalar> struct TrackingControllerParameters {
   Vector3<Scalar> de_ub{Vector3<Scalar>::Constant(kDefaultDEBounds)};
 };
 
-template <typename S> struct ControllerTraits<TrackingController<S>> {
+template <typename S>
+struct ControllerTraits<TrackingController<S>> {
   using Scalar = S;
   using State = TrackingControllerState<Scalar>;
   using Reference = TrackingControllerReference<Scalar>;
@@ -81,7 +88,7 @@ class TrackingController
     : public ControllerBase<TrackingController<T>>,
       public RotorDragModel<TrackingController<T>>,
       public AccelerationSetpointShaping<TrackingController<T>> {
-public:
+ public:
   using Scalar = T;
   using Base = ControllerBase<TrackingController<Scalar>>;
 
@@ -98,7 +105,7 @@ public:
   using AccelerationSetpointShaping<
       TrackingController>::reshapeAccelerationSetpoint;
 
-  Result runImpl(const State &state, const Reference &refs) {
+  Result runImpl(const State& state, const Reference& refs) {
     using std::atan2;
     auto position_error = state.position - refs.position;
     auto velocity_error = state.velocity - refs.velocity;
@@ -116,7 +123,6 @@ public:
         computeDrag(refs.velocity, refs.acceleration, refs.yaw);
 
     if (refs.position.z() > params_.de_height_threshold) {
-
       // R_ib * [0,0,1] * f_b
       const auto expected_thrust =
           state.orientation * Vector3<Scalar>::UnitZ() * thrust_sp_;
@@ -159,35 +165,35 @@ public:
             {position_error, velocity_error}};
   }
 
-  const Parameters &params() const { return params_; }
-  Parameters &params() { return params_; }
+  const Parameters& params() const { return params_; }
+  Parameters& params() { return params_; }
 
   // Expose this member for RotorDragModel mixin
-  const Matrix3<Scalar> &drag_matrix() const { return params_.drag_d; }
+  const Matrix3<Scalar>& drag_matrix() const { return params_.drag_d; }
 
   // Expose these parameters for AccelerationSetpointShaping mixin
   Scalar min_z_accel() const { return params_.min_z_accel; }
   Scalar max_z_accel() const { return params_.max_z_accel; }
   Scalar max_tilt_ratio() const { return params_.max_tilt_ratio; }
 
-private:
+ private:
   Vector3<Scalar> disturbance_estimate_{Vector3<Scalar>::Zero()};
 
   Scalar thrust_sp_{0.0};
   Parameters params_;
 };
-} // namespace control
+}  // namespace control
 
 namespace fmt {
 template <typename Scalar>
 struct formatter<control::TrackingControllerParameters<Scalar>> {
-  constexpr auto parse(format_parse_context & ctx)
+  constexpr auto parse(format_parse_context& ctx)
       -> format_parse_context::iterator {
     return ctx.begin();
   }
 
-  auto format(const control::TrackingControllerParameters<Scalar> &v, format_context &ctx) const
-      -> format_context::iterator {
+  auto format(const control::TrackingControllerParameters<Scalar>& v,
+              format_context& ctx) const -> format_context::iterator {
     Eigen::IOFormat ei_fmt(Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[",
                            "]");
     return format_to(
@@ -200,6 +206,6 @@ struct formatter<control::TrackingControllerParameters<Scalar>> {
         v.de_height_threshold);
   }
 };
-} // namespace fmt
+}  // namespace fmt
 
-#endif // TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
+#endif  // TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_

@@ -19,8 +19,7 @@ struct RotorDragModel {
   const Matrix3& drag_matrix() const { return derived().drag_matrix(); }
 
   Vector3 computeDrag(const Vector3& velocity_ref,
-                      const Vector3& acceleration_ref,
-                      Scalar yaw_ref) const {
+                      const Vector3& acceleration_ref, Scalar yaw_ref) const {
     const auto r_ref = details::accelerationVectorToRotation(
         acceleration_ref + kGravity, yaw_ref);
     return r_ref * drag_matrix() * r_ref.transpose() * velocity_ref;
