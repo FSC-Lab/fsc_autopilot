@@ -37,8 +37,8 @@ class ControllerBase {
   const Parameters& params() const { return derived().params(); }
   Parameters& params() { return derived().params(); }
 
-  Result run(const State& state, const Reference& refs) {
-    return derived().runImpl(state, refs);
+  Result run(const State& state, const Reference& refs, double dt) {
+    return derived().runImpl(state, refs, dt);
   }
 };
 }  // namespace control
