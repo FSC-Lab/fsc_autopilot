@@ -25,5 +25,7 @@
   },
   "attitude_controller": {
     "tau": 0.5
-  }
+  },
+  "indoor_mode": false
 }
+

@@ -3,7 +3,4 @@
   <node pkg="tracking_control" type="tracking_control_node" name="tracking_control" output="screen">
     <rosparam command="load" file="$(find tracking_control)/config/params.json" />
   </node>
-
-  <!-- Set Home Node -->
-    <node pkg="tracking_control" type="set_home_node" name="set_home_node" output="screen" />
 </launch>

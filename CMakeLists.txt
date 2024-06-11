@@ -23,10 +23,10 @@ target_link_libraries(tracking_control_client PUBLIC Eigen3::Eigen fmt::fmt
                                                      ${catkin_LIBRARIES})
 
 add_executable(tracking_control_node src/tracking_control_node.cpp)
-add_executable(set_home_node src/set_home_node.cpp)
+
 
 target_link_libraries(tracking_control_node PRIVATE tracking_control_client utils ${catkin_LIBRARIES})
-target_link_libraries(set_home_node ${catkin_LIBRARIES})
+
 
 add_dependencies(tracking_control_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(set_home_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
