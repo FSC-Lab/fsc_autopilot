@@ -1,47 +1,89 @@
 #ifndef TRACKING_CONTROL_CONTROLLER_BASE_HPP_
 #define TRACKING_CONTROL_CONTROLLER_BASE_HPP_
 
+#include <memory>
+#include <string>
+#include <variant>
+
 #include "Eigen/Dense"
 
-namespace control {
+namespace fsc {
 
-template <typename Scalar>
-using Vector3 = Eigen::Matrix<Scalar, 3, 1>;
-template <typename Scalar>
-using Matrix3 = Eigen::Matrix<Scalar, 3, 3>;
-template <typename Scalar>
-using Quaternion = Eigen::Quaternion<Scalar>;
+struct Pose {
+  Eigen::Vector3d position;
+  Eigen::Quaterniond orientation;
+};
 
-template <typename Derived>
-struct ControllerTraits {};
+struct Twist {
+  Eigen::Vector3d linear;
+  Eigen::Vector3d angular;
+};
 
-template <typename Derived>
-class ControllerBase {
- public:
-  using Scalar = typename ControllerTraits<Derived>::Scalar;
-  using State = typename ControllerTraits<Derived>::State;
-  using Reference = typename ControllerTraits<Derived>::Reference;
-  using Output = typename ControllerTraits<Derived>::Output;
-  using Error = typename ControllerTraits<Derived>::Error;
-  using Parameters = typename ControllerTraits<Derived>::Parameters;
+struct Accel {
+  Eigen::Vector3d linear;
+  Eigen::Vector3d angular;
+};
 
-  struct Result {
-    bool success{false};
-    Output output;
-    Error error;
-  };
+struct VehicleState {
+  double stamp;
+  Pose pose;
+  Twist twist;
+  Accel accel;
+};
 
-  const Derived& derived() const { return static_cast<const Derived&>(*this); }
-  Derived& derived() { return static_cast<Derived&>(*this); }
+struct VehicleInput {
+  double thrust;
+  std::variant<Eigen::Quaterniond, Eigen::Vector3d> command;
 
-  const Parameters& params() const { return derived().params(); }
-  Parameters& params() { return derived().params(); }
+  Eigen::Quaterniond& orientation() {
+    return std::get<Eigen::Quaterniond>(command);
+  }
 
-  Result run(const State& state, const Reference& refs, double dt,
-             bool intFlag) {
-    return derived().runImpl(state, refs, dt, intFlag);
+  [[nodiscard]] const Eigen::Quaterniond& orientation() const {
+    return std::get<Eigen::Quaterniond>(command);
+  }
+
+  Eigen::Vector3d& body_rates() { return std::get<Eigen::Vector3d>(command); }
+
+  [[nodiscard]] const Eigen::Vector3d& body_rates() const {
+    return std::get<Eigen::Vector3d>(command);
   }
 };
-}  // namespace control
+
+struct Setpoint {
+  VehicleState state;
+  VehicleInput input;
+};
+
+struct ControlErrorBase {
+  virtual ~ControlErrorBase() = default;
+
+  [[nodiscard]] virtual std::string name() const = 0;
+};
+
+struct ControlResult {
+  bool success{false};
+  Setpoint setpoint;
+  std::shared_ptr<ControlErrorBase> error;
+
+  template <typename T>
+  std::shared_ptr<T> errorAs(const std::string& name) {
+    if (error->name() == name) {
+      return std::static_pointer_cast<T>(error);
+    }
+    return nullptr;
+  }
+};
+
+class ControllerBase {
+ public:
+  virtual ~ControllerBase() = default;
+
+  virtual ControlResult run(const VehicleState& state, const Setpoint& refs,
+                            double dt) = 0;
+
+  [[nodiscard]] virtual std::string name() const = 0;
+};
+}  // namespace fsc
 
 #endif  // TRACKING_CONTROL_CONTROLLER_BASE_HPP_

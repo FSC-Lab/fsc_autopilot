@@ -18,8 +18,8 @@
 namespace nodelib {
 class TrackingControlClient {
  public:
-  using AttitudeController = control::NonlinearGeometricController<double>;
-  using TrackingController = control::TrackingController<double>;
+  using AttitudeController = fsc::NonlinearGeometricController;
+  using TrackingController = fsc::TrackingController;
   TrackingControlClient();
 
  private:
@@ -46,15 +46,12 @@ class TrackingControlClient {
   TrackingController tracking_ctrl_;
   AttitudeController att_ctrl_;
 
-  TrackingController::State state_;
+  fsc::VehicleState state_;
 
-  AttitudeController::State att_ctrl_state_{
-      TrackingController::QuaternionType::Identity()};
-
-  TrackingController::Reference refs_;
+  fsc::Setpoint refs_;
 
   AttitudeController::Parameters ac_params_;
-  TrackingController::Parameters tc_params_;
+  fsc::TrackingControllerParameters tc_params_;
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
   ros::Publisher setpoint_pos_error_pub_;

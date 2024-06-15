@@ -7,6 +7,7 @@
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/internal/internal.hpp"
+#include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
 
 namespace nodelib {
@@ -79,9 +80,9 @@ TrackingControlClient::TrackingControlClient() {
 void TrackingControlClient::poseCb(
     const geometry_msgs::PoseStampedConstPtr& msg) {
   // the estimation only provides position measurement
-  tf2::fromMsg(msg->pose.position, state_.position);
+  tf2::fromMsg(msg->pose.position, state_.pose.position);
   // tf2::fromMsg(msg->pose.orientation, state_.orientation);
-  tf2::fromMsg(msg->pose.orientation, att_ctrl_state_.attitude);
+  // tf2::fromMsg(msg->pose.orientation, att_ctrl_state_.attitude);
 }
 
 void TrackingControlClient::twistCb(
@@ -90,8 +91,8 @@ void TrackingControlClient::twistCb(
 }
 
 void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
-  tf2::fromMsg(msg->linear_acceleration, state_.acceleration);
-  tf2::fromMsg(msg->orientation, state_.orientation);
+  tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
+  tf2::fromMsg(msg->orientation, state_.pose.orientation);
 }
 
 void TrackingControlClient::setpointCb(
@@ -120,8 +121,19 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
                  (mavrosState_.mode.compare("OFFBOARD") == 0);
 
   // outerloop control
-  const auto& [outer_success, pos_ctrl_out, pos_ctrl_err] =
-      tracking_ctrl_.run(state_, refs_, timeStep, intFlag);
+  const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err] =
+      tracking_ctrl_.run(state_, refs_, timeStep);
+
+  if (p_pos_ctrl_err->name() != "tracking_controller.error") {
+    ROS_FATAL(
+        "Expected name of error struct to be `tracking_controller.error`; Got "
+        "%s",
+        p_pos_ctrl_err->name().c_str());
+    return;
+  }
+
+  const auto& pos_ctrl_err =
+      *std::static_pointer_cast<fsc::TrackingControllerError>(p_pos_ctrl_err);
 
   if (!outer_success) {
     ROS_ERROR("Outer controller failed!");
@@ -157,21 +169,35 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   if (enable_inner_controller_) {
     ROS_DEBUG("Running inner controller");
-    const auto& [inner_success, att_ctrl_out, att_ctrl_err] = att_ctrl_.run(
-        att_ctrl_state_, {pos_ctrl_out.orientation}, timeStep, intFlag);
+    const auto& [inner_success, att_ctrl_out, p_att_ctrl_err] =
+        att_ctrl_.run(state_, pos_ctrl_out, timeStep);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+
+    if (p_att_ctrl_err->name() != "nonlinear_geometric_controller.error") {
+      ROS_FATAL(
+          "Expected name of error struct to be "
+          "`nonlinear_geometric_controller.error`; "
+          "Got "
+          "%s",
+          p_att_ctrl_err->name().c_str());
+    }
+    const auto& att_ctrl_err =
+        *std::static_pointer_cast<fsc::NonlinearGeometricControllerError>(
+            p_att_ctrl_err);
 
     pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
     pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;
     pld_att_err.vector.z = att_ctrl_err.attitude_error.z() * 180.0 / M_PI;
 
-    tf2::toMsg(att_ctrl_out.body_rate, pld.body_rate);
+    tf2::toMsg(std::get<Eigen::Vector3d>(att_ctrl_out.input.command),
+               pld.body_rate);
   } else {
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE &
                     mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE &
                     mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
-    pld.orientation = tf2::toMsg(pos_ctrl_out.orientation);
+    pld.orientation =
+        tf2::toMsg(std::get<Eigen::Quaterniond>(pos_ctrl_out.input.command));
 
     // update attitude error to be 0 (because inner controller is disabled)
     pld_att_err.vector.x = 0.0;
@@ -240,11 +266,6 @@ void TrackingControlClient::loadParams(void) {
       pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
 
-  tc_params_.drag_d.diagonal()
-      << pnh.param("tracking_controller/drag_d/x", 0.0),
-      pnh.param("tracking_controller/drag_d/y", 0.0),
-      pnh.param("tracking_controller/drag_d/z", 0.0);
-
   tc_params_.de_lb << pnh.param("tracking_controller/de/lbx",
                                 tc_params_.de_lb.x()),
       pnh.param("tracking_controller/de/lby", tc_params_.de_lb.y()),
@@ -267,8 +288,6 @@ void TrackingControlClient::loadParams(void) {
     std::terminate();
   }
 
-  ROS_INFO_STREAM(
-      ::fmt::format("Tracking controller gains are {}", tc_params_));
   constexpr auto kDefaultAttitudeControllerTau = 0.1;
   ac_params_.time_constant =
       pnh.param("attitude_controller/tau", kDefaultAttitudeControllerTau);
@@ -282,8 +301,8 @@ void TrackingControlClient::loadParams(void) {
       pnh.param("tracking_controller/max_acc", kDefaultMaxAcceleration);
 
   constexpr auto kDefaultMaxTiltAngle = 45.0;
-  tc_params_.max_tilt_ratio = std::tan(::details::deg2rad(
-      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle)));
+  tc_params_.max_tilt_angle = fsc::DegToRad(
+      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle));
 
   tracking_ctrl_.params() = tc_params_;
 
