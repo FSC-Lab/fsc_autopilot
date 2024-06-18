@@ -31,6 +31,14 @@ private:
 
   void mainLoop(const ros::TimerEvent &event);
 
+  void dispPara(void);
+  void initVariables(void);
+  void loadParams(void);
+
+  // get time diff from syste
+  // convert it to double with unit (s)
+  double getTimeDiff(const ros::Time& currTime, const ros::Time& lastTime);
+
   ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;
   AttitudeController att_ctrl_;
@@ -49,11 +57,17 @@ private:
   ros::Publisher setpoint_pos_error_pub_;
   ros::Publisher setpoint_vel_error_pub_;
   ros::Publisher setpoint_attitude_error_pub_;
+  ros::Publisher acc_setpoint_pub_;
+  ros::Publisher ude_estimate_pub_;
 
   MotorCurveType motor_curve_;
 
+  double ros_rate_{0.0};
   ros::Timer timer_;
-  bool enable_inner_controller_{false};
+  bool enable_inner_controller_{false}; // flag indicating wether inner atttiude controller is on
+  double timeStep{0.0}; // stores the time difference between to consecutive calls
+  ros::Time currTime;
+  ros::Time lastTime;
 };
 
 } // namespace nodelib

@@ -56,7 +56,7 @@ struct NonlinearGeometricController
   using Result = typename Base::Result;
   using Parameters = typename Base::Parameters;
 
-  Result runImpl(const State& state, const Reference& refs) const {
+  Result runImpl(const State& state, const Reference& refs, double dt) const {
     const auto rotmat = state.attitude.toRotationMatrix();
     const auto rotmat_sp = refs.attitude.toRotationMatrix();
 
