@@ -93,7 +93,8 @@ void TrackingControlClient::setpointCb(
   validateAndSetVector("Position", msg->positions, refs_.position);
   validateAndSetVector("Velocity", msg->velocities, refs_.velocity);
   validateAndSetVector("Acceleration", msg->accelerations, refs_.acceleration);
-  refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
+  // set yaw
+  refs_.yaw = (450 - (msg->effort[0] - (int)(msg->effort[0] / 360) * 360)) * M_PI / 180.0;    // too lazy to include math and use fmod
 }
 
 void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
@@ -101,7 +102,6 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   currTime = event.current_real;
   timeStep = getTimeDiff(currTime, lastTime);
   lastTime = currTime;
-
   // outerloop control
   const auto &[outer_success, pos_ctrl_out, pos_ctrl_err] =
       tracking_ctrl_.run(state_, refs_, timeStep);
