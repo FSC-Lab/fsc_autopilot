@@ -13,6 +13,7 @@
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
+#include "mavros_msgs/State.h"
 
 namespace nodelib {
 class TrackingControlClient {
@@ -28,12 +29,14 @@ private:
   void twistCb(const geometry_msgs::TwistStampedConstPtr &msg);
   void imuCb(const sensor_msgs::ImuConstPtr &msg);
   void setpointCb(const trajectory_msgs::JointTrajectoryPointConstPtr &msg);
+  void mavrosStateCb(const mavros_msgs::State &msg);
 
   void mainLoop(const ros::TimerEvent &event);
 
   void dispPara(void);
   void initVariables(void);
   void loadParams(void);
+  void setupRosTopics(void);
 
   // get time diff from syste
   // convert it to double with unit (s)
@@ -59,6 +62,7 @@ private:
   ros::Publisher setpoint_attitude_error_pub_;
   ros::Publisher acc_setpoint_pub_;
   ros::Publisher ude_estimate_pub_;
+  mavros_msgs::State mavrosState_;
 
   MotorCurveType motor_curve_;
 

@@ -38,7 +38,7 @@ template <typename Scalar> struct TrackingControllerError {
 };
 
 template <typename Scalar> struct TrackingControllerOutput {
-  Scalar thrust;
+  Scalar thrustPerRotor; // thrust per rotor
   Quaternion<Scalar> orientation;
 };
 
@@ -67,6 +67,9 @@ template <typename Scalar> struct TrackingControllerParameters {
 
   static constexpr Scalar kVehicleMassSentinel{-1.0};
   Scalar vehicle_mass{kVehicleMassSentinel};
+  Vector3<Scalar> vehicle_weight;
+
+  uint32_t num_of_rotors{4};
 
   static constexpr Scalar kDefaultDEBounds{5};
   Vector3<Scalar> de_lb{Vector3<Scalar>::Constant(-kDefaultDEBounds)};
@@ -104,13 +107,11 @@ public:
   using AccelerationSetpointShaping<
       TrackingController>::reshapeAccelerationSetpoint;
 
-  Result runImpl(const State &state, const Reference &refs, double dt) {
+  Result runImpl(const State &state, const Reference &refs, double dt, bool intFlag) {
     using std::atan2;
     TrackingControllerError<double> res;
     Vector3<Scalar> position_error = state.position - refs.position;
     Vector3<Scalar> velocity_error = state.velocity - refs.velocity;
-    // auto position_error = state.position - refs.position;
-    // auto velocity_error = state.velocity - refs.velocity;
 
     if (params_.vehicle_mass < Scalar(0)) {
       return {false,
@@ -126,58 +127,70 @@ public:
       feedback(i) = params_.k_vel[i] * (velocity_error(i) + params_.k_pos[i] * utils::SatSmooth0(position_error(i), 1.0));
     }
 
-    const auto rotor_drag =
-        computeDrag(refs.velocity, refs.acceleration, refs.yaw);
+    // const auto rotor_drag =
+    //     computeDrag(refs.velocity, refs.acceleration, refs.yaw);
 
-    bool ude_effective = (state.position.z() > params_.de_height_threshold);
+    // safety logic:
+    // if int_flag && alti_threshold == true: enable integration
+    // if int_flag == false : reset integration
+    // if alti_threshold == false && int_flag == true: hold integration
 
-    if (ude_effective) {
+    bool passAltThreshold = (state.position.z() > params_.de_height_threshold);
+    // m * g * [0,0,1]
+    Vector3<Scalar> vehicle_weight = -params_.vehicle_mass * kGravity;
 
-      // The expected acceleration: R_ib * [0,0,1] * a_b
-      Vector3<Scalar> expected_accel = state.orientation * Vector3<Scalar>::UnitZ() * thrust_sp_;
-      // m * g * [0,0,1]
-      Vector3<Scalar> vehicle_weight = - params_.vehicle_mass * kGravity;
-      // R_ib * a_b * m
-      Vector3<Scalar> inertial_acc =
-            state.orientation * state.acceleration - kGravity;
+    if (!intFlag) {
+      disturbance_estimate_.setZero();
+    } else if (intFlag && passAltThreshold) {
+      // The expected thrust/acc
+      // f = Rib * [0, 0, 1] * thrust
+      Vector3<Scalar> expected_thrust = state.orientation * Vector3<Scalar>::UnitZ() * thrust_sp_;
+      // The expected interial force: R_ib * [0,0,1] * a_b * m
+      Vector3<Scalar> inertial_force = (state.orientation * state.acceleration - kGravity) * params_.vehicle_mass;
       // disturbance estimator
       disturbance_estimate_ -=
-            params_.de_gain * (disturbance_estimate_ + expected_accel - kGravity - inertial_acc) * dt;
-
-      // Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
-      // std::cout<<"------------------------------\n";
-      // std::cout << std::setprecision(2) << std::fixed;
-      // std::cout<<"expected thrust: "<<expected_accel.transpose().format(a)<<'\n';
-      // std::cout<<"disturbance_estimate_: "<<disturbance_estimate_.transpose().format(a)<<'\n';
-      // std::cout<<"inertial_force: "<<inertial_acc.transpose().format(a)<<'\n';
-      // std::cout<<"dt: "<<dt<<'\n';
-  
+             params_.de_gain * (disturbance_estimate_ + expected_thrust + vehicle_weight - inertial_force) * dt;
       // Bail on insane bounds
       if ((params_.de_lb.array() > params_.de_ub.array()).any()) {
         return {false, {Scalar(0), Quaternion<Scalar>::Identity()}, res};
       }
-      // Clamp disturbance estimate
+      Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+      std::cout<<"------------------------------\n";
+      std::cout<< std::setprecision(2) << std::fixed;
+      std::cout<<"z asix: "<< state.orientation * Vector3<Scalar>::UnitZ() << '\n';
+      // std::cout<<"expected thrust: "<<expected_accel.transpose().format(a)<<'\n';
+      std::cout<<"expected thrust: "<< expected_thrust.transpose().format(a)<<'\n';
+      std::cout<<"disturbance_estimate_: "<<disturbance_estimate_.transpose().format(a)<<'\n';
+      // std::cout<<"inertial_force: "<<inertial_acc.transpose().format(a)<<'\n';
+      std::cout<<"inertial_force: "<<inertial_force.transpose().format(a)<<'\n';
+      // Clamp disturbance estimate: TO DO: add saturation
       // disturbance_estimate_ =
       //     disturbance_estimate_.cwiseMax(params_.de_lb).cwiseMin(params_.de_ub);
-    } else {
-      disturbance_estimate_.setZero();
     }
 
-    const auto accel_sp =
-       reshapeAccelerationSetpoint(-feedback + kGravity - disturbance_estimate_);
+    std::cout<<"dt: "<<dt<<'\n';
+    std::cout<<"intFlag is: "<<std::boolalpha << intFlag <<", altiThreshold: "<<std::boolalpha << passAltThreshold <<'\n';
 
-    auto attitude_sp =
-        details::accelerationVectorToRotation(accel_sp, refs.yaw);
+    // virtual control force: TO DO: check this function so that it take bounds as arguments
+    Vector3<Scalar> liftReq = -feedback - vehicle_weight  - disturbance_estimate_;
 
-    thrust_sp_ = accel_sp.dot(attitude_sp * Vector3Type::UnitZ());
+    // attitude target
+    Matrix3<Scalar> attitude_sp =
+        details::accelerationVectorToRotation(liftReq, refs.yaw);
 
-    res.accel_sp = accel_sp;
+    // total required thrust
+    thrust_sp_ = liftReq.dot(attitude_sp * Vector3Type::UnitZ());
+    std::cout<<"thrust setpoint (N) is: "<< thrust_sp_<<'\n';
+    // required thrust per rotor
+    double thrustPerRotor = thrust_sp_ / static_cast<double>(params_. num_of_rotors);
+    std::cout<<"thrust per rotor (N) is: "<< thrustPerRotor <<'\n';
+    res.accel_sp = liftReq; // TO DO: need to change the name of this variable
     res.position_error = position_error;
     res.velocity_error = velocity_error;
-    res.ude_effective = ude_effective;
+    res.ude_effective = intFlag && passAltThreshold;
     res.ude_output = disturbance_estimate_;
 
-    return {true, {thrust_sp_, Quaternion<Scalar>(attitude_sp)}, res};
+    return {true, {thrustPerRotor, Quaternion<Scalar>(attitude_sp)}, res};
   }
 
   const Parameters &params() const { return params_; }

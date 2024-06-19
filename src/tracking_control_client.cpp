@@ -48,7 +48,11 @@ TrackingControlClient::TrackingControlClient() {
                 nh_.subscribe("tracking_controller/target", 1,
                               &TrackingControlClient::setpointCb, this));
   
-  
+  subs_.emplace(
+      "state"s,
+      nh_.subscribe(fmt::format("{}/state", mavros_ns), 1,
+                    &TrackingControlClient::mavrosStateCb, this));
+
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       fmt::format("{}/setpoint_raw/attitude", mavros_ns), 1);
   setpoint_pos_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
@@ -74,8 +78,9 @@ TrackingControlClient::TrackingControlClient() {
 
 void TrackingControlClient::poseCb(
     const geometry_msgs::PoseStampedConstPtr &msg) {
+  // the estimation only provides position measurement
   tf2::fromMsg(msg->pose.position, state_.position);
-  tf2::fromMsg(msg->pose.orientation, state_.orientation);
+  // tf2::fromMsg(msg->pose.orientation, state_.orientation);
   tf2::fromMsg(msg->pose.orientation, att_ctrl_state_.attitude);
 }
 
@@ -86,6 +91,7 @@ void TrackingControlClient::twistCb(
 
 void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr &msg) {
   tf2::fromMsg(msg->linear_acceleration, state_.acceleration);
+  tf2::fromMsg(msg->orientation, state_.orientation);
 }
 
 void TrackingControlClient::setpointCb(
@@ -93,7 +99,15 @@ void TrackingControlClient::setpointCb(
   validateAndSetVector("Position", msg->positions, refs_.position);
   validateAndSetVector("Velocity", msg->velocities, refs_.velocity);
   validateAndSetVector("Acceleration", msg->accelerations, refs_.acceleration);
-  refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
+  // ? normal to the velocity? if 0, will give some incorrect values
+  // refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
+  // to do: set this one to zero
+  refs_.yaw = 0.0;
+}
+
+void TrackingControlClient::mavrosStateCb(const mavros_msgs::State &msg)
+{
+  mavrosState_ = msg;
 }
 
 void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
@@ -102,9 +116,13 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   timeStep = getTimeDiff(currTime, lastTime);
   lastTime = currTime;
 
+  // check drone status
+  bool intFlag = mavrosState_.connected && mavrosState_.armed
+              && (mavrosState_.mode.compare("OFFBOARD") == 0);
+
   // outerloop control
   const auto &[outer_success, pos_ctrl_out, pos_ctrl_err] =
-      tracking_ctrl_.run(state_, refs_, timeStep);
+      tracking_ctrl_.run(state_, refs_, timeStep, intFlag);
 
   if (!outer_success) {
     ROS_ERROR("Outer controller failed!");
@@ -114,8 +132,12 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   // define output messages
   mavros_msgs::AttitudeTarget pld;
   pld.header.stamp = event.current_real;
+  // convert thrust command to normalized thrust input
+  // if the thrust is an acc command, then the thrust curve must change as well
   pld.thrust = std::clamp(
-      static_cast<float>(motor_curve_.vals(pos_ctrl_out.thrust)), 0.0F, 1.0F);
+      static_cast<float>(motor_curve_.vals(pos_ctrl_out.thrustPerRotor)), 0.0F, 1.0F);
+
+  std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
 
   geometry_msgs::Vector3Stamped pld_pos_err;
   pld_pos_err.header.stamp = event.current_real;
@@ -136,7 +158,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   if (enable_inner_controller_) {
     ROS_DEBUG("Running inner controller");
     const auto &[inner_success, att_ctrl_out, att_ctrl_err] =
-        att_ctrl_.run(att_ctrl_state_, {pos_ctrl_out.orientation}, timeStep);
+        att_ctrl_.run(att_ctrl_state_, {pos_ctrl_out.orientation}, timeStep, intFlag);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
 

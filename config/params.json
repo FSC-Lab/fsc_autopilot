@@ -3,23 +3,24 @@
     "min_acc": 0.0,
     "max_acc": 100.0,
     "motor_curve": [
-      0.26,
+      0.36,
       0.082
     ],
     "k_pos": {
-      "x": 2.0,
-      "y": 2.0,
-      "z": 3.0
+      "x": 1.0,
+      "y": 1.0,
+      "z": 2.0
     },
     "k_vel": {
-      "x": 1.5,
-      "y": 1.5,
+      "x": 2.5,
+      "y": 2.5,
       "z": 3.0
     },
   "vehicle_mass": 1.7,
-  "rate": 60,
+  "num_of_rotors": 4,
+  "rate": 50,
   "de": {
-    "gain": 5.0,
+    "gain": 4.0,
     "height_threshold": 0.2
   }
   },
