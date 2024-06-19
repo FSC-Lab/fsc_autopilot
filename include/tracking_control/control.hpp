@@ -80,6 +80,13 @@ Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
 
   return shaped_thrust_sp;
 }
+
+template <typename Derived, typename Scalar = typename Derived::Scalar>
+Eigen::Matrix<Scalar, Derived::SizeAtCompileTime, 1> SaturationSmoothing(
+    const Eigen::MatrixBase<Derived>& x, Scalar c) {
+  using std::sqrt;
+  return x / sqrt(c + x.squaredNorm());
+}
 }  // namespace fsc
 
 #endif  // TRACKING_CONTROL_CONTROL_HPP_

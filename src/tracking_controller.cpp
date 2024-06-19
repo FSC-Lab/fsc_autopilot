@@ -4,27 +4,33 @@
 
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
+#include "utils/utils.hpp"
 
 namespace fsc {
 TrackingController::TrackingController(TrackingControllerParameters params)
     : params_(std::move(params)) {}
 
 ControlResult TrackingController::run(const VehicleState& state,
-                                      const Setpoint& refs, double dt) {
+                                      const Reference& refs) {
   using std::atan2;
   const auto& [curr_position, curr_orientation] = state.pose;
   const auto& curr_velocity = state.twist.linear;
   const auto& curr_acceleration = state.accel.linear;
   const auto& [ref_position, ref_orientation] = refs.state.pose;
   const auto& ref_velocity = refs.state.twist.linear;
-  const auto& ref_yaw = QuaternionToEulerAngles(ref_orientation).z();
+  const auto& ref_yaw = refs.yaw;
 
   auto error = std::make_shared<TrackingControllerError>();
-  Eigen::Vector3d position_error = curr_position - ref_position;
-  Eigen::Vector3d velocity_error = curr_velocity - ref_velocity;
-
-  error->position_error = std::move(position_error);
-  error->velocity_error = std::move(velocity_error);
+  Eigen::Vector3d raw_position_error = curr_position - ref_position;
+  Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
+  // Eigen::Vector3d
+  const Eigen::Vector3d position_error = raw_position_error.unaryExpr(
+      [](auto&& arg) { return utils::SatSmooth0(arg, 1.0); });
+  const Eigen::Vector3d velocity_error = raw_velocity_error.unaryExpr(
+      [](auto&& arg) { return utils::SatSmooth0(arg, 1.0); });
+  // SaturationSmoothing(raw_velocity_error, 1.0);
+  error->position_error = std::move(raw_position_error);
+  error->velocity_error = std::move(raw_velocity_error);
   if (params_.vehicle_mass < 0.0) {
     return {false, getFallBackSetpoint(), std::move(error), "Mass is negative"};
   }
@@ -32,13 +38,8 @@ ControlResult TrackingController::run(const VehicleState& state,
   // bound the velocity and position error
   // kv * (ev + kp * sat(ep))
   // x and y direction
-  Eigen::Vector3d feedback;
-  for (uint32_t i = 0; i < feedback.size(); i++) {
-    feedback(i) =
-        params_.k_vel[i] *
-        (velocity_error(i) +
-         params_.k_pos[i] * utils::SatSmooth0(position_error(i), 1.0));
-  }
+  const Eigen::Vector3d feedback = params_.k_vel.cwiseProduct(
+      velocity_error + params_.k_pos.cwiseProduct(position_error));
 
   // safety logic:
   // if int_flag && alti_threshold == true: enable integration
@@ -51,10 +52,16 @@ ControlResult TrackingController::run(const VehicleState& state,
   Eigen::Vector3d vehicle_weight = -params_.vehicle_mass * kGravity;
 
   bool int_flag;
-  if (!state.ctx->getFlag("interrupt_ude", int_flag)) {
+  if (!state.ctx->get("interrupt_ude", int_flag)) {
     return {false, getFallBackSetpoint(), std::move(error),
             "Failed to get UDE interrupt"};
   }
+
+  double dt;
+  if (!state.ctx->get("dt", dt)) {
+    return {false, getFallBackSetpoint(), std::move(error), "Failed to get dt"};
+  }
+
   if (!int_flag) {
     disturbance_estimate_.setZero();
   } else if (int_flag && pass_alt_threshold) {
@@ -103,9 +110,11 @@ ControlResult TrackingController::run(const VehicleState& state,
 
   // virtual control force: TO DO: check this function so that it take bounds
   // as arguments
+  Eigen::Vector3d lift_req_raw =
+      -feedback - vehicle_weight - disturbance_estimate_;
   Eigen::Vector3d lift_req = MultirotorThrustLimiting(
-      -feedback - vehicle_weight - disturbance_estimate_,
-      {params_.min_z_accel, params_.max_z_accel}, params_.max_tilt_angle);
+      lift_req_raw, {params_.min_z_accel, params_.max_z_accel},
+      params_.max_tilt_angle);
 
   // attitude target
   Eigen::Matrix3d attitude_sp = thrustVectorToRotation(lift_req, ref_yaw);
@@ -125,8 +134,8 @@ ControlResult TrackingController::run(const VehicleState& state,
 
   error->accel_sp =
       lift_req;  // TO DO: need to change the name of this variable
-  error->position_error = position_error;
-  error->velocity_error = velocity_error;
+  error->position_error = raw_position_error;
+  error->velocity_error = raw_velocity_error;
   error->ude_effective = int_flag && pass_alt_threshold;
   error->ude_output = disturbance_estimate_;
   result.error = std::move(error);

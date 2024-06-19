@@ -6,73 +6,9 @@
 #include <variant>
 
 #include "Eigen/Dense"
+#include "tracking_control/definitions.hpp"
 
 namespace fsc {
-
-struct Pose {
-  Eigen::Vector3d position;
-  Eigen::Quaterniond orientation;
-};
-
-struct Twist {
-  Eigen::Vector3d linear;
-  Eigen::Vector3d angular;
-};
-
-struct Accel {
-  Eigen::Vector3d linear;
-  Eigen::Vector3d angular;
-};
-
-class Context {
- public:
-  virtual ~Context() = default;
-
-  virtual bool getScalar([[maybe_unused]] std::string_view name,
-                         [[maybe_unused]] double& value) {
-    return false;
-  }
-
-  virtual bool setScalar([[maybe_unused]] std::string_view name,
-                         [[maybe_unused]] double value) {
-    return false;
-  }
-
-  [[nodiscard]] virtual bool getFlag([[maybe_unused]] std::string_view name,
-                                     [[maybe_unused]] bool& value) const {
-    return false;
-  }
-
-  virtual bool setFlag([[maybe_unused]] std::string_view name,
-                       [[maybe_unused]] bool value) {
-    return false;
-  }
-
-  virtual bool setScalar([[maybe_unused]] std::string_view name,
-                         [[maybe_unused]] bool value) {
-    return false;
-  }
-
-  [[nodiscard]] virtual bool getArray(
-      [[maybe_unused]] std::string_view name,
-      [[maybe_unused]] Eigen::Ref<Eigen::VectorXd>& x) const {
-    return false;
-  }
-
-  [[nodiscard]] bool setArray(
-      [[maybe_unused]] std::string_view name,
-      [[maybe_unused]] const Eigen::Ref<const Eigen::VectorXd>& value) {
-    return false;
-  }
-};
-
-struct VehicleState {
-  double stamp;
-  Pose pose;
-  Twist twist;
-  Accel accel;
-  std::shared_ptr<Context> ctx;
-};
 
 struct VehicleInput {
   double thrust;
@@ -91,6 +27,18 @@ struct VehicleInput {
   [[nodiscard]] const Eigen::Vector3d& body_rates() const {
     return std::get<Eigen::Vector3d>(command);
   }
+};
+
+enum class ReferenceKind {
+  kPosition = 1 << 0,
+  kAttitude = 1 << 1,
+  kVelocity = 1 << 2,
+  kBodyRate = 1 << 3
+};
+
+struct Reference {
+  VehicleState state;
+  double yaw;
 };
 
 struct Setpoint {
@@ -115,8 +63,8 @@ class ControllerBase {
  public:
   virtual ~ControllerBase() = default;
 
-  virtual ControlResult run(const VehicleState& state, const Setpoint& refs,
-                            double dt) = 0;
+  virtual ControlResult run(const VehicleState& state,
+                            const Reference& refs) = 0;
 
   [[nodiscard]] virtual Setpoint getFallBackSetpoint() const {
     return {VehicleState{}, VehicleInput{0.0, Eigen::Quaterniond::Identity()}};

@@ -25,8 +25,7 @@ struct TrackingControllerError final : public ControlErrorBase {
 
 class TrackingControllerContext : public Context {
  public:
-  [[nodiscard]] bool getFlag(std::string_view name,
-                             bool& value) const override {
+  [[nodiscard]] bool get(std::string_view name, bool& value) const override {
     if (name == "interrupt_ude") {
       value = interrupt_ude_;
       return true;
@@ -34,7 +33,7 @@ class TrackingControllerContext : public Context {
     return false;
   }
 
-  [[nodiscard]] bool setFlag(std::string_view name, bool value) override {
+  [[nodiscard]] bool set(std::string_view name, bool value) override {
     if (name == "interrupt_ude") {
       interrupt_ude_ = value;
       return true;
@@ -42,8 +41,28 @@ class TrackingControllerContext : public Context {
     return false;
   }
 
+  [[nodiscard]] bool get(std::string_view name, double& value) const override {
+    if (name == "dt") {
+      value = dt_;
+      return true;
+    }
+    return false;
+  }
+
+  [[nodiscard]] bool set(std::string_view name, double value) override {
+    if (name == "dt") {
+      if (value < 0.0) {
+        return false;
+      }
+      dt_ = value;
+      return true;
+    }
+    return false;
+  }
+
  private:
   bool interrupt_ude_;
+  double dt_{-1.0};
 };
 
 struct TrackingControllerParameters {
@@ -85,8 +104,7 @@ class TrackingController final : public ControllerBase {
   TrackingController() = default;
   explicit TrackingController(TrackingControllerParameters params);
 
-  ControlResult run(const VehicleState& state, const Setpoint& refs,
-                    double dt) override;
+  ControlResult run(const VehicleState& state, const Reference& refs) override;
 
   [[nodiscard]] const TrackingControllerParameters& params() const {
     return params_;

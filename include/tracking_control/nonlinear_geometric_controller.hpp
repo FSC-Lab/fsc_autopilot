@@ -28,8 +28,7 @@ struct NonlinearGeometricController : public ControllerBase {
 
   explicit NonlinearGeometricController(Parameters params);
 
-  ControlResult run(const VehicleState& state, const Setpoint& refs,
-                    double dt) override;
+  ControlResult run(const VehicleState& state, const Reference& refs) override;
 
   [[nodiscard]] const Parameters& params() const { return params_; }
 

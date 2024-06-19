@@ -8,8 +8,7 @@ NonlinearGeometricController::NonlinearGeometricController(Parameters params)
     : params_(params) {}
 
 ControlResult NonlinearGeometricController::run(const VehicleState& state,
-                                                const Setpoint& refs,
-                                                double dt) {
+                                                const Reference& refs) {
   const auto rotmat = state.pose.orientation.toRotationMatrix();
   const auto rotmat_sp = refs.state.pose.orientation.toRotationMatrix();
 

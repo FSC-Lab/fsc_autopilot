@@ -105,7 +105,7 @@ void TrackingControlClient::setpointCb(
   // ? normal to the velocity? if 0, will give some incorrect values
   // refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
   // to do: set this one to zero
-  // refs_.yaw = 0.0;
+  refs_.yaw = 0.0;
 }
 
 void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
@@ -122,12 +122,18 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   bool int_flag = (mavrosState_.connected != 0U) &&
                   (mavrosState_.armed != 0U) &&
                   (mavrosState_.mode == "OFFBOARD");
-  if (!state_.ctx->setFlag("interrupt_ude", int_flag)) {
+
+  auto ctx = std::make_unique<fsc::TrackingControllerContext>();
+  if (!ctx->set("dt", timeStep)) {
+    ROS_ERROR("Failed to set timestep");
+  }
+  if (!ctx->set("interrupt_ude", int_flag)) {
     ROS_ERROR("Failed to set interrupt_ude flag");
   }
+
   // outerloop control
   const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err, msg] =
-      tracking_ctrl_.run(state_, refs_, timeStep);
+      tracking_ctrl_.run(state_, refs_);
 
   if (p_pos_ctrl_err->name() != "tracking_controller.error") {
     ROS_FATAL(
@@ -174,8 +180,10 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   if (enable_inner_controller_) {
     ROS_DEBUG("Running inner controller");
+    fsc::Reference inner_ref;
+    inner_ref.state.pose.orientation = pos_ctrl_out.state.pose.orientation;
     const auto& [inner_success, att_ctrl_out, p_att_ctrl_err, _] =
-        att_ctrl_.run(state_, pos_ctrl_out, timeStep);
+        att_ctrl_.run(state_, inner_ref);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
 

@@ -48,7 +48,7 @@ class TrackingControlClient {
 
   fsc::VehicleState state_;
 
-  fsc::Setpoint refs_;
+  fsc::Reference refs_;
 
   AttitudeController::Parameters ac_params_;
   fsc::TrackingControllerParameters tc_params_;
