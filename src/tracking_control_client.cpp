@@ -122,9 +122,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   bool int_flag = (mavrosState_.connected != 0U) &&
                   (mavrosState_.armed != 0U) &&
                   (mavrosState_.mode == "OFFBOARD");
-  state_.ctx->setFlag("interrupt_ude", int_flag);
+  if (!state_.ctx->setFlag("interrupt_ude", int_flag)) {
+    ROS_ERROR("Failed to set interrupt_ude flag");
+  }
   // outerloop control
-  const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err] =
+  const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err, msg] =
       tracking_ctrl_.run(state_, refs_, timeStep);
 
   if (p_pos_ctrl_err->name() != "tracking_controller.error") {
@@ -139,7 +141,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
       *std::static_pointer_cast<fsc::TrackingControllerError>(p_pos_ctrl_err);
 
   if (!outer_success) {
-    ROS_ERROR("Outer controller failed!");
+    ROS_ERROR("Outer controller failed!: %s", msg.c_str());
     return;
   }
 
@@ -172,7 +174,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   if (enable_inner_controller_) {
     ROS_DEBUG("Running inner controller");
-    const auto& [inner_success, att_ctrl_out, p_att_ctrl_err] =
+    const auto& [inner_success, att_ctrl_out, p_att_ctrl_err, _] =
         att_ctrl_.run(state_, pos_ctrl_out, timeStep);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;

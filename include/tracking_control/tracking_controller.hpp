@@ -29,6 +29,7 @@ class TrackingControllerContext : public Context {
                              bool& value) const override {
     if (name == "interrupt_ude") {
       value = interrupt_ude_;
+      return true;
     }
     return false;
   }

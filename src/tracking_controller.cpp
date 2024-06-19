@@ -26,7 +26,7 @@ ControlResult TrackingController::run(const VehicleState& state,
   error->position_error = std::move(position_error);
   error->velocity_error = std::move(velocity_error);
   if (params_.vehicle_mass < 0.0) {
-    return {false, getFallBackSetpoint(), std::move(error)};
+    return {false, getFallBackSetpoint(), std::move(error), "Mass is negative"};
   }
 
   // bound the velocity and position error
@@ -52,7 +52,8 @@ ControlResult TrackingController::run(const VehicleState& state,
 
   bool int_flag;
   if (!state.ctx->getFlag("interrupt_ude", int_flag)) {
-    return {false, getFallBackSetpoint(), std::move(error)};
+    return {false, getFallBackSetpoint(), std::move(error),
+            "Failed to get UDE interrupt"};
   }
   if (!int_flag) {
     disturbance_estimate_.setZero();

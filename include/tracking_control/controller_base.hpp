@@ -108,6 +108,7 @@ struct ControlResult {
   bool success{false};
   Setpoint setpoint;
   std::shared_ptr<ControlErrorBase> error;
+  std::string message;
 };
 
 class ControllerBase {
