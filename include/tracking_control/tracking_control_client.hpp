@@ -6,32 +6,32 @@
 
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/TwistStamped.h"
-#include "sensor_msgs/Imu.h"
+#include "mavros_msgs/State.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
+#include "sensor_msgs/Imu.h"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
 #include "trajectory_msgs/JointTrajectoryPoint.h"
-#include "mavros_msgs/State.h"
 
 namespace nodelib {
 class TrackingControlClient {
-public:
+ public:
   using AttitudeController = control::NonlinearGeometricController<double>;
   using TrackingController = control::TrackingController<double>;
   TrackingControlClient();
 
-private:
+ private:
   using MotorCurveType = math::Polynomial<double>;
-  void poseCb(const geometry_msgs::PoseStampedConstPtr &msg);
+  void poseCb(const geometry_msgs::PoseStampedConstPtr& msg);
 
-  void twistCb(const geometry_msgs::TwistStampedConstPtr &msg);
-  void imuCb(const sensor_msgs::ImuConstPtr &msg);
-  void setpointCb(const trajectory_msgs::JointTrajectoryPointConstPtr &msg);
-  void mavrosStateCb(const mavros_msgs::State &msg);
+  void twistCb(const geometry_msgs::TwistStampedConstPtr& msg);
+  void imuCb(const sensor_msgs::ImuConstPtr& msg);
+  void setpointCb(const trajectory_msgs::JointTrajectoryPointConstPtr& msg);
+  void mavrosStateCb(const mavros_msgs::State& msg);
 
-  void mainLoop(const ros::TimerEvent &event);
+  void mainLoop(const ros::TimerEvent& event);
 
   void dispPara(void);
   void initVariables(void);
@@ -68,12 +68,14 @@ private:
 
   double ros_rate_{0.0};
   ros::Timer timer_;
-  bool enable_inner_controller_{false}; // flag indicating wether inner atttiude controller is on
-  double timeStep{0.0}; // stores the time difference between to consecutive calls
+  bool enable_inner_controller_{
+      false};  // flag indicating wether inner atttiude controller is on
+  double timeStep{
+      0.0};  // stores the time difference between to consecutive calls
   ros::Time currTime;
   ros::Time lastTime;
 };
 
-} // namespace nodelib
+}  // namespace nodelib
 
-#endif // TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
+#endif  // TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_

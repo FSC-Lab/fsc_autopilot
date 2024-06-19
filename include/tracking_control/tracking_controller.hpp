@@ -1,6 +1,8 @@
 #ifndef TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
 #define TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
 
+#include <iostream>
+
 #include "Eigen/Dense"
 #include "fmt/format.h"
 #include "fmt/ostream.h"
@@ -10,26 +12,28 @@
 #include "tracking_control/rotor_drag_model.hpp"
 #include "utils/utils.hpp"
 
-#include <iostream>
-
 namespace control {
-template <typename Scalar> class TrackingController;
+template <typename Scalar>
+class TrackingController;
 
-template <typename Scalar> struct TrackingControllerState {
+template <typename Scalar>
+struct TrackingControllerState {
   Vector3<Scalar> position{Vector3<Scalar>::Zero()};
   Quaternion<Scalar> orientation{Quaternion<Scalar>::Identity()};
   Vector3<Scalar> velocity{Vector3<Scalar>::Zero()};
   Vector3<Scalar> acceleration{Vector3<Scalar>::Zero()};
 };
 
-template <typename Scalar> struct TrackingControllerReference {
+template <typename Scalar>
+struct TrackingControllerReference {
   Vector3<Scalar> position{Vector3<Scalar>::Zero()};
   Vector3<Scalar> velocity{Vector3<Scalar>::Zero()};
   Vector3<Scalar> acceleration{Vector3<Scalar>::Zero()};
   Scalar yaw{0};
 };
 
-template <typename Scalar> struct TrackingControllerError {
+template <typename Scalar>
+struct TrackingControllerError {
   Vector3<Scalar> position_error{Vector3<Scalar>::Zero()};
   Vector3<Scalar> velocity_error{Vector3<Scalar>::Zero()};
   Vector3<Scalar> ude_output{Vector3<Scalar>::Zero()};
@@ -37,12 +41,14 @@ template <typename Scalar> struct TrackingControllerError {
   bool ude_effective{false};
 };
 
-template <typename Scalar> struct TrackingControllerOutput {
-  Scalar thrustPerRotor; // thrust per rotor
+template <typename Scalar>
+struct TrackingControllerOutput {
+  Scalar thrustPerRotor;  // thrust per rotor
   Quaternion<Scalar> orientation;
 };
 
-template <typename Scalar> struct TrackingControllerParameters {
+template <typename Scalar>
+struct TrackingControllerParameters {
   static constexpr Scalar kDefaultKpXY{1.0};
   static constexpr Scalar kDefaultKpZ{10.0};
   Vector3<Scalar> k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};
@@ -76,7 +82,8 @@ template <typename Scalar> struct TrackingControllerParameters {
   Vector3<Scalar> de_ub{Vector3<Scalar>::Constant(kDefaultDEBounds)};
 };
 
-template <typename S> struct ControllerTraits<TrackingController<S>> {
+template <typename S>
+struct ControllerTraits<TrackingController<S>> {
   using Scalar = S;
   using State = TrackingControllerState<Scalar>;
   using Reference = TrackingControllerReference<Scalar>;
@@ -90,7 +97,7 @@ class TrackingController
     : public ControllerBase<TrackingController<T>>,
       public RotorDragModel<TrackingController<T>>,
       public AccelerationSetpointShaping<TrackingController<T>> {
-public:
+ public:
   using Scalar = T;
   using Base = ControllerBase<TrackingController<Scalar>>;
 
@@ -107,7 +114,8 @@ public:
   using AccelerationSetpointShaping<
       TrackingController>::reshapeAccelerationSetpoint;
 
-  Result runImpl(const State &state, const Reference &refs, double dt, bool intFlag) {
+  Result runImpl(const State& state, const Reference& refs, double dt,
+                 bool intFlag) {
     using std::atan2;
     TrackingControllerError<double> res;
     Vector3<Scalar> position_error = state.position - refs.position;
@@ -124,7 +132,10 @@ public:
     // x and y direction
     Vector3<Scalar> feedback;
     for (uint32_t i = 0; i < feedback.size(); i++) {
-      feedback(i) = params_.k_vel[i] * (velocity_error(i) + params_.k_pos[i] * utils::SatSmooth0(position_error(i), 1.0));
+      feedback(i) =
+          params_.k_vel[i] *
+          (velocity_error(i) +
+           params_.k_pos[i] * utils::SatSmooth0(position_error(i), 1.0));
     }
 
     // const auto rotor_drag =
@@ -144,35 +155,51 @@ public:
     } else if (intFlag && passAltThreshold) {
       // The expected thrust/acc
       // f = Rib * [0, 0, 1] * thrust
-      Vector3<Scalar> expected_thrust = state.orientation * Vector3<Scalar>::UnitZ() * thrust_sp_;
+      Vector3<Scalar> expected_thrust =
+          state.orientation * Vector3<Scalar>::UnitZ() * thrust_sp_;
       // The expected interial force: R_ib * [0,0,1] * a_b * m
-      Vector3<Scalar> inertial_force = (state.orientation * state.acceleration - kGravity) * params_.vehicle_mass;
+      Vector3<Scalar> inertial_force =
+          (state.orientation * state.acceleration - kGravity) *
+          params_.vehicle_mass;
       // disturbance estimator
-      disturbance_estimate_ -=
-             params_.de_gain * (disturbance_estimate_ + expected_thrust + vehicle_weight - inertial_force) * dt;
+      disturbance_estimate_ -= params_.de_gain *
+                               (disturbance_estimate_ + expected_thrust +
+                                vehicle_weight - inertial_force) *
+                               dt;
       // Bail on insane bounds
       if ((params_.de_lb.array() > params_.de_ub.array()).any()) {
         return {false, {Scalar(0), Quaternion<Scalar>::Identity()}, res};
       }
-      Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
-      std::cout<<"------------------------------\n";
-      std::cout<< std::setprecision(2) << std::fixed;
-      std::cout<<"z asix: "<< state.orientation * Vector3<Scalar>::UnitZ() << '\n';
-      // std::cout<<"expected thrust: "<<expected_accel.transpose().format(a)<<'\n';
-      std::cout<<"expected thrust: "<< expected_thrust.transpose().format(a)<<'\n';
-      std::cout<<"disturbance_estimate_: "<<disturbance_estimate_.transpose().format(a)<<'\n';
-      // std::cout<<"inertial_force: "<<inertial_acc.transpose().format(a)<<'\n';
-      std::cout<<"inertial_force: "<<inertial_force.transpose().format(a)<<'\n';
+      Eigen::IOFormat a{
+          Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+      std::cout << "------------------------------\n";
+      std::cout << std::setprecision(2) << std::fixed;
+      std::cout << "z asix: " << state.orientation * Vector3<Scalar>::UnitZ()
+                << '\n';
+      // std::cout<<"expected thrust:
+      // "<<expected_accel.transpose().format(a)<<'\n';
+      std::cout << "expected thrust: " << expected_thrust.transpose().format(a)
+                << '\n';
+      std::cout << "disturbance_estimate_: "
+                << disturbance_estimate_.transpose().format(a) << '\n';
+      // std::cout<<"inertial_force:
+      // "<<inertial_acc.transpose().format(a)<<'\n';
+      std::cout << "inertial_force: " << inertial_force.transpose().format(a)
+                << '\n';
       // Clamp disturbance estimate: TO DO: add saturation
       // disturbance_estimate_ =
       //     disturbance_estimate_.cwiseMax(params_.de_lb).cwiseMin(params_.de_ub);
     }
 
-    std::cout<<"dt: "<<dt<<'\n';
-    std::cout<<"intFlag is: "<<std::boolalpha << intFlag <<", altiThreshold: "<<std::boolalpha << passAltThreshold <<'\n';
+    std::cout << "dt: " << dt << '\n';
+    std::cout << "intFlag is: " << std::boolalpha << intFlag
+              << ", altiThreshold: " << std::boolalpha << passAltThreshold
+              << '\n';
 
-    // virtual control force: TO DO: check this function so that it take bounds as arguments
-    Vector3<Scalar> liftReq = -feedback - vehicle_weight  - disturbance_estimate_;
+    // virtual control force: TO DO: check this function so that it take bounds
+    // as arguments
+    Vector3<Scalar> liftReq =
+        -feedback - vehicle_weight - disturbance_estimate_;
 
     // attitude target
     Matrix3<Scalar> attitude_sp =
@@ -180,11 +207,12 @@ public:
 
     // total required thrust
     thrust_sp_ = liftReq.dot(attitude_sp * Vector3Type::UnitZ());
-    std::cout<<"thrust setpoint (N) is: "<< thrust_sp_<<'\n';
+    std::cout << "thrust setpoint (N) is: " << thrust_sp_ << '\n';
     // required thrust per rotor
-    double thrustPerRotor = thrust_sp_ / static_cast<double>(params_. num_of_rotors);
-    std::cout<<"thrust per rotor (N) is: "<< thrustPerRotor <<'\n';
-    res.accel_sp = liftReq; // TO DO: need to change the name of this variable
+    double thrustPerRotor =
+        thrust_sp_ / static_cast<double>(params_.num_of_rotors);
+    std::cout << "thrust per rotor (N) is: " << thrustPerRotor << '\n';
+    res.accel_sp = liftReq;  // TO DO: need to change the name of this variable
     res.position_error = position_error;
     res.velocity_error = velocity_error;
     res.ude_effective = intFlag && passAltThreshold;
@@ -193,35 +221,35 @@ public:
     return {true, {thrustPerRotor, Quaternion<Scalar>(attitude_sp)}, res};
   }
 
-  const Parameters &params() const { return params_; }
-  Parameters &params() { return params_; }
+  const Parameters& params() const { return params_; }
+  Parameters& params() { return params_; }
 
   // Expose this member for RotorDragModel mixin
-  const Matrix3<Scalar> &drag_matrix() const { return params_.drag_d; }
+  const Matrix3<Scalar>& drag_matrix() const { return params_.drag_d; }
 
   // Expose these parameters for AccelerationSetpointShaping mixin
   Scalar min_z_accel() const { return params_.min_z_accel; }
   Scalar max_z_accel() const { return params_.max_z_accel; }
   Scalar max_tilt_ratio() const { return params_.max_tilt_ratio; }
 
-private:
+ private:
   Vector3<Scalar> disturbance_estimate_{Vector3<Scalar>::Zero()};
 
   Scalar thrust_sp_{0.0};
   Parameters params_;
 };
-} // namespace control
+}  // namespace control
 
 namespace fmt {
 template <typename Scalar>
 struct formatter<control::TrackingControllerParameters<Scalar>> {
-  constexpr auto parse(format_parse_context & ctx)
+  constexpr auto parse(format_parse_context& ctx)
       -> format_parse_context::iterator {
     return ctx.begin();
   }
 
-  auto format(const control::TrackingControllerParameters<Scalar> &v, format_context &ctx) const
-      -> format_context::iterator {
+  auto format(const control::TrackingControllerParameters<Scalar>& v,
+              format_context& ctx) const -> format_context::iterator {
     Eigen::IOFormat ei_fmt(Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[",
                            "]");
     return format_to(
@@ -234,6 +262,6 @@ struct formatter<control::TrackingControllerParameters<Scalar>> {
         v.de_height_threshold);
   }
 };
-} // namespace fmt
+}  // namespace fmt
 
-#endif // TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
+#endif  // TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_

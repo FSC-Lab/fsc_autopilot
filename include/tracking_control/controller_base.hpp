@@ -37,7 +37,8 @@ class ControllerBase {
   const Parameters& params() const { return derived().params(); }
   Parameters& params() { return derived().params(); }
 
-  Result run(const State& state, const Reference& refs, double dt, bool intFlag) {
+  Result run(const State& state, const Reference& refs, double dt,
+             bool intFlag) {
     return derived().runImpl(state, refs, dt, intFlag);
   }
 };

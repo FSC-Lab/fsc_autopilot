@@ -1,7 +1,8 @@
 #include "tracking_control/tracking_control_client.hpp"
-#include "fmt/ostream.h"
+
 #include "Eigen/src/Core/util/Meta.h"
 #include "fmt/core.h"
+#include "fmt/ostream.h"
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
@@ -11,7 +12,7 @@
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
 
-void validateAndSetVector(std::string_view name, const std::vector<double> &src,
+void validateAndSetVector(std::string_view name, const std::vector<double>& src,
                           Eigen::Ref<Eigen::VectorXd> dst) {
   const auto dst_sz = dst.size();
   const auto src_sz = src.size();
@@ -47,11 +48,10 @@ TrackingControlClient::TrackingControlClient() {
   subs_.emplace("target"s,
                 nh_.subscribe("tracking_controller/target", 1,
                               &TrackingControlClient::setpointCb, this));
-  
-  subs_.emplace(
-      "state"s,
-      nh_.subscribe(fmt::format("{}/state", mavros_ns), 1,
-                    &TrackingControlClient::mavrosStateCb, this));
+
+  subs_.emplace("state"s,
+                nh_.subscribe(fmt::format("{}/state", mavros_ns), 1,
+                              &TrackingControlClient::mavrosStateCb, this));
 
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       fmt::format("{}/setpoint_raw/attitude", mavros_ns), 1);
@@ -68,7 +68,7 @@ TrackingControlClient::TrackingControlClient() {
 
   // show the parameters
   dispPara();
-  
+
   // initialize variables
   initVariables();
 
@@ -77,7 +77,7 @@ TrackingControlClient::TrackingControlClient() {
 }
 
 void TrackingControlClient::poseCb(
-    const geometry_msgs::PoseStampedConstPtr &msg) {
+    const geometry_msgs::PoseStampedConstPtr& msg) {
   // the estimation only provides position measurement
   tf2::fromMsg(msg->pose.position, state_.position);
   // tf2::fromMsg(msg->pose.orientation, state_.orientation);
@@ -85,17 +85,17 @@ void TrackingControlClient::poseCb(
 }
 
 void TrackingControlClient::twistCb(
-    const geometry_msgs::TwistStampedConstPtr &msg) {
+    const geometry_msgs::TwistStampedConstPtr& msg) {
   tf2::fromMsg(msg->twist.linear, state_.velocity);
 }
 
-void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr &msg) {
+void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
   tf2::fromMsg(msg->linear_acceleration, state_.acceleration);
   tf2::fromMsg(msg->orientation, state_.orientation);
 }
 
 void TrackingControlClient::setpointCb(
-    const trajectory_msgs::JointTrajectoryPointConstPtr &msg) {
+    const trajectory_msgs::JointTrajectoryPointConstPtr& msg) {
   validateAndSetVector("Position", msg->positions, refs_.position);
   validateAndSetVector("Velocity", msg->velocities, refs_.velocity);
   validateAndSetVector("Acceleration", msg->accelerations, refs_.acceleration);
@@ -105,23 +105,22 @@ void TrackingControlClient::setpointCb(
   refs_.yaw = 0.0;
 }
 
-void TrackingControlClient::mavrosStateCb(const mavros_msgs::State &msg)
-{
+void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
   mavrosState_ = msg;
 }
 
-void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
+void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   // calculate time step
   currTime = event.current_real;
   timeStep = getTimeDiff(currTime, lastTime);
   lastTime = currTime;
 
   // check drone status
-  bool intFlag = mavrosState_.connected && mavrosState_.armed
-              && (mavrosState_.mode.compare("OFFBOARD") == 0);
+  bool intFlag = mavrosState_.connected && mavrosState_.armed &&
+                 (mavrosState_.mode.compare("OFFBOARD") == 0);
 
   // outerloop control
-  const auto &[outer_success, pos_ctrl_out, pos_ctrl_err] =
+  const auto& [outer_success, pos_ctrl_out, pos_ctrl_err] =
       tracking_ctrl_.run(state_, refs_, timeStep, intFlag);
 
   if (!outer_success) {
@@ -135,9 +134,10 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   // convert thrust command to normalized thrust input
   // if the thrust is an acc command, then the thrust curve must change as well
   pld.thrust = std::clamp(
-      static_cast<float>(motor_curve_.vals(pos_ctrl_out.thrustPerRotor)), 0.0F, 1.0F);
+      static_cast<float>(motor_curve_.vals(pos_ctrl_out.thrustPerRotor)), 0.0F,
+      1.0F);
 
-  std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
+  std::cout << "normalized thrust is: " << pld.thrust << '\n';
 
   geometry_msgs::Vector3Stamped pld_pos_err;
   pld_pos_err.header.stamp = event.current_real;
@@ -157,8 +157,8 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
 
   if (enable_inner_controller_) {
     ROS_DEBUG("Running inner controller");
-    const auto &[inner_success, att_ctrl_out, att_ctrl_err] =
-        att_ctrl_.run(att_ctrl_state_, {pos_ctrl_out.orientation}, timeStep, intFlag);
+    const auto& [inner_success, att_ctrl_out, att_ctrl_err] = att_ctrl_.run(
+        att_ctrl_state_, {pos_ctrl_out.orientation}, timeStep, intFlag);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
 
@@ -188,12 +188,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent &event) {
   setpoint_attitude_error_pub_.publish(pld_att_err);
   ude_estimate_pub_.publish(ude_estimate);
   acc_setpoint_pub_.publish(accsp);
-
 }
 
-void TrackingControlClient::dispPara(void){
+void TrackingControlClient::dispPara(void) {
   // offboard control mode
-  if( enable_inner_controller_) {
+  if (enable_inner_controller_) {
     ROS_INFO("Inner controller (rate mode) enabled!");
   } else {
     ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
@@ -202,8 +201,10 @@ void TrackingControlClient::dispPara(void){
   ROS_INFO("Quadrotor mass: %f", tc_params_.vehicle_mass);
   // control parameters
   ROS_INFO("Tracking controller gains:");
-  ROS_INFO("k_pos/x: %f, k_pos/y: %f, k_pos/z: %f", tc_params_.k_pos[0], tc_params_.k_pos[1], tc_params_.k_pos[2]);
-  ROS_INFO("k_vel/x: %f, k_vel/y: %f, k_vel/z: %f", tc_params_.k_vel[0], tc_params_.k_vel[1], tc_params_.k_vel[2]);
+  ROS_INFO("k_pos/x: %f, k_pos/y: %f, k_pos/z: %f", tc_params_.k_pos[0],
+           tc_params_.k_pos[1], tc_params_.k_pos[2]);
+  ROS_INFO("k_vel/x: %f, k_vel/y: %f, k_vel/z: %f", tc_params_.k_vel[0],
+           tc_params_.k_vel[1], tc_params_.k_vel[2]);
 
   // controller constraints
 
@@ -215,11 +216,9 @@ void TrackingControlClient::dispPara(void){
   // ude parameters
   ROS_INFO("de_gain: %f", tc_params_.de_gain);
   ROS_INFO("de_height_threshold: %f", tc_params_.de_height_threshold);
-
 }
 
-void TrackingControlClient::loadParams(void)
-{
+void TrackingControlClient::loadParams(void) {
   ros::NodeHandle pnh("~");
   // put load parameters into a function
   enable_inner_controller_ =
@@ -292,24 +291,22 @@ void TrackingControlClient::loadParams(void)
                                    std::vector<double>{0.1, 0.05});
   motor_curve_ = MotorCurveType(Eigen::VectorXd::Map(
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
-
-
 }
 
-void TrackingControlClient::initVariables(void)
-{
+void TrackingControlClient::initVariables(void) {
   /*
-   * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is called 'secs')
-   * stamp.nsec: nanoseconds since stamp_secs (in Python the variable is called 'nsecs')
-  */
+   * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is
+   * called 'secs') stamp.nsec: nanoseconds since stamp_secs (in Python the
+   * variable is called 'nsecs')
+   */
   currTime = ros::Time::now();
   lastTime = ros::Time::now();
 }
 
-double TrackingControlClient::getTimeDiff(const ros::Time& currTime, const ros::Time& lastTime)
-{
+double TrackingControlClient::getTimeDiff(const ros::Time& currTime,
+                                          const ros::Time& lastTime) {
   ros::Duration diff = currTime - lastTime;
   return static_cast<double>(diff.toSec());
 }
 
-}  // namespace nodelib11
+}  // namespace nodelib
