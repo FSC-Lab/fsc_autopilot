@@ -1,8 +1,9 @@
 #include "tracking_control/tracking_controller.hpp"
 
+#include <iomanip>
+
+#include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
-#include "tracking_control/internal/internal.hpp"
-#include "tracking_control/multirotor_acceleration_limiter.hpp"
 
 namespace fsc {
 TrackingController::TrackingController(TrackingControllerParameters params)
@@ -18,21 +19,14 @@ ControlResult TrackingController::run(const VehicleState& state,
   const auto& ref_velocity = refs.state.twist.linear;
   const auto& ref_yaw = QuaternionToEulerAngles(ref_orientation).z();
 
-  ControlResult result;
   auto error = std::make_shared<TrackingControllerError>();
   Eigen::Vector3d position_error = curr_position - ref_position;
   Eigen::Vector3d velocity_error = curr_velocity - ref_velocity;
-  // auto position_error = state.position - ref_position;
-  // auto velocity_error = state.velocity - ref_velocity;
 
   error->position_error = std::move(position_error);
   error->velocity_error = std::move(velocity_error);
   if (params_.vehicle_mass < 0.0) {
-    result.success = false;
-    result.setpoint.input.command = Eigen::Quaterniond::Identity();
-    result.setpoint.input.thrust = 0.0;
-    result.error = std::move(error);
-    return result;
+    return {false, getFallBackSetpoint(), std::move(error)};
   }
 
   // bound the velocity and position error
@@ -46,64 +40,93 @@ ControlResult TrackingController::run(const VehicleState& state,
          params_.k_pos[i] * utils::SatSmooth0(position_error(i), 1.0));
   }
 
-  bool ude_effective = (curr_position.z() > params_.de_height_threshold);
+  // safety logic:
+  // if int_flag && alti_threshold == true: enable integration
+  // if int_flag == false : reset integration
+  // if alti_threshold == false && int_flag == true: hold integration
 
-  if (ude_effective) {
-    // The expected acceleration: R_ib * [0,0,1] * a_b
-    Eigen::Vector3d expected_accel =
-        curr_orientation * Eigen::Vector3d::UnitZ() * thrust_sp_;
-    // m * g * [0,0,1]
-    Eigen::Vector3d vehicle_weight = -params_.vehicle_mass * kGravity;
-    // R_ib * a_b * m
-    Eigen::Vector3d inertial_acc =
-        curr_orientation * curr_acceleration - kGravity;
+  bool pass_alt_threshold =
+      (state.pose.position.z() > params_.de_height_threshold);
+  // m * g * [0,0,1]
+  Eigen::Vector3d vehicle_weight = -params_.vehicle_mass * kGravity;
+
+  bool int_flag;
+  if (!state.ctx->getFlag("interrupt_ude", int_flag)) {
+    return {false, getFallBackSetpoint(), std::move(error)};
+  }
+  if (!int_flag) {
+    disturbance_estimate_.setZero();
+  } else if (int_flag && pass_alt_threshold) {
+    // The expected thrust/acc
+    // f = Rib * [0, 0, 1] * thrust
+    Eigen::Vector3d expected_thrust =
+        state.pose.orientation * Eigen::Vector3d::UnitZ() * thrust_sp_;
+    // The expected interial force: R_ib * [0,0,1] * a_b * m
+    Eigen::Vector3d inertial_force =
+        (state.pose.orientation * state.accel.linear - kGravity) *
+        params_.vehicle_mass;
     // disturbance estimator
-    disturbance_estimate_ -=
-        params_.de_gain *
-        (disturbance_estimate_ + expected_accel - kGravity - inertial_acc) * dt;
-
-    // Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[",
-    // "]"}; std::cout<<"------------------------------\n"; std::cout <<
-    // std::setprecision(2) << std::fixed; std::cout<<"expected thrust:
-    // "<<expected_accel.transpose().format(a)<<'\n';
-    // std::cout<<"disturbance_estimate_:
-    // "<<disturbance_estimate_.transpose().format(a)<<'\n';
-    // std::cout<<"inertial_force:
-    // "<<inertial_acc.transpose().format(a)<<'\n'; std::cout<<"dt:
-    // "<<dt<<'\n';
-
+    disturbance_estimate_ -= params_.de_gain *
+                             (disturbance_estimate_ + expected_thrust +
+                              vehicle_weight - inertial_force) *
+                             dt;
     // Bail on insane bounds
     if ((params_.de_lb.array() > params_.de_ub.array()).any()) {
-      result.success = false;
-      result.setpoint.input.command = Eigen::Quaterniond::Identity();
-      result.setpoint.input.thrust = 0.0;
-      result.error = std::move(error);
-
-      return result;
+      return {false, getFallBackSetpoint(), std::move(error)};
     }
-    // Clamp disturbance estimate
+
+    Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+    std::cout << "------------------------------\n";
+    std::cout << std::setprecision(2) << std::fixed;
+    std::cout << "z asix: " << state.pose.orientation * Eigen::Vector3d::UnitZ()
+              << '\n';
+    // std::cout<<"expected thrust:
+    // "<<expected_accel.transpose().format(a)<<'\n';
+    std::cout << "expected thrust: " << expected_thrust.transpose().format(a)
+              << '\n';
+    std::cout << "disturbance_estimate_: "
+              << disturbance_estimate_.transpose().format(a) << '\n';
+    // std::cout<<"inertial_force:
+    // "<<inertial_acc.transpose().format(a)<<'\n';
+    std::cout << "inertial_force: " << inertial_force.transpose().format(a)
+              << '\n';
+    // Clamp disturbance estimate: TO DO: add saturation
     // disturbance_estimate_ =
     //     disturbance_estimate_.cwiseMax(params_.de_lb).cwiseMin(params_.de_ub);
-  } else {
-    disturbance_estimate_.setZero();
   }
 
-  const auto accel_sp = MultirotorAccelerationLimiting(
-      -feedback + kGravity - disturbance_estimate_,
+  std::cout << "dt: " << dt << '\n';
+  std::cout << "intFlag is: " << std::boolalpha << int_flag
+            << ", altiThreshold: " << std::boolalpha << pass_alt_threshold
+            << '\n';
+
+  // virtual control force: TO DO: check this function so that it take bounds
+  // as arguments
+  Eigen::Vector3d lift_req = MultirotorThrustLimiting(
+      -feedback - vehicle_weight - disturbance_estimate_,
       {params_.min_z_accel, params_.max_z_accel}, params_.max_tilt_angle);
 
-  auto attitude_sp = accelerationVectorToRotation(accel_sp, ref_yaw);
+  // attitude target
+  Eigen::Matrix3d attitude_sp = thrustVectorToRotation(lift_req, ref_yaw);
 
-  thrust_sp_ = accel_sp.dot(attitude_sp * Eigen::Vector3d::UnitZ());
+  // total required thrust
+  thrust_sp_ = lift_req.dot(attitude_sp * Eigen::Vector3d::UnitZ());
+  std::cout << "thrust setpoint (N) is: " << thrust_sp_ << '\n';
+  // required thrust per rotor
+  double thrust_per_rotor =
+      thrust_sp_ / static_cast<double>(params_.num_of_rotors);
+  std::cout << "thrust per rotor (N) is: " << thrust_per_rotor << '\n';
 
+  ControlResult result;
   result.success = true;
-  result.setpoint.input.thrust = thrust_sp_;
+  result.setpoint.input.thrust = thrust_per_rotor;
   result.setpoint.input.command = Eigen::Quaterniond(attitude_sp);
 
-  error->accel_sp = accel_sp;
+  error->accel_sp =
+      lift_req;  // TO DO: need to change the name of this variable
   error->position_error = position_error;
   error->velocity_error = velocity_error;
-  error->ude_effective = ude_effective;
+  error->ude_effective = int_flag && pass_alt_threshold;
   error->ude_output = disturbance_estimate_;
   result.error = std::move(error);
 

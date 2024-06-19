@@ -24,11 +24,54 @@ struct Accel {
   Eigen::Vector3d angular;
 };
 
+class Context {
+ public:
+  virtual ~Context() = default;
+
+  virtual bool getScalar([[maybe_unused]] std::string_view name,
+                         [[maybe_unused]] double& value) {
+    return false;
+  }
+
+  virtual bool setScalar([[maybe_unused]] std::string_view name,
+                         [[maybe_unused]] double value) {
+    return false;
+  }
+
+  [[nodiscard]] virtual bool getFlag([[maybe_unused]] std::string_view name,
+                                     [[maybe_unused]] bool& value) const {
+    return false;
+  }
+
+  virtual bool setFlag([[maybe_unused]] std::string_view name,
+                       [[maybe_unused]] bool value) {
+    return false;
+  }
+
+  virtual bool setScalar([[maybe_unused]] std::string_view name,
+                         [[maybe_unused]] bool value) {
+    return false;
+  }
+
+  [[nodiscard]] virtual bool getArray(
+      [[maybe_unused]] std::string_view name,
+      [[maybe_unused]] Eigen::Ref<Eigen::VectorXd>& x) const {
+    return false;
+  }
+
+  [[nodiscard]] bool setArray(
+      [[maybe_unused]] std::string_view name,
+      [[maybe_unused]] const Eigen::Ref<const Eigen::VectorXd>& value) {
+    return false;
+  }
+};
+
 struct VehicleState {
   double stamp;
   Pose pose;
   Twist twist;
   Accel accel;
+  std::shared_ptr<Context> ctx;
 };
 
 struct VehicleInput {
@@ -55,8 +98,8 @@ struct Setpoint {
   VehicleInput input;
 };
 
-struct ControlErrorBase {
-  virtual ~ControlErrorBase() = default;
+struct ControlErrorBase : public Context {
+  ~ControlErrorBase() override = default;
 
   [[nodiscard]] virtual std::string name() const = 0;
 };
@@ -65,14 +108,6 @@ struct ControlResult {
   bool success{false};
   Setpoint setpoint;
   std::shared_ptr<ControlErrorBase> error;
-
-  template <typename T>
-  std::shared_ptr<T> errorAs(const std::string& name) {
-    if (error->name() == name) {
-      return std::static_pointer_cast<T>(error);
-    }
-    return nullptr;
-  }
 };
 
 class ControllerBase {
@@ -81,6 +116,10 @@ class ControllerBase {
 
   virtual ControlResult run(const VehicleState& state, const Setpoint& refs,
                             double dt) = 0;
+
+  [[nodiscard]] virtual Setpoint getFallBackSetpoint() const {
+    return {VehicleState{}, VehicleInput{0.0, Eigen::Quaterniond::Identity()}};
+  }
 
   [[nodiscard]] virtual std::string name() const = 0;
 };

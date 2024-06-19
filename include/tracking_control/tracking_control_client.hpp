@@ -33,10 +33,10 @@ class TrackingControlClient {
 
   void mainLoop(const ros::TimerEvent& event);
 
-  void dispPara(void);
-  void initVariables(void);
-  void loadParams(void);
-  void setupRosTopics(void);
+  void dispPara();
+  void initVariables();
+  void loadParams();
+  void setupRosTopics();
 
   // get time diff from syste
   // convert it to double with unit (s)

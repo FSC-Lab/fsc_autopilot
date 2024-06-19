@@ -6,7 +6,6 @@
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
-#include "tracking_control/internal/internal.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
 
@@ -26,6 +25,8 @@ void validateAndSetVector(std::string_view name, const std::vector<double>& src,
 }
 
 TrackingControlClient::TrackingControlClient() {
+  state_.ctx = std::make_shared<fsc::TrackingControllerContext>();
+
   ros::NodeHandle pnh("~");
   loadParams();
   ros_rate_ = pnh.param("tracking_controller/rate", 30);
@@ -87,7 +88,7 @@ void TrackingControlClient::poseCb(
 
 void TrackingControlClient::twistCb(
     const geometry_msgs::TwistStampedConstPtr& msg) {
-  tf2::fromMsg(msg->twist.linear, state_.velocity);
+  tf2::fromMsg(msg->twist.linear, state_.twist.linear);
 }
 
 void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
@@ -97,13 +98,14 @@ void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
 
 void TrackingControlClient::setpointCb(
     const trajectory_msgs::JointTrajectoryPointConstPtr& msg) {
-  validateAndSetVector("Position", msg->positions, refs_.position);
-  validateAndSetVector("Velocity", msg->velocities, refs_.velocity);
-  validateAndSetVector("Acceleration", msg->accelerations, refs_.acceleration);
+  validateAndSetVector("Position", msg->positions, refs_.state.pose.position);
+  validateAndSetVector("Velocity", msg->velocities, refs_.state.twist.linear);
+  validateAndSetVector("Acceleration", msg->accelerations,
+                       refs_.state.accel.linear);
   // ? normal to the velocity? if 0, will give some incorrect values
   // refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
   // to do: set this one to zero
-  refs_.yaw = 0.0;
+  // refs_.yaw = 0.0;
 }
 
 void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
@@ -117,9 +119,10 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   lastTime = currTime;
 
   // check drone status
-  bool intFlag = mavrosState_.connected && mavrosState_.armed &&
-                 (mavrosState_.mode.compare("OFFBOARD") == 0);
-
+  bool int_flag = (mavrosState_.connected != 0U) &&
+                  (mavrosState_.armed != 0U) &&
+                  (mavrosState_.mode == "OFFBOARD");
+  state_.ctx->setFlag("interrupt_ude", int_flag);
   // outerloop control
   const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err] =
       tracking_ctrl_.run(state_, refs_, timeStep);
@@ -146,7 +149,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   // convert thrust command to normalized thrust input
   // if the thrust is an acc command, then the thrust curve must change as well
   pld.thrust = std::clamp(
-      static_cast<float>(motor_curve_.vals(pos_ctrl_out.thrustPerRotor)), 0.0F,
+      static_cast<float>(motor_curve_.vals(pos_ctrl_out.input.thrust)), 0.0F,
       1.0F);
 
   std::cout << "normalized thrust is: " << pld.thrust << '\n';
@@ -216,7 +219,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   acc_setpoint_pub_.publish(accsp);
 }
 
-void TrackingControlClient::dispPara(void) {
+void TrackingControlClient::dispPara() {
   // offboard control mode
   if (enable_inner_controller_) {
     ROS_INFO("Inner controller (rate mode) enabled!");
@@ -244,7 +247,7 @@ void TrackingControlClient::dispPara(void) {
   ROS_INFO("de_height_threshold: %f", tc_params_.de_height_threshold);
 }
 
-void TrackingControlClient::loadParams(void) {
+void TrackingControlClient::loadParams() {
   ros::NodeHandle pnh("~");
   // put load parameters into a function
   enable_inner_controller_ =
@@ -301,8 +304,8 @@ void TrackingControlClient::loadParams(void) {
       pnh.param("tracking_controller/max_acc", kDefaultMaxAcceleration);
 
   constexpr auto kDefaultMaxTiltAngle = 45.0;
-  tc_params_.max_tilt_angle = fsc::DegToRad(
-      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle));
+  tc_params_.max_tilt_angle =
+      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle);
 
   tracking_ctrl_.params() = tc_params_;
 
@@ -312,7 +315,7 @@ void TrackingControlClient::loadParams(void) {
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
 }
 
-void TrackingControlClient::initVariables(void) {
+void TrackingControlClient::initVariables() {
   /*
    * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is
    * called 'secs') stamp.nsec: nanoseconds since stamp_secs (in Python the

@@ -8,7 +8,6 @@
 #include "fmt/format.h"
 #include "fmt/ostream.h"
 #include "tracking_control/controller_base.hpp"
-#include "tracking_control/internal/internal.hpp"
 #include "utils/utils.hpp"
 
 namespace fsc {
@@ -22,6 +21,28 @@ struct TrackingControllerError final : public ControlErrorBase {
   Eigen::Vector3d ude_output{Eigen::Vector3d::Zero()};
   Eigen::Vector3d accel_sp{Eigen::Vector3d::Zero()};
   bool ude_effective{false};
+};
+
+class TrackingControllerContext : public Context {
+ public:
+  [[nodiscard]] bool getFlag(std::string_view name,
+                             bool& value) const override {
+    if (name == "interrupt_ude") {
+      value = interrupt_ude_;
+    }
+    return false;
+  }
+
+  [[nodiscard]] bool setFlag(std::string_view name, bool value) override {
+    if (name == "interrupt_ude") {
+      interrupt_ude_ = value;
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  bool interrupt_ude_;
 };
 
 struct TrackingControllerParameters {
@@ -46,9 +67,8 @@ struct TrackingControllerParameters {
   static constexpr double kDefaultDEHeightThreshold{0.1};
   double de_height_threshold{kDefaultDEHeightThreshold};
 
-  static constexpr Scalar kVehicleMassSentinel{-1.0};
-  Scalar vehicle_mass{kVehicleMassSentinel};
-  Vector3<Scalar> vehicle_weight;
+  static constexpr double kVehicleMassSentinel{-1.0};
+  double vehicle_mass{kVehicleMassSentinel};
 
   uint32_t num_of_rotors{4};
 
