@@ -24,10 +24,10 @@ ControlResult TrackingController::run(const VehicleState& state,
   Eigen::Vector3d raw_position_error = curr_position - ref_position;
   Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
   // Eigen::Vector3d
-  const Eigen::Vector3d position_error = raw_position_error.unaryExpr(
-      [](auto&& arg) { return utils::SatSmooth0(arg, 1.0); });
-  const Eigen::Vector3d velocity_error = raw_velocity_error.unaryExpr(
-      [](auto&& arg) { return utils::SatSmooth0(arg, 1.0); });
+  const Eigen::Vector3d position_error =
+      SaturationSmoothing(raw_position_error, 1.0);
+  const Eigen::Vector3d velocity_error =
+      SaturationSmoothing(raw_velocity_error, 1.0);
   // SaturationSmoothing(raw_velocity_error, 1.0);
   error->position_error = std::move(raw_position_error);
   error->velocity_error = std::move(raw_velocity_error);
