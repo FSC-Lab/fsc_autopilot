@@ -7,6 +7,7 @@
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
+#include "tracking_control/Tracking.h"
 
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
@@ -66,6 +67,8 @@ TrackingControlClient::TrackingControlClient() {
       "tracking_controller/ude_estimate", 1);
   acc_setpoint_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
       "tracking_controller/acc_setpoint", 1);
+  debug_data_pub_ = nh_.advertise<tracking_control::Tracking>(
+      "tracking_controller/output_data", 1);
 
   // show the parameters
   dispPara();
@@ -155,6 +158,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   // define output messages
   mavros_msgs::AttitudeTarget pld;
+  tracking_control::Tracking pld_debug_data;
   pld.header.stamp = event.current_real;
   // convert thrust command to normalized thrust input
   // if the thrust is an acc command, then the thrust curve must change as well
@@ -162,7 +166,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
       static_cast<float>(motor_curve_.vals(pos_ctrl_out.input.thrust)), 0.0F,
       1.0F);
 
-  std::cout << "normalized thrust is: " << pld.thrust << '\n';
+  //std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
 
   geometry_msgs::Vector3Stamped pld_pos_err;
   pld_pos_err.header.stamp = event.current_real;
@@ -220,6 +224,21 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
     pld_att_err.vector.z = 0.0;
   }
 
+  // update debug output
+  pld_debug_data.intFlag = pos_ctrl_err.intFlag;
+  pld_debug_data.altiThreshold = pos_ctrl_err.altiThreshold;
+  pld_debug_data.thrustSetpoint = pos_ctrl_err.thrust_sp;
+  pld_debug_data.thrustPerRotor = pos_ctrl_err.thrustPerRotor;
+  pld_debug_data.expectedThrust.x = pos_ctrl_err.expectedThrust.x();
+  pld_debug_data.expectedThrust.y = pos_ctrl_err.expectedThrust.y();
+  pld_debug_data.expectedThrust.z = pos_ctrl_err.expectedThrust.z();
+  pld_debug_data.disturbanceEstimate.x = pos_ctrl_err.disturbanceEstimate.x();
+  pld_debug_data.disturbanceEstimate.y = pos_ctrl_err.disturbanceEstimate.y();
+  pld_debug_data.disturbanceEstimate.z = pos_ctrl_err.disturbanceEstimate.z();
+  pld_debug_data.inertialForce.x = pos_ctrl_err.inertialForce.x();
+  pld_debug_data.inertialForce.y = pos_ctrl_err.inertialForce.y();
+  pld_debug_data.inertialForce.z = pos_ctrl_err.inertialForce.z();
+
   tf2::toMsg(pos_ctrl_err.ude_output, ude_estimate.vector);
   tf2::toMsg(pos_ctrl_err.accel_sp, accsp.vector);
 
@@ -229,6 +248,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   setpoint_attitude_error_pub_.publish(pld_att_err);
   ude_estimate_pub_.publish(ude_estimate);
   acc_setpoint_pub_.publish(accsp);
+  debug_data_pub_.publish(pld_debug_data);
 }
 
 void TrackingControlClient::dispPara() {

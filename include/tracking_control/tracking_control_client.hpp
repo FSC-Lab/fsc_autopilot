@@ -60,6 +60,7 @@ class TrackingControlClient {
   ros::Publisher setpoint_attitude_error_pub_;
   ros::Publisher acc_setpoint_pub_;
   ros::Publisher ude_estimate_pub_;
+  ros::Publisher debug_data_pub_;
   mavros_msgs::State mavrosState_;
 
   MotorCurveType motor_curve_;

@@ -1,0 +1,7 @@
+bool intFlag
+bool altiThreshold
+float32 thrustSetpoint
+float32 thrustPerRotor
+geometry_msgs/Vector3 expectedThrust
+geometry_msgs/Vector3 disturbanceEstimate
+geometry_msgs/Vector3 inertialForce

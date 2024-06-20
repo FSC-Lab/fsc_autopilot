@@ -20,6 +20,16 @@ struct TrackingControllerError final : public ControlErrorBase {
   Eigen::Vector3d velocity_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d ude_output{Eigen::Vector3d::Zero()};
   Eigen::Vector3d accel_sp{Eigen::Vector3d::Zero()};
+
+  // msg output
+  bool altiThreshold{false};
+  bool intFlag{false};
+  float thrustPerRotor; // thrust per rotor
+  float thrust_sp; // thrust setpoint
+  Eigen::Vector3d expectedThrust{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d inertialForce{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d disturbanceEstimate{Eigen::Vector3d::Zero()};
+
   bool ude_effective{false};
 };
 
