@@ -7,12 +7,31 @@ find_package(fmt REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS roscpp tf2_eigen geometry_msgs std_msgs std_srvs)
 
+## add custom messages
+
+add_message_files(
+  DIRECTORY msg
+  FILES
+  Tracking.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
+
+
 catkin_package()
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
+
+
+
+
 
 add_library(tracking_control_client src/tracking_control_client.cpp)
 add_library(utils src/utils.cpp)

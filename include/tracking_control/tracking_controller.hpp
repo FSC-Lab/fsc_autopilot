@@ -9,7 +9,6 @@
 #include "tracking_control/internal/internal.hpp"
 #include "tracking_control/rotor_drag_model.hpp"
 #include "utils/utils.hpp"
-
 #include <iostream>
 
 namespace control {
@@ -35,6 +34,16 @@ template <typename Scalar> struct TrackingControllerError {
   Vector3<Scalar> ude_output{Vector3<Scalar>::Zero()};
   Vector3<Scalar> accel_sp{Vector3<Scalar>::Zero()};
   bool ude_effective{false};
+
+
+  // msg output
+  bool altiThreshold{false};
+  bool intFlag{false};
+  float thrustPerRotor; // thrust per rotor
+  float thrust_sp; // thrust setpoint
+  Vector3<Scalar> expectedThrust{Vector3<Scalar>::Zero()};
+  Vector3<Scalar> inertialForce{Vector3<Scalar>::Zero()};
+  Vector3<Scalar> disturbanceEstimate{Vector3<Scalar>::Zero()};
 };
 
 template <typename Scalar> struct TrackingControllerOutput {
@@ -155,21 +164,30 @@ public:
         return {false, {Scalar(0), Quaternion<Scalar>::Identity()}, res};
       }
       Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
-      std::cout<<"------------------------------\n";
-      std::cout<< std::setprecision(2) << std::fixed;
-      std::cout<<"z asix: "<< state.orientation * Vector3<Scalar>::UnitZ() << '\n';
-      // std::cout<<"expected thrust: "<<expected_accel.transpose().format(a)<<'\n';
-      std::cout<<"expected thrust: "<< expected_thrust.transpose().format(a)<<'\n';
-      std::cout<<"disturbance_estimate_: "<<disturbance_estimate_.transpose().format(a)<<'\n';
-      // std::cout<<"inertial_force: "<<inertial_acc.transpose().format(a)<<'\n';
-      std::cout<<"inertial_force: "<<inertial_force.transpose().format(a)<<'\n';
+      //std::cout<<"------------------------------\n";
+      //std::cout<< std::setprecision(2) << std::fixed;
+      // std::cout<<"z asix: "<< state.orientation * Vector3<Scalar>::UnitZ() << '\n';
+      // // std::cout<<"expected thrust: "<<expected_accel.transpose().format(a)<<'\n';
+      // std::cout<<"expected thrust: "<< expected_thrust.transpose().format(a)<<'\n';
+      // std::cout<<"disturbance_estimate_: "<<disturbance_estimate_.transpose().format(a)<<'\n';
+      // // std::cout<<"inertial_force: "<<inertial_acc.transpose().format(a)<<'\n';
+      // std::cout<<"inertial_force: "<<inertial_force.transpose().format(a)<<'\n';
       // Clamp disturbance estimate: TO DO: add saturation
       // disturbance_estimate_ =
       //     disturbance_estimate_.cwiseMax(params_.de_lb).cwiseMin(params_.de_ub);
+
+      // msg
+      res.altiThreshold = passAltThreshold;
+      res.intFlag = intFlag;
+      res.thrust_sp = thrust_sp_;
+      res.thrustPerRotor = thrust_sp_ / static_cast<double>(params_.num_of_rotors);
+      res.expectedThrust = expected_thrust;
+      res.inertialForce = inertial_force;
+      res.disturbanceEstimate = disturbance_estimate_;
     }
 
-    std::cout<<"dt: "<<dt<<'\n';
-    std::cout<<"intFlag is: "<<std::boolalpha << intFlag <<", altiThreshold: "<<std::boolalpha << passAltThreshold <<'\n';
+    //std::cout<<"dt: "<<dt<<'\n';
+    //std::cout<<"intFlag is: "<<std::boolalpha << intFlag <<", altiThreshold: "<<std::boolalpha << passAltThreshold <<'\n';
 
     // virtual control force: TO DO: check this function so that it take bounds as arguments
     Vector3<Scalar> liftReq = -feedback - vehicle_weight  - disturbance_estimate_;
@@ -180,15 +198,23 @@ public:
 
     // total required thrust
     thrust_sp_ = liftReq.dot(attitude_sp * Vector3Type::UnitZ());
-    std::cout<<"thrust setpoint (N) is: "<< thrust_sp_<<'\n';
+    //std::cout<<"thrust setpoint (N) is: "<< thrust_sp_<<'\n';
     // required thrust per rotor
     double thrustPerRotor = thrust_sp_ / static_cast<double>(params_. num_of_rotors);
-    std::cout<<"thrust per rotor (N) is: "<< thrustPerRotor <<'\n';
+    //std::cout<<"thrust per rotor (N) is: "<< thrustPerRotor <<'\n';
     res.accel_sp = liftReq; // TO DO: need to change the name of this variable
     res.position_error = position_error;
     res.velocity_error = velocity_error;
     res.ude_effective = intFlag && passAltThreshold;
     res.ude_output = disturbance_estimate_;
+
+    // msg
+    res.altiThreshold = passAltThreshold;
+    res.intFlag = intFlag;
+    res.thrustPerRotor = thrustPerRotor;
+    res.thrust_sp = thrust_sp_;
+    // expected thrust and inertial force is not initialized
+    res.disturbanceEstimate = disturbance_estimate_;
 
     return {true, {thrustPerRotor, Quaternion<Scalar>(attitude_sp)}, res};
   }
