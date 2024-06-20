@@ -1,6 +1,5 @@
 #include "tracking_control/tracking_control_client.hpp"
 
-#include "Eigen/src/Core/util/Meta.h"
 #include "fmt/core.h"
 #include "fmt/ostream.h"
 #include "geometry_msgs/Vector3Stamped.h"
@@ -97,15 +96,17 @@ void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
 }
 
 void TrackingControlClient::setpointCb(
-    const trajectory_msgs::JointTrajectoryPointConstPtr& msg) {
-  validateAndSetVector("Position", msg->positions, refs_.state.pose.position);
-  validateAndSetVector("Velocity", msg->velocities, refs_.state.twist.linear);
-  validateAndSetVector("Acceleration", msg->accelerations,
-                       refs_.state.accel.linear);
+    const tracking_control::TrackingReferenceConstPtr& msg) {
+  tf2::fromMsg(msg->pose.position, refs_.state.pose.position);
+  tf2::fromMsg(msg->pose.orientation, refs_.state.pose.orientation);
+  tf2::fromMsg(msg->twist.linear, refs_.state.twist.linear);
+  tf2::fromMsg(msg->twist.angular, refs_.state.twist.angular);
+  tf2::fromMsg(msg->accel.linear, refs_.state.accel.linear);
+  tf2::fromMsg(msg->accel.angular, refs_.state.accel.angular);
+  refs_.yaw = msg->yaw;
   // ? normal to the velocity? if 0, will give some incorrect values
   // refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
   // to do: set this one to zero
-  refs_.yaw = 0.0;
 }
 
 void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
@@ -130,6 +131,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   if (!ctx->set("interrupt_ude", int_flag)) {
     ROS_ERROR("Failed to set interrupt_ude flag");
   }
+  state_.ctx = std::move(ctx);
 
   // outerloop control
   const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err, msg] =

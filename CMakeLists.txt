@@ -6,9 +6,13 @@ find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS roscpp tf2_eigen geometry_msgs std_msgs
-                                        std_srvs)
+                                        std_srvs message_generation)
 
-catkin_package()
+add_message_files(DIRECTORY msg FILES TrackingReference.msg)
+
+generate_messages(DEPENDENCIES std_msgs geometry_msgs)
+
+catkin_package(CATKIN_DEPENDS std_msgs geometry_msgs message_runtime)
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
@@ -25,6 +29,8 @@ set_target_properties(tracking_control_controllers PROPERTIES EXPORT_NAME
                                                               controllers)
 
 add_library(tracking_control_client src/tracking_control_client.cpp)
+add_dependencies(tracking_control_client ${PROJECT_NAME}_generate_messages_cpp
+                 ${PROJECT_NAME}_gencpp)
 target_include_directories(tracking_control_client
                            PUBLIC include ${catkin_INCLUDE_DIRS})
 target_link_libraries(
