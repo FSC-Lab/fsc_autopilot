@@ -103,7 +103,7 @@ void TrackingControlClient::setpointCb(
   tf2::fromMsg(msg->twist.angular, refs_.state.twist.angular);
   tf2::fromMsg(msg->accel.linear, refs_.state.accel.linear);
   tf2::fromMsg(msg->accel.angular, refs_.state.accel.angular);
-  refs_.yaw = msg->yaw;
+  refs_.yaw = msg->yaw * M_PI / 180.0;
   // ? normal to the velocity? if 0, will give some incorrect values
   // refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
   // to do: set this one to zero
