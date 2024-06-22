@@ -12,7 +12,8 @@ TrackingController::TrackingController(ParametersSharedPtr params)
     : params_(std::move(params)) {}
 
 ControlResult TrackingController::run(const VehicleState& state,
-                                      const Reference& refs) {
+                                      const Reference& refs,
+                                      ControlErrorBase* error) {
   using std::atan2;
   const auto& [curr_position, curr_orientation] = state.pose;
   const auto& curr_velocity = state.twist.linear;
@@ -21,7 +22,10 @@ ControlResult TrackingController::run(const VehicleState& state,
   const auto& ref_velocity = refs.state.twist.linear;
   const auto& ref_yaw = refs.yaw;
 
-  auto error = std::make_shared<TrackingControllerError>();
+  TrackingControllerError* err;
+  if ((error != nullptr) && error->name() == "tracking_controller.error") {
+    err = static_cast<decltype(err)>(error);
+  }
   Eigen::Vector3d raw_position_error = curr_position - ref_position;
   Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
   // Eigen::Vector3d
@@ -30,10 +34,9 @@ ControlResult TrackingController::run(const VehicleState& state,
   const Eigen::Vector3d velocity_error =
       SaturationSmoothing(raw_velocity_error, 1.0);
   // SaturationSmoothing(raw_velocity_error, 1.0);
-  error->position_error = std::move(raw_position_error);
-  error->velocity_error = std::move(raw_velocity_error);
+
   if (params_->vehicle_mass < 0.0) {
-    return {false, getFallBackSetpoint(), std::move(error), "Mass is negative"};
+    return {false, getFallBackSetpoint()};
   }
 
   // bound the velocity and position error
@@ -75,7 +78,9 @@ ControlResult TrackingController::run(const VehicleState& state,
       const Eigen::Vector3d inertial_force =
           (state.pose.orientation * state.accel.linear - kGravity) *
           params_->vehicle_mass;
-      error->inertialForce = inertial_force;
+      if (err) {
+        err->inertialForce = inertial_force;
+      }
 
       de_integrand = disturbance_estimate_ + expected_thrust + vehicle_weight -
                      inertial_force;
@@ -84,7 +89,7 @@ ControlResult TrackingController::run(const VehicleState& state,
     de_integral_ -= params_->de_gain * de_integrand * dt;
     // Bail on insane bounds
     if ((params_->de_lb.array() > params_->de_ub.array()).any()) {
-      return {false, getFallBackSetpoint(), std::move(error)};
+      return {false, getFallBackSetpoint()};
     }
 
     Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
@@ -144,24 +149,24 @@ ControlResult TrackingController::run(const VehicleState& state,
   result.success = true;
   result.setpoint.input.thrust = thrust_per_rotor;
   result.setpoint.input.command = Eigen::Quaterniond(attitude_sp);
-
-  error->accel_sp =
-      lift_req;  // TO DO: need to change the name of this variable
-  error->position_error = raw_position_error;
-  error->velocity_error = raw_velocity_error;
-  error->ude_effective = int_flag && pass_alt_threshold;
-  error->ude_output = disturbance_estimate_;
-
-  // msg output
-  error->altiThreshold = pass_alt_threshold;
-  error->intFlag = int_flag;
-  error->thrust_sp = thrust_sp_;
-  error->thrustPerRotor =
-      thrust_sp_ / static_cast<double>(params_->num_of_rotors);
-  error->expectedThrust = expected_thrust;
-  error->disturbanceEstimate = de_integral_;
-
-  result.error = std::move(error);
+  if (err) {
+    err->position_error = raw_position_error;
+    err->velocity_error = raw_velocity_error;
+    err->accel_sp =
+        lift_req;  // TO DO: need to change the name of this variable
+    err->position_error = raw_position_error;
+    err->velocity_error = raw_velocity_error;
+    err->ude_effective = int_flag && pass_alt_threshold;
+    err->ude_output = disturbance_estimate_;
+    // msg output
+    err->altiThreshold = pass_alt_threshold;
+    err->intFlag = int_flag;
+    err->thrust_sp = thrust_sp_;
+    err->thrustPerRotor =
+        thrust_sp_ / static_cast<double>(params_->num_of_rotors);
+    err->expectedThrust = expected_thrust;
+    err->disturbanceEstimate = de_integral_;
+  }
 
   return result;
 }

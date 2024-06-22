@@ -134,23 +134,13 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   tc_params_->dt = timeStep;
 
+  fsc::TrackingControllerError pos_ctrl_err;
   // outerloop control
-  const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err, msg] =
-      tracking_ctrl_.run(state_, refs_);
-
-  if (p_pos_ctrl_err->name() != "tracking_controller.error") {
-    ROS_FATAL(
-        "Expected name of error struct to be `tracking_controller.error`; Got "
-        "%s",
-        p_pos_ctrl_err->name().c_str());
-    return;
-  }
-
-  const auto& pos_ctrl_err =
-      *std::static_pointer_cast<fsc::TrackingControllerError>(p_pos_ctrl_err);
+  const auto& [outer_success, pos_ctrl_out] =
+      tracking_ctrl_.run(state_, refs_, &pos_ctrl_err);
 
   if (!outer_success) {
-    ROS_ERROR("Outer controller failed!: %s", msg.c_str());
+    ROS_ERROR("Outer controller failed!: %s", pos_ctrl_err.message().c_str());
     return;
   }
 
@@ -186,22 +176,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
     ROS_DEBUG("Running inner controller");
     fsc::Reference inner_ref;
     inner_ref.state.pose.orientation = pos_ctrl_out.state.pose.orientation;
-    const auto& [inner_success, att_ctrl_out, p_att_ctrl_err, _] =
-        att_ctrl_.run(state_, inner_ref);
+    fsc::NonlinearGeometricControllerError att_ctrl_err;
+    const auto& [inner_success, att_ctrl_out] =
+        att_ctrl_.run(state_, inner_ref, &att_ctrl_err);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
-
-    if (p_att_ctrl_err->name() != "nonlinear_geometric_controller.error") {
-      ROS_FATAL(
-          "Expected name of error struct to be "
-          "`nonlinear_geometric_controller.error`; "
-          "Got "
-          "%s",
-          p_att_ctrl_err->name().c_str());
-    }
-    const auto& att_ctrl_err =
-        *std::static_pointer_cast<fsc::NonlinearGeometricControllerError>(
-            p_att_ctrl_err);
 
     pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
     pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;

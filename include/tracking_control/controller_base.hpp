@@ -49,22 +49,22 @@ struct Setpoint {
 struct ControlErrorBase {
   virtual ~ControlErrorBase() = default;
 
+  [[nodiscard]] virtual std::string message() const { return ""; }
+
   [[nodiscard]] virtual std::string name() const = 0;
 };
 
 struct ControlResult {
   bool success{false};
   Setpoint setpoint;
-  std::shared_ptr<ControlErrorBase> error;
-  std::string message;
 };
 
 class ControllerBase {
  public:
   virtual ~ControllerBase() = default;
 
-  virtual ControlResult run(const VehicleState& state,
-                            const Reference& refs) = 0;
+  virtual ControlResult run(const VehicleState& state, const Reference& refs,
+                            ControlErrorBase* error) = 0;
 
   [[nodiscard]] virtual Setpoint getFallBackSetpoint() const {
     return {VehicleState{}, VehicleInput{0.0, Eigen::Quaterniond::Identity()}};

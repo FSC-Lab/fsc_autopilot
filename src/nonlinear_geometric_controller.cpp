@@ -7,24 +7,28 @@ namespace fsc {
 NonlinearGeometricController::NonlinearGeometricController(Parameters params)
     : params_(params) {}
 
-ControlResult NonlinearGeometricController::run(const VehicleState& state,
-                                                const Reference& refs) {
+ControlResult NonlinearGeometricController::run(
+    const VehicleState& state, const Reference& refs,
+    [[maybe_unused]] ControlErrorBase* error) {
   const auto rotmat = state.pose.orientation.toRotationMatrix();
   const auto rotmat_sp = refs.state.pose.orientation.toRotationMatrix();
 
-  auto error = std::make_shared<Error>();
+  NonlinearGeometricControllerError* err;
+  if ((error != nullptr) &&
+      error->name() == "nonlinear_geometric_controller.error") {
+    err = static_cast<decltype(err)>(error);
+  }
   // e_r = 1 / 2 * (Rd.T * R - R.T * Rd)
-  error->attitude_error = fsc::vee(rotmat_sp.transpose() * rotmat -
-                                   rotmat.transpose() * rotmat_sp) /
-                          2;
+  err->attitude_error = fsc::vee(rotmat_sp.transpose() * rotmat -
+                                 rotmat.transpose() * rotmat_sp) /
+                        2;
 
   const Eigen::Vector3d body_rate_sp =
-      -2.0 / params_.time_constant * error->attitude_error;
+      -2.0 / params_.time_constant * err->attitude_error;
 
   ControlResult result;
   result.success = true;
   result.setpoint.input.command = body_rate_sp;
-  result.error = std::move(error);
   return result;
 }
 }  // namespace fsc

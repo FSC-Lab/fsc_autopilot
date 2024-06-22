@@ -16,6 +16,10 @@ struct TrackingControllerError final : public ControlErrorBase {
   [[nodiscard]] std::string name() const final {
     return "tracking_controller.error";
   }
+
+  std::string msg_str;
+  [[nodiscard]] std::string message() const final { return msg_str; }
+
   Eigen::Vector3d position_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d velocity_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d ude_output{Eigen::Vector3d::Zero()};
@@ -81,7 +85,8 @@ class TrackingController final : public ControllerBase {
   TrackingController() = default;
   explicit TrackingController(ParametersSharedPtr params);
 
-  ControlResult run(const VehicleState& state, const Reference& refs) override;
+  ControlResult run(const VehicleState& state, const Reference& refs,
+                    ControlErrorBase* error) override;
 
   [[nodiscard]] ParametersConstSharedPtr params() const { return params_; }
   ParametersSharedPtr& params() { return params_; }
