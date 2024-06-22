@@ -1,6 +1,7 @@
 <launch>
   <!-- Tracking Control Node -->
-  <node pkg="tracking_control" type="tracking_control_node" name="tracking_control" output="screen">
+  <arg name="launch_prefix" default=""/>
+  <node pkg="tracking_control" type="tracking_control_node" name="tracking_control" output="screen" launch-prefix="$(arg launch_prefix)">
     <rosparam command="load" file="$(find tracking_control)/config/params.json" />
   </node>
 </launch>
