@@ -24,8 +24,8 @@ struct TrackingControllerError final : public ControlErrorBase {
   // msg output
   bool altiThreshold{false};
   bool intFlag{false};
-  float thrustPerRotor; // thrust per rotor
-  float thrust_sp; // thrust setpoint
+  float thrustPerRotor;  // thrust per rotor
+  float thrust_sp;       // thrust setpoint
   Eigen::Vector3d expectedThrust{Eigen::Vector3d::Zero()};
   Eigen::Vector3d inertialForce{Eigen::Vector3d::Zero()};
   Eigen::Vector3d disturbanceEstimate{Eigen::Vector3d::Zero()};
@@ -102,6 +102,8 @@ struct TrackingControllerParameters {
 
   uint32_t num_of_rotors{4};
 
+  bool ude_is_velocity_based{false};
+
   static constexpr double kDefaultDEBounds{5};
   Eigen::Vector3d de_lb{Eigen::Vector3d::Constant(-kDefaultDEBounds)};
   Eigen::Vector3d de_ub{Eigen::Vector3d::Constant(kDefaultDEBounds)};
@@ -132,6 +134,7 @@ class TrackingController final : public ControllerBase {
 
  private:
   Eigen::Vector3d disturbance_estimate_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d de_integral_{Eigen::Vector3d::Zero()};
 
   double thrust_sp_{0.0};
   TrackingControllerParameters params_;

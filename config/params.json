@@ -21,7 +21,8 @@
     "rate": 50,
     "de": {
       "gain": 4.0,
-      "height_threshold": 0.2
+      "height_threshold": 0.2,
+      "is_velocity_based": true
     }
   },
   "attitude_controller": {

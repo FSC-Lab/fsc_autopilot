@@ -2,10 +2,10 @@
 
 #include <iomanip>
 
+#include "geometry_msgs/Vector3.h"
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
 #include "utils/utils.hpp"
-#include "geometry_msgs/Vector3.h"
 
 namespace fsc {
 TrackingController::TrackingController(TrackingControllerParameters params)
@@ -64,57 +64,70 @@ ControlResult TrackingController::run(const VehicleState& state,
   }
 
   Eigen::Vector3d expected_thrust;
-  Eigen::Vector3d inertial_force;
 
   expected_thrust.setZero();
-  inertial_force.setZero();
-
 
   if (!int_flag) {
-    disturbance_estimate_.setZero();
+    de_integral_.setZero();
   } else if (int_flag && pass_alt_threshold) {
     // The expected thrust/acc
     // f = Rib * [0, 0, 1] * thrust
     expected_thrust =
         state.pose.orientation * Eigen::Vector3d::UnitZ() * thrust_sp_;
-    // The expected interial force: R_ib * [0,0,1] * a_b * m
-    inertial_force =
-        (state.pose.orientation * state.accel.linear - kGravity) *
-        params_.vehicle_mass;
+
+    Eigen::Vector3d de_integrand;
+    if (params_.ude_is_velocity_based) {
+      de_integrand = disturbance_estimate_ + expected_thrust + vehicle_weight;
+    } else {
+      // The expected interial force: R_ib * [0,0,1] * a_b * m
+      const Eigen::Vector3d inertial_force =
+          (state.pose.orientation * state.accel.linear - kGravity) *
+          params_.vehicle_mass;
+      error->inertialForce = inertial_force;
+
+      de_integrand = disturbance_estimate_ + expected_thrust + vehicle_weight -
+                     inertial_force;
+    }
     // disturbance estimator
-    disturbance_estimate_ -= params_.de_gain *
-                             (disturbance_estimate_ + expected_thrust +
-                              vehicle_weight - inertial_force) *
-                             dt;
+    de_integral_ -= params_.de_gain * de_integrand * dt;
     // Bail on insane bounds
     if ((params_.de_lb.array() > params_.de_ub.array()).any()) {
       return {false, getFallBackSetpoint(), std::move(error)};
     }
 
     Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
-    //std::cout << "------------------------------\n";
-    //std::cout << std::setprecision(2) << std::fixed;
-    //std::cout << "z asix: " << state.pose.orientation * Eigen::Vector3d::UnitZ()
-              //<< '\n';
+    // std::cout << "------------------------------\n";
+    // std::cout << std::setprecision(2) << std::fixed;
+    // std::cout << "z asix: " << state.pose.orientation *
+    // Eigen::Vector3d::UnitZ()
+    //<< '\n';
     // std::cout<<"expected thrust:
     // "<<expected_accel.transpose().format(a)<<'\n';
-    //std::cout << "expected thrust: " << expected_thrust.transpose().format(a)
-              //<< '\n';
-    //std::cout << "disturbance_estimate_: "
-              //<< disturbance_estimate_.transpose().format(a) << '\n';
+    // std::cout << "expected thrust: " << expected_thrust.transpose().format(a)
+    //<< '\n';
+    // std::cout << "disturbance_estimate_: "
+    //<< disturbance_estimate_.transpose().format(a) << '\n';
     // std::cout<<"inertial_force:
     // "<<inertial_acc.transpose().format(a)<<'\n';
-    //std::cout << "inertial_force: " << inertial_force.transpose().format(a)
-              //<< '\n';
+    // std::cout << "inertial_force: " << inertial_force.transpose().format(a)
+    //<< '\n';
     // Clamp disturbance estimate: TO DO: add saturation
     // disturbance_estimate_ =
     //     disturbance_estimate_.cwiseMax(params_.de_lb).cwiseMin(params_.de_ub);
   }
 
-  //std::cout << "dt: " << dt << '\n';
-  //std::cout << "intFlag is: " << std::boolalpha << int_flag
-            //<< ", altiThreshold: " << std::boolalpha << pass_alt_threshold
-            //<< '\n';
+  // std::cout << "dt: " << dt << '\n';
+  // std::cout << "intFlag is: " << std::boolalpha << int_flag
+  //<< ", altiThreshold: " << std::boolalpha << pass_alt_threshold
+  //<< '\n';
+  //
+  if (params_.ude_is_velocity_based) {
+    const Eigen::Vector3d de_damping =
+        params_.de_gain * params_.vehicle_mass * curr_velocity;
+    disturbance_estimate_ = de_integral_ + de_damping;
+  } else {
+    disturbance_estimate_ = de_integral_;
+  }
 
   // virtual control force: TO DO: check this function so that it take bounds
   // as arguments
@@ -129,11 +142,11 @@ ControlResult TrackingController::run(const VehicleState& state,
 
   // total required thrust
   thrust_sp_ = lift_req.dot(attitude_sp * Eigen::Vector3d::UnitZ());
-  //std::cout << "thrust setpoint (N) is: " << thrust_sp_ << '\n';
-  // required thrust per rotor
+  // std::cout << "thrust setpoint (N) is: " << thrust_sp_ << '\n';
+  //  required thrust per rotor
   double thrust_per_rotor =
       thrust_sp_ / static_cast<double>(params_.num_of_rotors);
-  //std::cout << "thrust per rotor (N) is: " << thrust_per_rotor << '\n';
+  // std::cout << "thrust per rotor (N) is: " << thrust_per_rotor << '\n';
 
   ControlResult result;
   result.success = true;
@@ -151,18 +164,12 @@ ControlResult TrackingController::run(const VehicleState& state,
   error->altiThreshold = pass_alt_threshold;
   error->intFlag = int_flag;
   error->thrust_sp = thrust_sp_;
-  error->thrustPerRotor = thrust_sp_ / static_cast<double>(params_.num_of_rotors);
+  error->thrustPerRotor =
+      thrust_sp_ / static_cast<double>(params_.num_of_rotors);
   error->expectedThrust = expected_thrust;
-  error->inertialForce = inertial_force;
-  error->disturbanceEstimate = disturbance_estimate_;
-
-
-
+  error->disturbanceEstimate = de_integral_;
 
   result.error = std::move(error);
-
-  
-  
 
   return result;
 }

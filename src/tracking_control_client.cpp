@@ -5,9 +5,9 @@
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
+#include "tracking_control/Tracking.h"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
-#include "tracking_control/Tracking.h"
 
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
@@ -166,7 +166,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
       static_cast<float>(motor_curve_.vals(pos_ctrl_out.input.thrust)), 0.0F,
       1.0F);
 
-  //std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
+  // std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
 
   geometry_msgs::Vector3Stamped pld_pos_err;
   pld_pos_err.header.stamp = event.current_real;
@@ -316,6 +316,12 @@ void TrackingControlClient::loadParams() {
                 tc_params_.de_height_threshold);
   tc_params_.de_gain =
       pnh.param("tracking_controller/de/gain", tc_params_.de_gain);
+
+  pnh.getParam("tracking_controller/de/is_velocity_based",
+               tc_params_.ude_is_velocity_based);
+
+  ROS_INFO_STREAM("UDE is velocity based " << std::boolalpha
+                                           << tc_params_.ude_is_velocity_based);
 
   if (!pnh.getParam("tracking_controller/vehicle_mass",
                     tc_params_.vehicle_mass)) {

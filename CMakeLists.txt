@@ -8,7 +8,7 @@ find_package(fmt REQUIRED)
 find_package(catkin REQUIRED COMPONENTS roscpp tf2_eigen geometry_msgs std_msgs
                                         std_srvs message_generation)
 
-add_message_files(DIRECTORY msg FILES TrackingReference.msg)
+add_message_files(DIRECTORY msg FILES TrackingReference.msg Tracking.msg)
 
 generate_messages(DEPENDENCIES std_msgs geometry_msgs)
 
