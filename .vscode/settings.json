@@ -64,5 +64,6 @@
         "typeinfo": "cpp",
         "bit": "cpp",
         "core": "cpp"
-    }
+    },
+    "cmake.configureOnEdit": false
 }
