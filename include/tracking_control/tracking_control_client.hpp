@@ -1,20 +1,22 @@
 #ifndef TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
 #define TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 
+#include "dynamic_reconfigure/server.h"
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/TwistStamped.h"
 #include "mavros_msgs/State.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
 #include "sensor_msgs/Imu.h"
+#include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingReference.h"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
-#include "trajectory_msgs/JointTrajectoryPoint.h"
 
 namespace nodelib {
 class TrackingControlClient {
@@ -32,6 +34,10 @@ class TrackingControlClient {
   void setpointCb(const tracking_control::TrackingReferenceConstPtr& msg);
   void mavrosStateCb(const mavros_msgs::State& msg);
 
+  void dynamicReconfigureCb(
+      const tracking_control::TrackingControlConfig& config,
+      std::uint32_t level);
+
   void mainLoop(const ros::TimerEvent& event);
 
   void dispPara();
@@ -43,6 +49,7 @@ class TrackingControlClient {
   // convert it to double with unit (s)
   double getTimeDiff(const ros::Time& currTime, const ros::Time& lastTime);
 
+  bool initialized_{false};
   ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;
   AttitudeController att_ctrl_;
@@ -52,7 +59,8 @@ class TrackingControlClient {
   fsc::Reference refs_;
 
   AttitudeController::Parameters ac_params_;
-  fsc::TrackingControllerParameters tc_params_;
+  fsc::TrackingController::ParametersSharedPtr tc_params_{
+      std::make_shared<fsc::TrackingControllerParameters>()};
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
   ros::Publisher setpoint_pos_error_pub_;
@@ -61,6 +69,8 @@ class TrackingControlClient {
   ros::Publisher acc_setpoint_pub_;
   ros::Publisher ude_estimate_pub_;
   ros::Publisher debug_data_pub_;
+  dynamic_reconfigure::Server<tracking_control::TrackingControlConfig> cfg_srv_;
+
   mavros_msgs::State mavrosState_;
 
   MotorCurveType motor_curve_;

@@ -6,6 +6,7 @@
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/Tracking.h"
+#include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
 
@@ -25,7 +26,6 @@ void validateAndSetVector(std::string_view name, const std::vector<double>& src,
 }
 
 TrackingControlClient::TrackingControlClient() {
-
   ros::NodeHandle pnh("~");
   loadParams();
   ros_rate_ = pnh.param("tracking_controller/rate", 30);
@@ -75,8 +75,14 @@ TrackingControlClient::TrackingControlClient() {
   // initialize variables
   initVariables();
 
+  cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
+    dynamicReconfigureCb(std::forward<decltype(PH1)>(PH1),
+                         std::forward<decltype(PH2)>(PH2));
+  });
   // register the main loop callback function here
   timer_ = nh_.createTimer(update_rate, &TrackingControlClient::mainLoop, this);
+
+  initialized_ = true;
 }
 
 void TrackingControlClient::poseCb(
@@ -122,11 +128,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   lastTime = currTime;
 
   // check drone status
-  tc_params_.ude_active = (mavrosState_.connected != 0U) &&
-                          (mavrosState_.armed != 0U) &&
-                          (mavrosState_.mode == "OFFBOARD");
+  tc_params_->ude_active = (mavrosState_.connected != 0U) &&
+                           (mavrosState_.armed != 0U) &&
+                           (mavrosState_.mode == "OFFBOARD");
 
-  tc_params_.dt = timeStep;
+  tc_params_->dt = timeStep;
 
   // outerloop control
   const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err, msg] =
@@ -251,24 +257,24 @@ void TrackingControlClient::dispPara() {
     ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
   }
   // drone parameters
-  ROS_INFO("Quadrotor mass: %f", tc_params_.vehicle_mass);
+  ROS_INFO("Quadrotor mass: %f", tc_params_->vehicle_mass);
   // control parameters
   ROS_INFO("Tracking controller gains:");
-  ROS_INFO("k_pos/x: %f, k_pos/y: %f, k_pos/z: %f", tc_params_.k_pos[0],
-           tc_params_.k_pos[1], tc_params_.k_pos[2]);
-  ROS_INFO("k_vel/x: %f, k_vel/y: %f, k_vel/z: %f", tc_params_.k_vel[0],
-           tc_params_.k_vel[1], tc_params_.k_vel[2]);
+  ROS_INFO("k_pos/x: %f, k_pos/y: %f, k_pos/z: %f", tc_params_->k_pos[0],
+           tc_params_->k_pos[1], tc_params_->k_pos[2]);
+  ROS_INFO("k_vel/x: %f, k_vel/y: %f, k_vel/z: %f", tc_params_->k_vel[0],
+           tc_params_->k_vel[1], tc_params_->k_vel[2]);
 
   // controller constraints
 
-  ROS_INFO("height_threshold: %f", tc_params_.de_height_threshold);
+  ROS_INFO("height_threshold: %f", tc_params_->de_height_threshold);
 
   // update rate
   ROS_INFO("update rate: %f", ros_rate_);
 
   // ude parameters
-  ROS_INFO("de_gain: %f", tc_params_.de_gain);
-  ROS_INFO("de_height_threshold: %f", tc_params_.de_height_threshold);
+  ROS_INFO("de_gain: %f", tc_params_->de_gain);
+  ROS_INFO("de_height_threshold: %f", tc_params_->de_height_threshold);
 }
 
 void TrackingControlClient::loadParams() {
@@ -281,42 +287,39 @@ void TrackingControlClient::loadParams() {
 
   constexpr auto kDefaultKPosXY = 1.0;
   constexpr auto kDefaultKPosZ = 10.0;
-  tc_params_.k_pos <<  // Force a line break
+  tc_params_->k_pos <<  // Force a line break
       pnh.param("tracking_controller/k_pos/x", kDefaultKPosXY),
       pnh.param("tracking_controller/k_pos/y", kDefaultKPosXY),
       pnh.param("tracking_controller/k_pos/z", kDefaultKPosZ);
 
   constexpr auto kDefaultKVelXY = 1.5;
   constexpr auto kDefaultkVelZ = 3.3;
-  tc_params_.k_vel <<  // Force a line break
+  tc_params_->k_vel <<  // Force a line break
       pnh.param("tracking_controller/k_vel/x", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
 
-  tc_params_.de_lb << pnh.param("tracking_controller/de/lbx",
-                                tc_params_.de_lb.x()),
-      pnh.param("tracking_controller/de/lby", tc_params_.de_lb.y()),
-      pnh.param("tracking_controller/de/lbz", tc_params_.de_lb.z());
+  tc_params_->de_lb << pnh.param("tracking_controller/de/lbx",
+                                 tc_params_->de_lb.x()),
+      pnh.param("tracking_controller/de/lby", tc_params_->de_lb.y()),
+      pnh.param("tracking_controller/de/lbz", tc_params_->de_lb.z());
 
-  tc_params_.de_ub << pnh.param("tracking_controller/de/lbx",
-                                tc_params_.de_ub.x()),
-      pnh.param("tracking_controller/de/lby", tc_params_.de_ub.y()),
-      pnh.param("tracking_controller/de/lbz", tc_params_.de_ub.z());
+  tc_params_->de_ub << pnh.param("tracking_controller/de/lbx",
+                                 tc_params_->de_ub.x()),
+      pnh.param("tracking_controller/de/lby", tc_params_->de_ub.y()),
+      pnh.param("tracking_controller/de/lbz", tc_params_->de_ub.z());
 
-  tc_params_.de_height_threshold =
+  tc_params_->de_height_threshold =
       pnh.param("tracking_controller/de/height_threshold",
-                tc_params_.de_height_threshold);
-  tc_params_.de_gain =
-      pnh.param("tracking_controller/de/gain", tc_params_.de_gain);
+                tc_params_->de_height_threshold);
+  tc_params_->de_gain =
+      pnh.param("tracking_controller/de/gain", tc_params_->de_gain);
 
   pnh.getParam("tracking_controller/de/is_velocity_based",
-               tc_params_.ude_is_velocity_based);
-
-  ROS_INFO_STREAM("UDE is velocity based " << std::boolalpha
-                                           << tc_params_.ude_is_velocity_based);
+               tc_params_->ude_is_velocity_based);
 
   if (!pnh.getParam("tracking_controller/vehicle_mass",
-                    tc_params_.vehicle_mass)) {
+                    tc_params_->vehicle_mass)) {
     ROS_FATAL("Vehicle mass unspecified in parameters!");
     std::terminate();
   }
@@ -327,14 +330,14 @@ void TrackingControlClient::loadParams() {
 
   att_ctrl_.params() = ac_params_;
 
-  tc_params_.min_z_accel = pnh.param("tracking_controller/min_acc", 0.0);
+  tc_params_->min_z_accel = pnh.param("tracking_controller/min_acc", 0.0);
 
   constexpr auto kDefaultMaxAcceleration = 20.0;
-  tc_params_.max_z_accel =
+  tc_params_->max_z_accel =
       pnh.param("tracking_controller/max_acc", kDefaultMaxAcceleration);
 
   constexpr auto kDefaultMaxTiltAngle = 45.0;
-  tc_params_.max_tilt_angle =
+  tc_params_->max_tilt_angle =
       pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle);
 
   tracking_ctrl_.params() = tc_params_;
@@ -361,4 +364,45 @@ double TrackingControlClient::getTimeDiff(const ros::Time& currTime,
   return static_cast<double>(diff.toSec());
 }
 
+void TrackingControlClient::dynamicReconfigureCb(
+    const tracking_control::TrackingControlConfig& config,
+    std::uint32_t level) {
+  if (!initialized_) {
+    return;
+  }
+  const auto& tracker = config.groups.tracker;
+  const auto& ude = config.groups.ude;
+  const Eigen::Vector3d k_pos_prev =
+      std::exchange(tc_params_->k_pos,
+                    Eigen::Vector3d{tracker.position_tracking.pos_p_x,  //
+                                    tracker.position_tracking.pos_p_y,  //
+                                    tracker.position_tracking.pos_p_z});
+
+  const Eigen::Vector3d k_vel_prev = std::exchange(
+      tc_params_->k_vel, Eigen::Vector3d{tracker.velocity_tracking.vel_p_x,  //
+                                         tracker.velocity_tracking.vel_p_y,  //
+                                         tracker.velocity_tracking.vel_p_z});
+
+  auto ude_is_velocity_based_prev =
+      std::exchange(tc_params_->ude_is_velocity_based, ude.is_velocity_based);
+  auto de_height_threshold_prev =
+      std::exchange(tc_params_->de_height_threshold, ude.height_threshold);
+  auto de_gain_prev = std::exchange(tc_params_->de_gain, ude.gain);
+
+  Eigen::IOFormat matlab_fmt{
+      Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+  ROS_INFO_STREAM_THROTTLE(
+      1.0,
+      fmt::format(
+          "Dynamical Reconfigure Results:\nKp: {} -> {}\nKv: {} -> {}\nUDE is "
+          "velocity based: {} -> {}\nUDE "
+          "height threshold: {} -> {}\nUDE gain: {} -> {}",
+          k_pos_prev.transpose().format(matlab_fmt),
+          tc_params_->k_pos.transpose().format(matlab_fmt),
+          k_vel_prev.transpose().format(matlab_fmt),
+          tc_params_->k_vel.transpose().format(matlab_fmt),
+          ude_is_velocity_based_prev, tc_params_->ude_is_velocity_based,
+          de_height_threshold_prev, tc_params_->de_height_threshold,
+          de_gain_prev, tc_params_->de_gain));
+}
 }  // namespace nodelib

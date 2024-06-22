@@ -1,7 +1,7 @@
 #ifndef TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
 #define TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
 
-#include <iostream>
+#include <memory>
 #include <string>
 
 #include "Eigen/Dense"
@@ -72,24 +72,19 @@ struct TrackingControllerParameters {
 
 class TrackingController final : public ControllerBase {
  public:
+  using ParametersSharedPtr = std::shared_ptr<TrackingControllerParameters>;
+  using ParametersConstSharedPtr =
+      std::shared_ptr<const TrackingControllerParameters>;
+
   inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
 
   TrackingController() = default;
-  explicit TrackingController(TrackingControllerParameters params);
+  explicit TrackingController(ParametersSharedPtr params);
 
   ControlResult run(const VehicleState& state, const Reference& refs) override;
 
-  [[nodiscard]] const TrackingControllerParameters& params() const {
-    return params_;
-  }
-  TrackingControllerParameters& params() { return params_; }
-
-  // Expose this member for RotorDragModel mixin
-
-  // Expose these parameters for AccelerationSetpointShaping mixin
-  [[nodiscard]] double min_z_accel() const { return params_.min_z_accel; }
-  [[nodiscard]] double max_z_accel() const { return params_.max_z_accel; }
-  [[nodiscard]] double max_tilt_angle() const { return params_.max_tilt_angle; }
+  [[nodiscard]] ParametersConstSharedPtr params() const { return params_; }
+  ParametersSharedPtr& params() { return params_; }
 
   [[nodiscard]] std::string name() const final { return "tracking_controller"; }
 
@@ -98,7 +93,7 @@ class TrackingController final : public ControllerBase {
   Eigen::Vector3d de_integral_{Eigen::Vector3d::Zero()};
 
   double thrust_sp_{0.0};
-  TrackingControllerParameters params_;
+  ParametersSharedPtr params_;
 };
 }  // namespace fsc
 
