@@ -46,8 +46,8 @@ struct Setpoint {
   VehicleInput input;
 };
 
-struct ControlErrorBase : public Context {
-  ~ControlErrorBase() override = default;
+struct ControlErrorBase {
+  virtual ~ControlErrorBase() = default;
 
   [[nodiscard]] virtual std::string name() const = 0;
 };

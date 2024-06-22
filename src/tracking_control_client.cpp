@@ -25,7 +25,6 @@ void validateAndSetVector(std::string_view name, const std::vector<double>& src,
 }
 
 TrackingControlClient::TrackingControlClient() {
-  state_.ctx = std::make_shared<fsc::TrackingControllerContext>();
 
   ros::NodeHandle pnh("~");
   loadParams();
@@ -123,18 +122,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   lastTime = currTime;
 
   // check drone status
-  bool int_flag = (mavrosState_.connected != 0U) &&
-                  (mavrosState_.armed != 0U) &&
-                  (mavrosState_.mode == "OFFBOARD");
+  tc_params_.ude_active = (mavrosState_.connected != 0U) &&
+                          (mavrosState_.armed != 0U) &&
+                          (mavrosState_.mode == "OFFBOARD");
 
-  auto ctx = std::make_unique<fsc::TrackingControllerContext>();
-  if (!ctx->set("dt", timeStep)) {
-    ROS_ERROR("Failed to set timestep");
-  }
-  if (!ctx->set("interrupt_ude", int_flag)) {
-    ROS_ERROR("Failed to set interrupt_ude flag");
-  }
-  state_.ctx = std::move(ctx);
+  tc_params_.dt = timeStep;
 
   // outerloop control
   const auto& [outer_success, pos_ctrl_out, p_pos_ctrl_err, msg] =

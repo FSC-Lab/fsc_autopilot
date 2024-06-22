@@ -33,48 +33,6 @@ struct TrackingControllerError final : public ControlErrorBase {
   bool ude_effective{false};
 };
 
-class TrackingControllerContext : public Context {
- public:
-  [[nodiscard]] bool get(std::string_view name, bool& value) const override {
-    if (name == "interrupt_ude") {
-      value = interrupt_ude_;
-      return true;
-    }
-    return false;
-  }
-
-  [[nodiscard]] bool set(std::string_view name, bool value) override {
-    if (name == "interrupt_ude") {
-      interrupt_ude_ = value;
-      return true;
-    }
-    return false;
-  }
-
-  [[nodiscard]] bool get(std::string_view name, double& value) const override {
-    if (name == "dt") {
-      value = dt_;
-      return true;
-    }
-    return false;
-  }
-
-  [[nodiscard]] bool set(std::string_view name, double value) override {
-    if (name == "dt") {
-      if (value < 0.0) {
-        return false;
-      }
-      dt_ = value;
-      return true;
-    }
-    return false;
-  }
-
- private:
-  bool interrupt_ude_;
-  double dt_{-1.0};
-};
-
 struct TrackingControllerParameters {
   static constexpr double kDefaultKpXY{1.0};
   static constexpr double kDefaultKpZ{10.0};
@@ -102,11 +60,14 @@ struct TrackingControllerParameters {
 
   uint32_t num_of_rotors{4};
 
+  bool ude_active{false};
   bool ude_is_velocity_based{false};
 
   static constexpr double kDefaultDEBounds{5};
   Eigen::Vector3d de_lb{Eigen::Vector3d::Constant(-kDefaultDEBounds)};
   Eigen::Vector3d de_ub{Eigen::Vector3d::Constant(kDefaultDEBounds)};
+
+  double dt{-1.0};
 };
 
 class TrackingController final : public ControllerBase {

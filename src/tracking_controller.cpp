@@ -52,16 +52,8 @@ ControlResult TrackingController::run(const VehicleState& state,
   // m * g * [0,0,1]
   Eigen::Vector3d vehicle_weight = -params_.vehicle_mass * kGravity;
 
-  bool int_flag;
-  if (!state.ctx->get("interrupt_ude", int_flag)) {
-    return {false, getFallBackSetpoint(), std::move(error),
-            "Failed to get UDE interrupt"};
-  }
-
-  double dt;
-  if (!state.ctx->get("dt", dt)) {
-    return {false, getFallBackSetpoint(), std::move(error), "Failed to get dt"};
-  }
+  const bool int_flag = params_.ude_active;
+  const double dt = params_.dt;
 
   Eigen::Vector3d expected_thrust;
 
