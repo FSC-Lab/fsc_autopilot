@@ -148,6 +148,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   mavros_msgs::AttitudeTarget pld;
   tracking_control::Tracking pld_debug_data;
   pld.header.stamp = event.current_real;
+  pld_debug_data.header.stamp = event.current_real;
   // convert thrust command to normalized thrust input
   // if the thrust is an acc command, then the thrust curve must change as well
   pld.thrust = std::clamp(

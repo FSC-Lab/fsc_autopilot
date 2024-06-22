@@ -1,3 +1,4 @@
+std_msgs/Header header
 bool intFlag
 bool altiThreshold
 float32 thrustSetpoint
