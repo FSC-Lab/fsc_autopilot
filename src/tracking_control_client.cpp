@@ -33,10 +33,9 @@ TrackingControlClient::TrackingControlClient() {
 
   const auto mavros_ns = pnh.param("mavros_ns", "/mavros"s);
 
-  subs_.emplace(
-      "pose"s,
-      nh_.subscribe(fmt::format("{}/local_position/adjusted", mavros_ns), 1,
-                    &TrackingControlClient::poseCb, this));
+  subs_.emplace("pose"s,
+                nh_.subscribe("/state_estimator/local_position/adjusted", 1,
+                              &TrackingControlClient::poseCb, this));
   subs_.emplace(
       "twist"s,
       nh_.subscribe(fmt::format("{}/local_position/velocity_local", mavros_ns),
