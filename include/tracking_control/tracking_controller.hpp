@@ -5,8 +5,6 @@
 #include <string>
 
 #include "Eigen/Dense"
-#include "fmt/format.h"
-#include "fmt/ostream.h"
 #include "tracking_control/controller_base.hpp"
 #include "utils/utils.hpp"
 

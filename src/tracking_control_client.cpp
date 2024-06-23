@@ -1,7 +1,5 @@
 #include "tracking_control/tracking_control_client.hpp"
 
-#include "fmt/core.h"
-#include "fmt/ostream.h"
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
@@ -12,18 +10,6 @@
 
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
-
-void validateAndSetVector(std::string_view name, const std::vector<double>& src,
-                          Eigen::Ref<Eigen::VectorXd> dst) {
-  const auto dst_sz = dst.size();
-  const auto src_sz = src.size();
-  if (src_sz != 3) {
-    ROS_ERROR_STREAM(fmt::format("{} must be a length-{} array; Got size {}",
-                                 name, dst_sz, src_sz));
-    return;
-  }
-  dst = Eigen::VectorXd::Map(src.data(), static_cast<Eigen::Index>(src.size()));
-}
 
 TrackingControlClient::TrackingControlClient() {
   ros::NodeHandle pnh("~");
@@ -36,25 +22,23 @@ TrackingControlClient::TrackingControlClient() {
   subs_.emplace("pose"s,
                 nh_.subscribe("/state_estimator/local_position/adjusted", 1,
                               &TrackingControlClient::poseCb, this));
-  subs_.emplace(
-      "twist"s,
-      nh_.subscribe(fmt::format("{}/local_position/velocity_local", mavros_ns),
-                    1, &TrackingControlClient::twistCb, this));
+  subs_.emplace("twist"s,
+                nh_.subscribe("/mavros/local_position/velocity_local", 1,
+                              &TrackingControlClient::twistCb, this));
 
-  subs_.emplace("accel"s,
-                nh_.subscribe(fmt::format("{}/imu/data", mavros_ns), 1,
-                              &TrackingControlClient::imuCb, this));
+  subs_.emplace("accel"s, nh_.subscribe("/mavros/imu/data", 1,
+                                        &TrackingControlClient::imuCb, this));
 
   subs_.emplace("target"s,
                 nh_.subscribe("tracking_controller/target", 1,
                               &TrackingControlClient::setpointCb, this));
 
   subs_.emplace("state"s,
-                nh_.subscribe(fmt::format("{}/state", mavros_ns), 1,
+                nh_.subscribe("/mavros/state", 1,
                               &TrackingControlClient::mavrosStateCb, this));
 
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
-      fmt::format("{}/setpoint_raw/attitude", mavros_ns), 1);
+      "/mavros/setpoint_raw/attitude", 1);
   setpoint_pos_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
       "tracking_controller/setpoint_pos_error", 1);
   setpoint_vel_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(

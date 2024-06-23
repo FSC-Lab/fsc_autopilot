@@ -3,7 +3,6 @@ project(tracking_control)
 
 # set(CMAKE_CXX_CLANG_TIDY "clang-tidy;--header-filter=^${sourceDir}/include")
 find_package(Eigen3 REQUIRED)
-find_package(fmt REQUIRED)
 
 find_package(
   catkin REQUIRED
@@ -42,9 +41,8 @@ add_dependencies(tracking_control_client ${PROJECT_NAME}_generate_messages_cpp
                  ${PROJECT_NAME}_gencpp ${PROJECT_NAME}_gencfg)
 target_include_directories(tracking_control_client
                            PUBLIC include ${catkin_INCLUDE_DIRS})
-target_link_libraries(
-  tracking_control_client PUBLIC tracking_control::controllers fmt::fmt
-                                 ${catkin_LIBRARIES})
+target_link_libraries(tracking_control_client
+                      PUBLIC tracking_control::controllers ${catkin_LIBRARIES})
 
 add_executable(tracking_control_node src/tracking_control_node.cpp)
 
