@@ -371,17 +371,19 @@ void TrackingControlClient::dynamicReconfigureCb(
   Eigen::IOFormat matlab_fmt{
       Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
   ROS_INFO_STREAM_THROTTLE(
-      1.0,
-      fmt::format(
-          "Dynamical Reconfigure Results:\nKp: {} -> {}\nKv: {} -> {}\nUDE is "
-          "velocity based: {} -> {}\nUDE "
-          "height threshold: {} -> {}\nUDE gain: {} -> {}",
-          k_pos_prev.transpose().format(matlab_fmt),
-          tc_params_->k_pos.transpose().format(matlab_fmt),
-          k_vel_prev.transpose().format(matlab_fmt),
-          tc_params_->k_vel.transpose().format(matlab_fmt),
-          ude_is_velocity_based_prev, tc_params_->ude_is_velocity_based,
-          de_height_threshold_prev, tc_params_->de_height_threshold,
-          de_gain_prev, tc_params_->de_gain));
+      1.0, "Dynamical Reconfigure Results:\nKp: "
+               << k_pos_prev.transpose().format(matlab_fmt) << " -> "
+               << tc_params_->k_pos.transpose().format(matlab_fmt)
+               << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt)
+               << " -> " << tc_params_->k_vel.transpose().format(matlab_fmt)
+               << "\nUDE is "
+                  "velocity based: "
+               << ude_is_velocity_based_prev << " -> "
+               << tc_params_->ude_is_velocity_based
+               << "\nUDE "
+                  "height threshold: "
+               << de_height_threshold_prev << " -> "
+               << tc_params_->de_height_threshold << "\nUDE gain: "
+               << de_gain_prev << " -> " << tc_params_->de_gain);
 }
 }  // namespace nodelib
