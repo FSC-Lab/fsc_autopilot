@@ -5,6 +5,7 @@
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/Tracking.h"
 #include "tracking_control/TrackingControlConfig.h"
+#include "tracking_control/definitions.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
 
@@ -119,11 +120,11 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   fsc::TrackingControllerError pos_ctrl_err;
   // outerloop control
-  const auto& [outer_success, pos_ctrl_out] =
+  const auto& [pos_ctrl_out, outer_success] =
       tracking_ctrl_.run(state_, refs_, &pos_ctrl_err);
 
-  if (!outer_success) {
-    ROS_ERROR("Outer controller failed!: %s", pos_ctrl_err.message().c_str());
+  if (outer_success != fsc::ControllerErrc::kSuccess) {
+    ROS_ERROR("Outer controller failed!: %s", outer_success.message().c_str());
     return;
   }
 
@@ -161,7 +162,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
     fsc::Reference inner_ref;
     inner_ref.state.pose.orientation = pos_ctrl_out.state.pose.orientation;
     fsc::NonlinearGeometricControllerError att_ctrl_err;
-    const auto& [inner_success, att_ctrl_out] =
+    const auto& [att_ctrl_out, inner_success] =
         att_ctrl_.run(state_, inner_ref, &att_ctrl_err);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;

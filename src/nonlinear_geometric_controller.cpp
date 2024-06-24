@@ -1,5 +1,6 @@
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 
+#include "tracking_control/definitions.hpp"
 #include "tracking_control/math.hpp"
 
 namespace fsc {
@@ -27,7 +28,7 @@ ControlResult NonlinearGeometricController::run(
       -2.0 / params_.time_constant * err->attitude_error;
 
   ControlResult result;
-  result.success = true;
+  result.ec = ControllerErrc::kSuccess;
   result.setpoint.input.command = body_rate_sp;
   return result;
 }

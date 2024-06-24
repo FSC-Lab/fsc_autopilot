@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <system_error>
 #include <variant>
 
 #include "Eigen/Dense"
@@ -55,8 +56,14 @@ struct ControlErrorBase {
 };
 
 struct ControlResult {
-  bool success{false};
   Setpoint setpoint;
+  std::error_code ec;
+
+  explicit operator bool() const noexcept {
+    return ec == ControllerErrc::kSuccess;
+  }
+};
+
 };
 
 class ControllerBase {

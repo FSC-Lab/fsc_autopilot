@@ -5,7 +5,7 @@
 #include "geometry_msgs/Vector3.h"
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
-#include "utils/utils.hpp"
+#include "tracking_control/definitions.hpp"
 
 namespace fsc {
 TrackingController::TrackingController(ParametersSharedPtr params)
@@ -36,7 +36,7 @@ ControlResult TrackingController::run(const VehicleState& state,
   // SaturationSmoothing(raw_velocity_error, 1.0);
 
   if (params_->vehicle_mass < 0.0) {
-    return {false, getFallBackSetpoint()};
+    return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
   }
 
   // bound the velocity and position error
@@ -87,7 +87,7 @@ ControlResult TrackingController::run(const VehicleState& state,
     ude_integral_ -= params_->ude_gain * ude_integrand * dt;
     // Bail on insane bounds
     if ((params_->ude_lb.array() > params_->ude_ub.array()).any()) {
-      return {false, getFallBackSetpoint()};
+      return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
     }
 
     Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
@@ -145,7 +145,7 @@ ControlResult TrackingController::run(const VehicleState& state,
   // std::cout << "thrust per rotor (N) is: " << thrust_per_rotor << '\n';
 
   ControlResult result;
-  result.success = true;
+  result.ec = ControllerErrc::kSuccess;
   result.setpoint.input.thrust = thrust_per_rotor;
   result.setpoint.input.command = Eigen::Quaterniond(attitude_sp);
   if (err) {
