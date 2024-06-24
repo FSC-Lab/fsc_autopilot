@@ -56,9 +56,6 @@ TrackingControlClient::TrackingControlClient() {
   // show the parameters
   dispPara();
 
-  // initialize variables
-  initVariables();
-
   cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
     dynamicReconfigureCb(std::forward<decltype(PH1)>(PH1),
                          std::forward<decltype(PH2)>(PH2));
@@ -107,16 +104,14 @@ void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
 
 void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   // calculate time step
-  currTime = event.current_real;
-  timeStep = getTimeDiff(currTime, lastTime);
-  lastTime = currTime;
-
+  tc_params_->dt = (event.current_real - event.last_real).toSec();
+  if (tc_params_->dt <= 0.0 || tc_params_->dt > 1.0) {
+    return;
+  }
   // check drone status
   tc_params_->ude_active = (mavrosState_.connected != 0U) &&
                            (mavrosState_.armed != 0U) &&
                            (mavrosState_.mode == "OFFBOARD");
-
-  tc_params_->dt = timeStep;
 
   fsc::TrackingControllerError pos_ctrl_err;
   // outerloop control
@@ -294,16 +289,6 @@ void TrackingControlClient::loadParams() {
                                    std::vector<double>{0.1, 0.05});
   motor_curve_ = MotorCurveType(Eigen::VectorXd::Map(
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
-}
-
-void TrackingControlClient::initVariables() {
-  /*
-   * stamp.sec: seconds (stamp_secs) since epoch (in Python the variable is
-   * called 'secs') stamp.nsec: nanoseconds since stamp_secs (in Python the
-   * variable is called 'nsecs')
-   */
-  currTime = ros::Time::now();
-  lastTime = ros::Time::now();
 }
 
 double TrackingControlClient::getTimeDiff(const ros::Time& currTime,

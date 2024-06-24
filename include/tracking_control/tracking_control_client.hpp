@@ -41,7 +41,6 @@ class TrackingControlClient {
   void mainLoop(const ros::TimerEvent& event);
 
   void dispPara();
-  void initVariables();
   void loadParams();
   void setupRosTopics();
 
@@ -79,10 +78,6 @@ class TrackingControlClient {
   ros::Timer timer_;
   bool enable_inner_controller_{
       false};  // flag indicating wether inner atttiude controller is on
-  double timeStep{
-      0.0};  // stores the time difference between to consecutive calls
-  ros::Time currTime;
-  ros::Time lastTime;
 };
 
 }  // namespace nodelib
