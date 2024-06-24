@@ -59,23 +59,24 @@ Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
   // Aim to deliver requested lift exactly while scaling
   // back maximally allowed lateral thrusteration subject
   // to either thrusteration limits or tilt limits
-  const auto max_lateral_acc =
+  const auto max_lateral_thrust =
       min(sqrt(pow<2>(max_z_thrust) - pow<2>(z_sp)), lat_acc_at_full_tilt);
 
   using Vector2 = Eigen::Matrix<Scalar, 2, 1>;
   using Vector3 = Eigen::Matrix<Scalar, 3, 1>;
-  const Eigen::Ref<const Vector2> lateral_acc{thrust_sp.template head<2>()};
+  const Eigen::Ref<const Vector2> lateral_thrust{thrust_sp.template head<2>()};
 
   Vector3 shaped_thrust_sp;
   shaped_thrust_sp.z() = z_sp;
 
   // Scale back desired lateral thrusteration if it exceeds allowed maximum
-  const auto lateral_acc_sqnorm = lateral_acc.squaredNorm();
-  if (lateral_acc_sqnorm > pow<2>(max_lateral_acc)) {
-    const auto lateral_acc_scale = max_lateral_acc / sqrt(lateral_acc_sqnorm);
-    shaped_thrust_sp.template head<2>() = lateral_acc_scale * lateral_acc;
+  const auto lateral_thrust_sqnorm = lateral_thrust.squaredNorm();
+  if (lateral_thrust_sqnorm > pow<2>(max_lateral_thrust)) {
+    const auto lateral_thrust_scale =
+        max_lateral_thrust / sqrt(lateral_thrust_sqnorm);
+    shaped_thrust_sp.template head<2>() = lateral_thrust_scale * lateral_thrust;
   } else {
-    shaped_thrust_sp.template head<2>() = lateral_acc;
+    shaped_thrust_sp.template head<2>() = lateral_thrust;
   }
 
   return shaped_thrust_sp;

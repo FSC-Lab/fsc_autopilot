@@ -21,13 +21,13 @@ struct TrackingControllerError final : public ControlErrorBase {
   Eigen::Vector3d position_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d velocity_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d ude_output{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d accel_sp{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d thrust_setpoint{Eigen::Vector3d::Zero()};
 
   // msg output
   bool altiThreshold{false};
   bool intFlag{false};
-  float thrustPerRotor;  // thrust per rotor
-  float thrust_sp;       // thrust setpoint
+  double thrust_per_rotor;  // thrust per rotor
+  double thrust_sp;         // thrust setpoint
   Eigen::Vector3d expectedThrust{Eigen::Vector3d::Zero()};
   Eigen::Vector3d inertialForce{Eigen::Vector3d::Zero()};
   Eigen::Vector3d disturbanceEstimate{Eigen::Vector3d::Zero()};
@@ -43,19 +43,19 @@ struct TrackingControllerParameters {
   static constexpr double kDefaultKvXY{1.5};
   static constexpr double kDefaultKvZ{3.3};
   Eigen::Vector3d k_vel{kDefaultKvXY, kDefaultKvXY, kDefaultKvZ};
-  double min_z_accel{0};
+  double min_thrust{0};
 
-  static constexpr double kDefaultMaxZAccel{20};
-  double max_z_accel{kDefaultMaxZAccel};
+  static constexpr double kDefaultMaxThrust{20};
+  double max_thrust{kDefaultMaxThrust};
 
   static constexpr double kDefaultMaxTiltAngle{45};
   double max_tilt_angle{kDefaultMaxTiltAngle};
 
   static constexpr double kDefaultDEGain{1.0};
-  double de_gain{kDefaultDEGain};
+  double ude_gain{kDefaultDEGain};
 
   static constexpr double kDefaultDEHeightThreshold{0.1};
-  double de_height_threshold{kDefaultDEHeightThreshold};
+  double ude_height_threshold{kDefaultDEHeightThreshold};
 
   static constexpr double kVehicleMassSentinel{-1.0};
   double vehicle_mass{kVehicleMassSentinel};
@@ -65,9 +65,9 @@ struct TrackingControllerParameters {
   bool ude_active{false};
   bool ude_is_velocity_based{false};
 
-  static constexpr double kDefaultDEBounds{5};
-  Eigen::Vector3d de_lb{Eigen::Vector3d::Constant(-kDefaultDEBounds)};
-  Eigen::Vector3d de_ub{Eigen::Vector3d::Constant(kDefaultDEBounds)};
+  static constexpr double kDefaultUDEBounds{5};
+  Eigen::Vector3d ude_lb{Eigen::Vector3d::Constant(-kDefaultUDEBounds)};
+  Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
 
   double dt{-1.0};
 };
@@ -92,10 +92,10 @@ class TrackingController final : public ControllerBase {
   [[nodiscard]] std::string name() const final { return "tracking_controller"; }
 
  private:
-  Eigen::Vector3d disturbance_estimate_{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d de_integral_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d ude_value_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d ude_integral_{Eigen::Vector3d::Zero()};
 
-  double thrust_sp_{0.0};
+  double scalar_thrust_setpoint_{0.0};
   ParametersSharedPtr params_;
 };
 }  // namespace fsc

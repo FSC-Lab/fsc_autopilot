@@ -189,7 +189,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   pld_debug_data.intFlag = pos_ctrl_err.intFlag;
   pld_debug_data.altiThreshold = pos_ctrl_err.altiThreshold;
   pld_debug_data.thrustSetpoint = pos_ctrl_err.thrust_sp;
-  pld_debug_data.thrustPerRotor = pos_ctrl_err.thrustPerRotor;
+  pld_debug_data.thrustPerRotor = pos_ctrl_err.thrust_per_rotor;
   pld_debug_data.expectedThrust.x = pos_ctrl_err.expectedThrust.x();
   pld_debug_data.expectedThrust.y = pos_ctrl_err.expectedThrust.y();
   pld_debug_data.expectedThrust.z = pos_ctrl_err.expectedThrust.z();
@@ -201,7 +201,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   pld_debug_data.inertialForce.z = pos_ctrl_err.inertialForce.z();
 
   tf2::toMsg(pos_ctrl_err.ude_output, ude_estimate.vector);
-  tf2::toMsg(pos_ctrl_err.accel_sp, accsp.vector);
+  tf2::toMsg(pos_ctrl_err.thrust_setpoint, accsp.vector);
 
   setpoint_pub_.publish(pld);
   setpoint_pos_error_pub_.publish(pld_pos_err);
@@ -230,14 +230,14 @@ void TrackingControlClient::dispPara() {
 
   // controller constraints
 
-  ROS_INFO("height_threshold: %f", tc_params_->de_height_threshold);
+  ROS_INFO("height_threshold: %f", tc_params_->ude_height_threshold);
 
   // update rate
   ROS_INFO("update rate: %f", ros_rate_);
 
   // ude parameters
-  ROS_INFO("de_gain: %f", tc_params_->de_gain);
-  ROS_INFO("de_height_threshold: %f", tc_params_->de_height_threshold);
+  ROS_INFO("ude_gain: %f", tc_params_->ude_gain);
+  ROS_INFO("ude_height_threshold: %f", tc_params_->ude_height_threshold);
 }
 
 void TrackingControlClient::loadParams() {
@@ -262,21 +262,21 @@ void TrackingControlClient::loadParams() {
       pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
 
-  tc_params_->de_lb << pnh.param("tracking_controller/de/lbx",
-                                 tc_params_->de_lb.x()),
-      pnh.param("tracking_controller/de/lby", tc_params_->de_lb.y()),
-      pnh.param("tracking_controller/de/lbz", tc_params_->de_lb.z());
+  tc_params_->ude_lb << pnh.param("tracking_controller/de/lbx",
+                                  tc_params_->ude_lb.x()),
+      pnh.param("tracking_controller/de/lby", tc_params_->ude_lb.y()),
+      pnh.param("tracking_controller/de/lbz", tc_params_->ude_lb.z());
 
-  tc_params_->de_ub << pnh.param("tracking_controller/de/lbx",
-                                 tc_params_->de_ub.x()),
-      pnh.param("tracking_controller/de/lby", tc_params_->de_ub.y()),
-      pnh.param("tracking_controller/de/lbz", tc_params_->de_ub.z());
+  tc_params_->ude_ub << pnh.param("tracking_controller/de/lbx",
+                                  tc_params_->ude_ub.x()),
+      pnh.param("tracking_controller/de/lby", tc_params_->ude_ub.y()),
+      pnh.param("tracking_controller/de/lbz", tc_params_->ude_ub.z());
 
-  tc_params_->de_height_threshold =
+  tc_params_->ude_height_threshold =
       pnh.param("tracking_controller/de/height_threshold",
-                tc_params_->de_height_threshold);
-  tc_params_->de_gain =
-      pnh.param("tracking_controller/de/gain", tc_params_->de_gain);
+                tc_params_->ude_height_threshold);
+  tc_params_->ude_gain =
+      pnh.param("tracking_controller/de/gain", tc_params_->ude_gain);
 
   pnh.getParam("tracking_controller/de/is_velocity_based",
                tc_params_->ude_is_velocity_based);
@@ -293,11 +293,10 @@ void TrackingControlClient::loadParams() {
 
   att_ctrl_.params() = ac_params_;
 
-  tc_params_->min_z_accel = pnh.param("tracking_controller/min_acc", 0.0);
+  tc_params_->min_thrust = pnh.param("tracking_controller/min_thrust", 0.0);
 
-  constexpr auto kDefaultMaxAcceleration = 20.0;
-  tc_params_->max_z_accel =
-      pnh.param("tracking_controller/max_acc", kDefaultMaxAcceleration);
+  tc_params_->max_thrust =
+      pnh.param("tracking_controller/max_thrust", tc_params_->max_thrust);
 
   constexpr auto kDefaultMaxTiltAngle = 45.0;
   tc_params_->max_tilt_angle =
@@ -348,9 +347,9 @@ void TrackingControlClient::dynamicReconfigureCb(
 
   auto ude_is_velocity_based_prev =
       std::exchange(tc_params_->ude_is_velocity_based, ude.is_velocity_based);
-  auto de_height_threshold_prev =
-      std::exchange(tc_params_->de_height_threshold, ude.height_threshold);
-  auto de_gain_prev = std::exchange(tc_params_->de_gain, ude.gain);
+  auto ude_height_threshold_prev =
+      std::exchange(tc_params_->ude_height_threshold, ude.height_threshold);
+  auto ude_gain_prev = std::exchange(tc_params_->ude_gain, ude.gain);
 
   Eigen::IOFormat matlab_fmt{
       Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
@@ -366,8 +365,8 @@ void TrackingControlClient::dynamicReconfigureCb(
                << tc_params_->ude_is_velocity_based
                << "\nUDE "
                   "height threshold: "
-               << de_height_threshold_prev << " -> "
-               << tc_params_->de_height_threshold << "\nUDE gain: "
-               << de_gain_prev << " -> " << tc_params_->de_gain);
+               << ude_height_threshold_prev << " -> "
+               << tc_params_->ude_height_threshold << "\nUDE gain: "
+               << ude_gain_prev << " -> " << tc_params_->ude_gain);
 }
 }  // namespace nodelib

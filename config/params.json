@@ -1,7 +1,7 @@
 {
   "tracking_controller": {
-    "min_acc": 0.0,
-    "max_acc": 100.0,
+    "min_thrust": 0.0,
+    "max_thrust": 100.0,
     "motor_curve": [
       0.36,
       0.082
