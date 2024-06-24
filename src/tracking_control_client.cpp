@@ -220,25 +220,10 @@ void TrackingControlClient::dispPara() {
   } else {
     ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
   }
-  // drone parameters
-  ROS_INFO("Quadrotor mass: %f", tc_params_->vehicle_mass);
-  // control parameters
-  ROS_INFO("Tracking controller gains:");
-  ROS_INFO("k_pos/x: %f, k_pos/y: %f, k_pos/z: %f", tc_params_->k_pos[0],
-           tc_params_->k_pos[1], tc_params_->k_pos[2]);
-  ROS_INFO("k_vel/x: %f, k_vel/y: %f, k_vel/z: %f", tc_params_->k_vel[0],
-           tc_params_->k_vel[1], tc_params_->k_vel[2]);
-
-  // controller constraints
-
-  ROS_INFO("height_threshold: %f", tc_params_->ude_height_threshold);
-
   // update rate
   ROS_INFO("update rate: %f", ros_rate_);
 
-  // ude parameters
-  ROS_INFO("ude_gain: %f", tc_params_->ude_gain);
-  ROS_INFO("ude_height_threshold: %f", tc_params_->ude_height_threshold);
+  ROS_INFO_STREAM(tc_params_->toString());
 }
 
 void TrackingControlClient::loadParams() {

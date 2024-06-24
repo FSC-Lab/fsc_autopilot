@@ -2,6 +2,7 @@
 #define TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
 
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "Eigen/Dense"
@@ -35,7 +36,7 @@ struct TrackingControllerError final : public ControlErrorBase {
   bool ude_effective{false};
 };
 
-struct TrackingControllerParameters {
+struct TrackingControllerParameters : public ControllerParameterBase {
   static constexpr double kDefaultKpXY{1.0};
   static constexpr double kDefaultKpZ{10.0};
   Eigen::Vector3d k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};
@@ -70,6 +71,30 @@ struct TrackingControllerParameters {
   Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
 
   double dt{-1.0};
+
+  [[nodiscard]] bool valid() const override {
+    return min_thrust < max_thrust && (ude_lb.array() < ude_ub.array()).all() &&
+           vehicle_mass > 0.0 && dt > 0.0;
+  }
+
+  [[nodiscard]] std::string toString() const override {
+    const Eigen::IOFormat f{
+        Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
+    std::ostringstream oss;
+
+    oss << "dt: " << dt << "\n"
+        << "Quadrotor Mass: " << vehicle_mass << "\n"
+        << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
+        << "Tracking Controller parameters:\nk_pos: "
+        << k_pos.transpose().format(f)                     //
+        << "\nk_vel: " << k_vel.transpose().format(f)      //
+        << "\nUDE parameters:"                             //
+        << "\nheight_threshold: " << ude_height_threshold  //
+        << "\nde_gain: " << ude_gain                       //
+        << "\nde_lb: " << ude_lb.transpose().format(f)     //
+        << "\nde_ub: " << ude_ub.transpose().format(f);    //
+    return oss.str();
+  }
 };
 
 class TrackingController final : public ControllerBase {

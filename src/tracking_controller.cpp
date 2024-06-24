@@ -15,6 +15,11 @@ ControlResult TrackingController::run(const VehicleState& state,
                                       const Reference& refs,
                                       ControlErrorBase* error) {
   using std::atan2;
+
+  if (!params_->valid()) {
+    return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
+  }
+
   const auto& [curr_position, curr_orientation] = state.pose;
   const auto& curr_velocity = state.twist.linear;
   const auto& curr_acceleration = state.accel.linear;
@@ -34,10 +39,6 @@ ControlResult TrackingController::run(const VehicleState& state,
   const Eigen::Vector3d velocity_error =
       SaturationSmoothing(raw_velocity_error, 1.0);
   // SaturationSmoothing(raw_velocity_error, 1.0);
-
-  if (params_->vehicle_mass < 0.0) {
-    return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
-  }
 
   // bound the velocity and position error
   // kv * (ev + kp * sat(ep))
@@ -86,9 +87,6 @@ ControlResult TrackingController::run(const VehicleState& state,
     // disturbance estimator
     ude_integral_ -= params_->ude_gain * ude_integrand * dt;
     // Bail on insane bounds
-    if ((params_->ude_lb.array() > params_->ude_ub.array()).any()) {
-      return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
-    }
 
     Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
     // std::cout << "------------------------------\n";

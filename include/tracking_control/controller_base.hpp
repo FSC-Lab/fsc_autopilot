@@ -64,6 +64,13 @@ struct ControlResult {
   }
 };
 
+class ControllerParameterBase {
+ public:
+  virtual ~ControllerParameterBase() = default;
+
+  [[nodiscard]] virtual bool valid() const = 0;
+
+  [[nodiscard]] virtual std::string toString() const = 0;
 };
 
 class ControllerBase {
@@ -72,6 +79,10 @@ class ControllerBase {
 
   virtual ControlResult run(const VehicleState& state, const Reference& refs,
                             ControlErrorBase* error) = 0;
+
+  ControlResult run(const VehicleState& state, const Reference& refs) {
+    return run(state, refs, nullptr);
+  }
 
   [[nodiscard]] virtual Setpoint getFallBackSetpoint() const {
     return {VehicleState{}, VehicleInput{0.0, Eigen::Quaterniond::Identity()}};
