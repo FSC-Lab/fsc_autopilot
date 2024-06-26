@@ -37,10 +37,12 @@ struct TrackingControllerError final : public ControlErrorBase {
 };
 
 struct TrackingControllerParameters : public ControllerParameterBase {
+  bool is_pos_err_saturation_active{true};
   static constexpr double kDefaultKpXY{1.0};
   static constexpr double kDefaultKpZ{10.0};
   Eigen::Vector3d k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};
 
+  bool apply_vel_err_saturation{false};
   static constexpr double kDefaultKvXY{1.5};
   static constexpr double kDefaultKvZ{3.3};
   Eigen::Vector3d k_vel{kDefaultKvXY, kDefaultKvXY, kDefaultKvZ};

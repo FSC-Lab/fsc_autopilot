@@ -86,7 +86,10 @@ template <typename Derived, typename Scalar = typename Derived::Scalar>
 Eigen::Matrix<Scalar, Derived::SizeAtCompileTime, 1> SaturationSmoothing(
     const Eigen::MatrixBase<Derived>& x, Scalar c) {
   using std::sqrt;
-  return x / sqrt(c + x.squaredNorm());
+  if (c > Scalar(0)) {
+    return x / sqrt(c + x.squaredNorm());
+  }
+  return x;
 }
 }  // namespace fsc
 

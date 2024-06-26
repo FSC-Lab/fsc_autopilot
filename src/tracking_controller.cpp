@@ -33,11 +33,14 @@ ControlResult TrackingController::run(const VehicleState& state,
   }
   Eigen::Vector3d raw_position_error = curr_position - ref_position;
   Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
-  // Eigen::Vector3d
+
+  const double k_pos_err_sat =
+      params_->is_pos_err_saturation_active ? 1.0 : -1.0;
   const Eigen::Vector3d position_error =
-      SaturationSmoothing(raw_position_error, 1.0);
+      SaturationSmoothing(raw_position_error, k_pos_err_sat);
+  const double k_vel_err_sat = params_->apply_vel_err_saturation ? 1.0 : -1.0;
   const Eigen::Vector3d velocity_error =
-      SaturationSmoothing(raw_velocity_error, 1.0);
+      SaturationSmoothing(raw_velocity_error, k_vel_err_sat);
   // SaturationSmoothing(raw_velocity_error, 1.0);
 
   // bound the velocity and position error

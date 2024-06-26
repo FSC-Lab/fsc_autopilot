@@ -300,30 +300,66 @@ double TrackingControlClient::getTimeDiff(const ros::Time& currTime,
 void TrackingControlClient::dynamicReconfigureCb(
     const tracking_control::TrackingControlConfig& config,
     std::uint32_t level) {
+  constexpr double kMaxParamStep = 1.0;
+
   if (!initialized_) {
     return;
   }
+  const Eigen::IOFormat matlab_fmt{
+      Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+
   const auto& tracker = config.groups.tracker;
   const auto& ude = config.groups.ude;
-  const Eigen::Vector3d k_pos_prev =
-      std::exchange(tc_params_->k_pos,
-                    Eigen::Vector3d{tracker.position_tracking.pos_p_x,  //
-                                    tracker.position_tracking.pos_p_y,  //
-                                    tracker.position_tracking.pos_p_z});
+  int max_idx;
 
-  const Eigen::Vector3d k_vel_prev = std::exchange(
-      tc_params_->k_vel, Eigen::Vector3d{tracker.velocity_tracking.vel_p_x,  //
-                                         tracker.velocity_tracking.vel_p_y,  //
-                                         tracker.velocity_tracking.vel_p_z});
+  const auto apply_pos_err_saturation_prev =
+      std::exchange(tc_params_->is_pos_err_saturation_active,
+                    tracker.position_tracking.apply_pos_err_saturation);
+
+  const Eigen::Vector3d k_pos_new{tracker.position_tracking.pos_p_x,  //
+                                  tracker.position_tracking.pos_p_y,  //
+                                  tracker.position_tracking.pos_p_z};
+  const auto max_k_pos_step =
+      (k_pos_new - tc_params_->k_pos).cwiseAbs().maxCoeff(&max_idx);
+  if (max_k_pos_step > kMaxParamStep) {
+    ROS_ERROR("Refusing reconfiguration: ΔKp[%d] = %f > %f", max_idx,
+              max_k_pos_step, kMaxParamStep);
+    return;
+  }
+
+  const auto apply_vel_err_saturation_prev =
+      std::exchange(tc_params_->apply_vel_err_saturation,
+                    tracker.velocity_tracking.apply_vel_err_saturation);
+
+  const Eigen::Vector3d k_pos_prev =
+      std::exchange(tc_params_->k_pos, k_pos_new);
+
+  const Eigen::Vector3d k_vel_new{tracker.velocity_tracking.vel_p_x,  //
+                                  tracker.velocity_tracking.vel_p_y,  //
+                                  tracker.velocity_tracking.vel_p_z};
+  const auto max_k_vel_step =
+      (k_vel_new - tc_params_->k_vel).cwiseAbs().maxCoeff(&max_idx);
+  if (max_k_vel_step > kMaxParamStep) {
+    ROS_ERROR("Refusing reconfiguration: ΔKv[%d] = %f > %f", max_idx,
+              max_k_vel_step, kMaxParamStep);
+    return;
+  }
+  const Eigen::Vector3d k_vel_prev =
+      std::exchange(tc_params_->k_vel, k_vel_new);
 
   auto ude_is_velocity_based_prev =
       std::exchange(tc_params_->ude_is_velocity_based, ude.is_velocity_based);
   auto ude_height_threshold_prev =
       std::exchange(tc_params_->ude_height_threshold, ude.height_threshold);
+
+  const auto ude_gain_step = std::abs(ude.gain - tc_params_->ude_gain);
+  if (ude_gain_step > kMaxParamStep) {
+    ROS_ERROR("Refusing reconfiguration: Δ ude_gain = %f > %f", ude_gain_step,
+              kMaxParamStep);
+    return;
+  }
   auto ude_gain_prev = std::exchange(tc_params_->ude_gain, ude.gain);
 
-  Eigen::IOFormat matlab_fmt{
-      Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
   ROS_INFO_STREAM_THROTTLE(
       1.0, "Dynamical Reconfigure Results:\nKp: "
                << k_pos_prev.transpose().format(matlab_fmt) << " -> "
