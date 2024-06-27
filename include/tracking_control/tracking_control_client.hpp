@@ -44,10 +44,6 @@ class TrackingControlClient {
   void loadParams();
   void setupRosTopics();
 
-  // get time diff from syste
-  // convert it to double with unit (s)
-  double getTimeDiff(const ros::Time& currTime, const ros::Time& lastTime);
-
   bool initialized_{false};
   ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;

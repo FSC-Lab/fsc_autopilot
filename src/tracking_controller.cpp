@@ -1,8 +1,5 @@
 #include "tracking_control/tracking_controller.hpp"
 
-#include <iomanip>
-
-#include "geometry_msgs/Vector3.h"
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
@@ -98,27 +95,6 @@ ControlResult TrackingController::run(const VehicleState& state,
     }
     // disturbance estimator
     ude_integral_ -= params_->ude_gain * ude_integrand * dt;
-    // Bail on insane bounds
-
-    Eigen::IOFormat a{Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
-    // std::cout << "------------------------------\n";
-    // std::cout << std::setprecision(2) << std::fixed;
-    // std::cout << "z asix: " << state.pose.orientation *
-    // Eigen::Vector3d::UnitZ()
-    //<< '\n';
-    // std::cout<<"expected thrust:
-    // "<<expected_accel.transpose().format(a)<<'\n';
-    // std::cout << "expected thrust: " << expected_thrust.transpose().format(a)
-    //<< '\n';
-    // std::cout << "disturbance_estimate_: "
-    //<< disturbance_estimate_.transpose().format(a) << '\n';
-    // std::cout<<"inertial_force:
-    // "<<inertial_acc.transpose().format(a)<<'\n';
-    // std::cout << "inertial_force: " << inertial_force.transpose().format(a)
-    //<< '\n';
-    // Clamp disturbance estimate: TO DO: add saturation
-    // disturbance_estimate_ =
-    //     disturbance_estimate_.cwiseMax(params_->de_lb).cwiseMin(params_->de_ub);
   }
 
   // std::cout << "dt: " << dt << '\n';
