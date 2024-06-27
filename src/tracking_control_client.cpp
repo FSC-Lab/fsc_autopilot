@@ -154,8 +154,8 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
                pld.body_rate);
     setpoint_attitude_error_pub_.publish(pld_att_err);
   } else {
-    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE &
-                    mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE &
+    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
+                    mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
                     mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
     pld.orientation =
         tf2::toMsg(std::get<Eigen::Quaterniond>(pos_ctrl_out.input.command));
