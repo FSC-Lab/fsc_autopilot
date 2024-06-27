@@ -22,6 +22,7 @@ inline tracking_control::UDEState& toMsg(
 inline tracking_control::TrackingError& toMsg(
     const Stamped<fsc::TrackingControllerError>& in,
     tracking_control::TrackingError& out) {
+  out.header.stamp = in.stamp_;
   out.int_flag = static_cast<std::uint8_t>(in.int_flag);
   out.pass_alt_threshold = static_cast<std::uint8_t>(in.pass_alt_threshold);
   out.scalar_thrust_setpoint = in.scalar_thrust_sp;
