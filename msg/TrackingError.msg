@@ -1,0 +1,13 @@
+std_msgs/Header header
+bool int_flag
+bool pass_alt_threshold
+
+float64 scalar_thrust_setpoint
+float64 thrust_per_rotor
+
+geometry_msgs/Vector3 position_error
+geometry_msgs/Vector3 velocity_error
+geometry_msgs/Vector3 feedback
+geometry_msgs/Vector3 thrust_setpoint
+
+tracking_control/UDEState ude_state

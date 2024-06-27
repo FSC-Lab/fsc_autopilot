@@ -3,9 +3,10 @@
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
-#include "tracking_control/Tracking.h"
 #include "tracking_control/TrackingControlConfig.h"
+#include "tracking_control/TrackingError.h"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/msg_conversion.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
 
@@ -40,17 +41,11 @@ TrackingControlClient::TrackingControlClient() {
 
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       "/mavros/setpoint_raw/attitude", 1);
-  setpoint_pos_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
-      "tracking_controller/setpoint_pos_error", 1);
-  setpoint_vel_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
-      "tracking_controller/setpoint_vel_error", 1);
+
   setpoint_attitude_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
       "tracking_controller/setpoint_attitude_error", 1);
-  ude_estimate_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
-      "tracking_controller/ude_estimate", 1);
-  acc_setpoint_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
-      "tracking_controller/acc_setpoint", 1);
-  debug_data_pub_ = nh_.advertise<tracking_control::Tracking>(
+
+  tracking_error_pub_ = nh_.advertise<tracking_control::TrackingError>(
       "tracking_controller/output_data", 1);
 
   // show the parameters
@@ -125,9 +120,7 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
   // define output messages
   mavros_msgs::AttitudeTarget pld;
-  tracking_control::Tracking pld_debug_data;
   pld.header.stamp = event.current_real;
-  pld_debug_data.header.stamp = event.current_real;
   // convert thrust command to normalized thrust input
   // if the thrust is an acc command, then the thrust curve must change as well
   pld.thrust = std::clamp(
@@ -135,17 +128,6 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
       1.0F);
 
   // std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
-
-  geometry_msgs::Vector3Stamped pld_pos_err;
-  pld_pos_err.header.stamp = event.current_real;
-  tf2::toMsg(pos_ctrl_err.position_error, pld_pos_err.vector);
-
-  geometry_msgs::Vector3Stamped pld_vel_err;
-  pld_vel_err.header.stamp = event.current_real;
-  tf2::toMsg(pos_ctrl_err.velocity_error, pld_vel_err.vector);
-
-  geometry_msgs::Vector3Stamped pld_att_err;
-  pld_att_err.header.stamp = event.current_real;
 
   geometry_msgs::Vector3Stamped ude_estimate;
   ude_estimate.header.stamp = event.current_real;
@@ -162,50 +144,28 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
 
+    geometry_msgs::Vector3Stamped pld_att_err;
+    pld_att_err.header.stamp = event.current_real;
     pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
     pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;
     pld_att_err.vector.z = att_ctrl_err.attitude_error.z() * 180.0 / M_PI;
 
     tf2::toMsg(std::get<Eigen::Vector3d>(att_ctrl_out.input.command),
                pld.body_rate);
+    setpoint_attitude_error_pub_.publish(pld_att_err);
   } else {
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE &
                     mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE &
                     mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
     pld.orientation =
         tf2::toMsg(std::get<Eigen::Quaterniond>(pos_ctrl_out.input.command));
-
-    // update attitude error to be 0 (because inner controller is disabled)
-    pld_att_err.vector.x = 0.0;
-    pld_att_err.vector.y = 0.0;
-    pld_att_err.vector.z = 0.0;
   }
-
-  // update debug output
-  pld_debug_data.intFlag = pos_ctrl_err.intFlag;
-  pld_debug_data.altiThreshold = pos_ctrl_err.altiThreshold;
-  pld_debug_data.thrustSetpoint = pos_ctrl_err.thrust_sp;
-  pld_debug_data.thrustPerRotor = pos_ctrl_err.thrust_per_rotor;
-  pld_debug_data.expectedThrust.x = pos_ctrl_err.expectedThrust.x();
-  pld_debug_data.expectedThrust.y = pos_ctrl_err.expectedThrust.y();
-  pld_debug_data.expectedThrust.z = pos_ctrl_err.expectedThrust.z();
-  pld_debug_data.disturbanceEstimate.x = pos_ctrl_err.disturbanceEstimate.x();
-  pld_debug_data.disturbanceEstimate.y = pos_ctrl_err.disturbanceEstimate.y();
-  pld_debug_data.disturbanceEstimate.z = pos_ctrl_err.disturbanceEstimate.z();
-  pld_debug_data.inertialForce.x = pos_ctrl_err.inertialForce.x();
-  pld_debug_data.inertialForce.y = pos_ctrl_err.inertialForce.y();
-  pld_debug_data.inertialForce.z = pos_ctrl_err.inertialForce.z();
-
-  tf2::toMsg(pos_ctrl_err.ude_output, ude_estimate.vector);
-  tf2::toMsg(pos_ctrl_err.thrust_setpoint, accsp.vector);
-
   setpoint_pub_.publish(pld);
-  setpoint_pos_error_pub_.publish(pld_pos_err);
-  setpoint_vel_error_pub_.publish(pld_vel_err);
-  setpoint_attitude_error_pub_.publish(pld_att_err);
-  ude_estimate_pub_.publish(ude_estimate);
-  acc_setpoint_pub_.publish(accsp);
-  debug_data_pub_.publish(pld_debug_data);
+
+  tracking_control::TrackingError tracking_error_msg;
+  tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
+             tracking_error_msg);
+  tracking_error_pub_.publish(tracking_error_msg);
 }
 
 void TrackingControlClient::dispPara() {
@@ -291,12 +251,6 @@ void TrackingControlClient::loadParams() {
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
 }
 
-double TrackingControlClient::getTimeDiff(const ros::Time& currTime,
-                                          const ros::Time& lastTime) {
-  ros::Duration diff = currTime - lastTime;
-  return static_cast<double>(diff.toSec());
-}
-
 void TrackingControlClient::dynamicReconfigureCb(
     const tracking_control::TrackingControlConfig& config,
     std::uint32_t level) {
@@ -313,7 +267,7 @@ void TrackingControlClient::dynamicReconfigureCb(
   int max_idx;
 
   const auto apply_pos_err_saturation_prev =
-      std::exchange(tc_params_->is_pos_err_saturation_active,
+      std::exchange(tc_params_->apply_pos_err_saturation,
                     tracker.position_tracking.apply_pos_err_saturation);
 
   const Eigen::Vector3d k_pos_new{tracker.position_tracking.pos_p_x,  //
@@ -361,19 +315,24 @@ void TrackingControlClient::dynamicReconfigureCb(
   auto ude_gain_prev = std::exchange(tc_params_->ude_gain, ude.gain);
 
   ROS_INFO_STREAM_THROTTLE(
-      1.0, "Dynamical Reconfigure Results:\nKp: "
-               << k_pos_prev.transpose().format(matlab_fmt) << " -> "
-               << tc_params_->k_pos.transpose().format(matlab_fmt)
-               << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt)
-               << " -> " << tc_params_->k_vel.transpose().format(matlab_fmt)
-               << "\nUDE is "
-                  "velocity based: "
-               << ude_is_velocity_based_prev << " -> "
-               << tc_params_->ude_is_velocity_based
-               << "\nUDE "
-                  "height threshold: "
-               << ude_height_threshold_prev << " -> "
-               << tc_params_->ude_height_threshold << "\nUDE gain: "
-               << ude_gain_prev << " -> " << tc_params_->ude_gain);
+      1.0,
+      "Dynamical Reconfigure Results:\nPosition Error Saturation: "
+          << apply_pos_err_saturation_prev << " -> "
+          << tc_params_->apply_pos_err_saturation
+          << "\nKp: " << k_pos_prev.transpose().format(matlab_fmt) << " -> "
+          << tc_params_->k_pos.transpose().format(matlab_fmt)
+          << "\nVelocity Error Saturation: " << apply_vel_err_saturation_prev
+          << " -> " << tc_params_->apply_vel_err_saturation
+          << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt) << " -> "
+          << tc_params_->k_vel.transpose().format(matlab_fmt)
+          << "\nUDE is "
+             "velocity based: "
+          << ude_is_velocity_based_prev << " -> "
+          << tc_params_->ude_is_velocity_based
+          << "\nUDE "
+             "height threshold: "
+          << ude_height_threshold_prev << " -> "
+          << tc_params_->ude_height_threshold << "\nUDE gain: " << ude_gain_prev
+          << " -> " << tc_params_->ude_gain);
 }
 }  // namespace nodelib

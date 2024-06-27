@@ -11,33 +11,34 @@
 
 namespace fsc {
 
-struct TrackingControllerError final : public ControlErrorBase {
+struct TrackingControllerError : public ControlErrorBase {
   [[nodiscard]] std::string name() const final {
     return "tracking_controller.error";
   }
 
-  std::string msg_str;
-  [[nodiscard]] std::string message() const final { return msg_str; }
+  struct UDEState {
+    bool is_velocity_based;
+    Eigen::Vector3d damping{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d expected_thrust{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d inertial_force{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d integral{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d disturbance_estimate{Eigen::Vector3d::Zero()};
+  };
+
+  bool int_flag{false};
+  bool pass_alt_threshold{false};
 
   Eigen::Vector3d position_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d velocity_error{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d ude_output{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d feedback{Eigen::Vector3d::Zero()};
   Eigen::Vector3d thrust_setpoint{Eigen::Vector3d::Zero()};
-
-  // msg output
-  bool altiThreshold{false};
-  bool intFlag{false};
-  double thrust_per_rotor;  // thrust per rotor
-  double thrust_sp;         // thrust setpoint
-  Eigen::Vector3d expectedThrust{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d inertialForce{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d disturbanceEstimate{Eigen::Vector3d::Zero()};
-
-  bool ude_effective{false};
+  double scalar_thrust_sp{0.0};  // thrust setpoint
+  double thrust_per_rotor{0.0};  // thrust per rotor
+  UDEState ude_state;
 };
 
 struct TrackingControllerParameters : public ControllerParameterBase {
-  bool is_pos_err_saturation_active{true};
+  bool apply_pos_err_saturation{true};
   static constexpr double kDefaultKpXY{1.0};
   static constexpr double kDefaultKpZ{10.0};
   Eigen::Vector3d k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};

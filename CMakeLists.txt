@@ -16,7 +16,8 @@ find_package(
 
 generate_dynamic_reconfigure_options(cfg/TrackingControl.cfg)
 
-add_message_files(DIRECTORY msg FILES TrackingReference.msg Tracking.msg)
+add_message_files(DIRECTORY msg FILES TrackingReference.msg TrackingError.msg
+                  UDEState.msg)
 
 generate_messages(DEPENDENCIES std_msgs geometry_msgs)
 

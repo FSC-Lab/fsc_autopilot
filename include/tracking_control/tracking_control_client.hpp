@@ -62,12 +62,8 @@ class TrackingControlClient {
       std::make_shared<fsc::TrackingControllerParameters>()};
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
-  ros::Publisher setpoint_pos_error_pub_;
-  ros::Publisher setpoint_vel_error_pub_;
   ros::Publisher setpoint_attitude_error_pub_;
-  ros::Publisher acc_setpoint_pub_;
-  ros::Publisher ude_estimate_pub_;
-  ros::Publisher debug_data_pub_;
+  ros::Publisher tracking_error_pub_;
   dynamic_reconfigure::Server<tracking_control::TrackingControlConfig> cfg_srv_;
 
   mavros_msgs::State mavrosState_;

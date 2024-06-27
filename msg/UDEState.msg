@@ -1,0 +1,7 @@
+bool is_velocity_based
+geometry_msgs/Vector3 damping
+geometry_msgs/Vector3 inertial_force
+geometry_msgs/Vector3 expected_thrust
+geometry_msgs/Vector3 integral
+geometry_msgs/Vector3 disturbance_estimate
+

@@ -31,16 +31,24 @@ ControlResult TrackingController::run(const VehicleState& state,
   if ((error != nullptr) && error->name() == "tracking_controller.error") {
     err = static_cast<decltype(err)>(error);
   }
-  Eigen::Vector3d raw_position_error = curr_position - ref_position;
-  Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
+  const Eigen::Vector3d raw_position_error = curr_position - ref_position;
+  const Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
 
-  const double k_pos_err_sat =
-      params_->is_pos_err_saturation_active ? 1.0 : -1.0;
-  const Eigen::Vector3d position_error =
-      SaturationSmoothing(raw_position_error, k_pos_err_sat);
-  const double k_vel_err_sat = params_->apply_vel_err_saturation ? 1.0 : -1.0;
-  const Eigen::Vector3d velocity_error =
-      SaturationSmoothing(raw_velocity_error, k_vel_err_sat);
+  Eigen::Vector3d position_error;
+  Eigen::Vector3d velocity_error;
+
+  if (params_->apply_pos_err_saturation) {
+    position_error = SaturationSmoothing(raw_position_error, 1.0);
+  } else {
+    position_error = raw_velocity_error;
+  }
+
+  if (params_->apply_vel_err_saturation) {
+    velocity_error = SaturationSmoothing(raw_velocity_error, 1.0);
+  } else {
+    velocity_error = raw_velocity_error;
+  }
+
   // SaturationSmoothing(raw_velocity_error, 1.0);
 
   // bound the velocity and position error
@@ -81,7 +89,8 @@ ControlResult TrackingController::run(const VehicleState& state,
           (state.pose.orientation * state.accel.linear - kGravity) *
           params_->vehicle_mass;
       if (err) {
-        err->inertialForce = inertial_force;
+        err->ude_state.damping.setConstant(-1.0);
+        err->ude_state.inertial_force = inertial_force;
       }
 
       ude_integrand =
@@ -121,6 +130,10 @@ ControlResult TrackingController::run(const VehicleState& state,
     const Eigen::Vector3d ude_damping =
         params_->ude_gain * params_->vehicle_mass * curr_velocity;
     ude_value_ = ude_integral_ + ude_damping;
+    if (err) {
+      err->ude_state.damping = ude_damping;
+      err->ude_state.inertial_force.setConstant(-1.0);
+    }
   } else {
     ude_value_ = ude_integral_;
   }
@@ -152,17 +165,18 @@ ControlResult TrackingController::run(const VehicleState& state,
   if (err) {
     err->position_error = raw_position_error;
     err->velocity_error = raw_velocity_error;
+    err->feedback = feedback;
     err->thrust_setpoint = thrust_setpoint;
-    err->ude_effective = int_flag && pass_alt_threshold;
-    err->ude_output = ude_value_;
     // msg output
-    err->altiThreshold = pass_alt_threshold;
-    err->intFlag = int_flag;
-    err->thrust_sp = scalar_thrust_setpoint_;
+    err->pass_alt_threshold = pass_alt_threshold;
+    err->int_flag = int_flag;
+    err->scalar_thrust_sp = scalar_thrust_setpoint_;
     err->thrust_per_rotor =
         scalar_thrust_setpoint_ / static_cast<double>(params_->num_of_rotors);
-    err->expectedThrust = expected_thrust;
-    err->disturbanceEstimate = ude_integral_;
+    err->ude_state.is_velocity_based = params_->ude_is_velocity_based;
+    err->ude_state.expected_thrust = expected_thrust;
+    err->ude_state.integral = ude_integral_;
+    err->ude_state.disturbance_estimate = ude_value_;
   }
 
   return result;
