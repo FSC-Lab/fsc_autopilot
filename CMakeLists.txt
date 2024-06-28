@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(tracking_control)
+project(tracking_control VERSION 0.2.0)
 
 # set(CMAKE_CXX_CLANG_TIDY "clang-tidy;--header-filter=^${sourceDir}/include")
 find_package(Eigen3 REQUIRED)
