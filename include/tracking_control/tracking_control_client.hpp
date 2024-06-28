@@ -43,6 +43,7 @@ class TrackingControlClient {
   void setupRosTopics();
 
   bool initialized_{false};
+  bool check_reconfiguration_{true};
   ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;
   AttitudeController att_ctrl_;

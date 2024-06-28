@@ -172,6 +172,9 @@ void TrackingControlClient::loadParams() {
   ROS_INFO("Inner controller is %s",
            (enable_inner_controller_ ? "enabled" : "disabled"));
 
+  pnh.getParam("tracking_controller/check_reconfiguration",
+               check_reconfiguration_);
+
   constexpr auto kDefaultKPosXY = 1.0;
   constexpr auto kDefaultKPosZ = 10.0;
   tc_params_->k_pos <<  // Force a line break
@@ -236,7 +239,7 @@ void TrackingControlClient::loadParams() {
 
 void TrackingControlClient::dynamicReconfigureCb(
     const tracking_control::TrackingControlConfig& config,
-    std::uint32_t level) {
+    [[maybe_unused]] std::uint32_t level) {
   constexpr double kMaxParamStep = 1.0;
 
   if (!initialized_) {
@@ -258,7 +261,7 @@ void TrackingControlClient::dynamicReconfigureCb(
                                   tracker.position_tracking.pos_p_z};
   const auto max_k_pos_step =
       (k_pos_new - tc_params_->k_pos).cwiseAbs().maxCoeff(&max_idx);
-  if (max_k_pos_step > kMaxParamStep) {
+  if (check_reconfiguration_ && max_k_pos_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: ΔKp[%d] = %f > %f", max_idx,
               max_k_pos_step, kMaxParamStep);
     return;
@@ -276,7 +279,7 @@ void TrackingControlClient::dynamicReconfigureCb(
                                   tracker.velocity_tracking.vel_p_z};
   const auto max_k_vel_step =
       (k_vel_new - tc_params_->k_vel).cwiseAbs().maxCoeff(&max_idx);
-  if (max_k_vel_step > kMaxParamStep) {
+  if (check_reconfiguration_ && max_k_vel_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: ΔKv[%d] = %f > %f", max_idx,
               max_k_vel_step, kMaxParamStep);
     return;
@@ -290,7 +293,7 @@ void TrackingControlClient::dynamicReconfigureCb(
       std::exchange(tc_params_->ude_height_threshold, ude.height_threshold);
 
   const auto ude_gain_step = std::abs(ude.gain - tc_params_->ude_gain);
-  if (ude_gain_step > kMaxParamStep) {
+  if (check_reconfiguration_ && ude_gain_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: Δ ude_gain = %f > %f", ude_gain_step,
               kMaxParamStep);
     return;
