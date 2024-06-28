@@ -6,6 +6,7 @@
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingError.h"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/math.hpp"
 #include "tracking_control/msg_conversion.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
@@ -79,10 +80,7 @@ void TrackingControlClient::setpointCb(
   tf2::fromMsg(msg->twist.angular, refs_.state.twist.angular);
   tf2::fromMsg(msg->accel.linear, refs_.state.accel.linear);
   tf2::fromMsg(msg->accel.angular, refs_.state.accel.angular);
-  refs_.yaw = msg->yaw * M_PI / 180.0;
-  // ? normal to the velocity? if 0, will give some incorrect values
-  // refs_.yaw = atan2(refs_.velocity.y(), refs_.velocity.x());
-  // to do: set this one to zero
+  refs_.yaw = fsc::deg2rad(msg->yaw);
 }
 
 void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
@@ -119,13 +117,6 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
       static_cast<float>(motor_curve_.vals(pos_ctrl_out.input.thrust)), 0.0F,
       1.0F);
 
-  // std::cout<<"normalized thrust is: "<<pld.thrust<<'\n';
-
-  geometry_msgs::Vector3Stamped ude_estimate;
-  ude_estimate.header.stamp = event.current_real;
-
-  geometry_msgs::Vector3Stamped accsp;
-
   if (enable_inner_controller_) {
     ROS_DEBUG("Running inner controller");
     fsc::Reference inner_ref;
@@ -138,9 +129,9 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 
     geometry_msgs::Vector3Stamped pld_att_err;
     pld_att_err.header.stamp = event.current_real;
-    pld_att_err.vector.x = att_ctrl_err.attitude_error.x() * 180.0 / M_PI;
-    pld_att_err.vector.y = att_ctrl_err.attitude_error.y() * 180.0 / M_PI;
-    pld_att_err.vector.z = att_ctrl_err.attitude_error.z() * 180.0 / M_PI;
+    pld_att_err.vector.x = fsc::rad2deg(att_ctrl_err.attitude_error.x());
+    pld_att_err.vector.y = fsc::rad2deg(att_ctrl_err.attitude_error.y());
+    pld_att_err.vector.z = fsc::rad2deg(att_ctrl_err.attitude_error.z());
 
     tf2::toMsg(std::get<Eigen::Vector3d>(att_ctrl_out.input.command),
                pld.body_rate);
