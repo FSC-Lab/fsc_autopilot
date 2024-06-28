@@ -6,9 +6,8 @@
 #include <unordered_map>
 
 #include "dynamic_reconfigure/server.h"
-#include "geometry_msgs/PoseStamped.h"
-#include "geometry_msgs/TwistStamped.h"
 #include "mavros_msgs/State.h"
+#include "nav_msgs/Odometry.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
 #include "sensor_msgs/Imu.h"
@@ -27,9 +26,8 @@ class TrackingControlClient {
 
  private:
   using MotorCurveType = math::Polynomial<double>;
-  void poseCb(const geometry_msgs::PoseStampedConstPtr& msg);
 
-  void twistCb(const geometry_msgs::TwistStampedConstPtr& msg);
+  void odomCb(const nav_msgs::OdometryConstPtr& msg);
   void imuCb(const sensor_msgs::ImuConstPtr& msg);
   void setpointCb(const tracking_control::TrackingReferenceConstPtr& msg);
   void mavrosStateCb(const mavros_msgs::State& msg);

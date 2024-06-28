@@ -21,12 +21,9 @@ TrackingControlClient::TrackingControlClient() {
 
   const auto mavros_ns = pnh.param("mavros_ns", "/mavros"s);
 
-  subs_.emplace("pose"s,
-                nh_.subscribe("/state_estimator/local_position/adjusted", 1,
-                              &TrackingControlClient::poseCb, this));
-  subs_.emplace("twist"s,
-                nh_.subscribe("/mavros/local_position/velocity_local", 1,
-                              &TrackingControlClient::twistCb, this));
+  subs_.emplace("odom"s,
+                nh_.subscribe("/state_estimator/local_position/odom/UAV0", 1,
+                              &TrackingControlClient::odomCb, this));
 
   subs_.emplace("accel"s, nh_.subscribe("/mavros/imu/data", 1,
                                         &TrackingControlClient::imuCb, this));
@@ -61,17 +58,12 @@ TrackingControlClient::TrackingControlClient() {
   initialized_ = true;
 }
 
-void TrackingControlClient::poseCb(
-    const geometry_msgs::PoseStampedConstPtr& msg) {
+void TrackingControlClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
   // the estimation only provides position measurement
-  tf2::fromMsg(msg->pose.position, state_.pose.position);
-  // tf2::fromMsg(msg->pose.orientation, state_.orientation);
-  // tf2::fromMsg(msg->pose.orientation, att_ctrl_state_.attitude);
-}
-
-void TrackingControlClient::twistCb(
-    const geometry_msgs::TwistStampedConstPtr& msg) {
-  tf2::fromMsg(msg->twist.linear, state_.twist.linear);
+  tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
+  tf2::fromMsg(msg->pose.pose.orientation, state_.pose.orientation);
+  tf2::fromMsg(msg->twist.twist.linear, state_.twist.linear);
+  tf2::fromMsg(msg->twist.twist.angular, state_.twist.angular);
 }
 
 void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
