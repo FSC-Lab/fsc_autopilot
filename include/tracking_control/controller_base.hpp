@@ -1,34 +1,14 @@
 #ifndef TRACKING_CONTROL_CONTROLLER_BASE_HPP_
 #define TRACKING_CONTROL_CONTROLLER_BASE_HPP_
 
-#include <memory>
 #include <string>
 #include <system_error>
-#include <variant>
 
 #include "Eigen/Dense"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
-
-struct VehicleInput {
-  double thrust;
-  std::variant<Eigen::Quaterniond, Eigen::Vector3d> command;
-
-  Eigen::Quaterniond& orientation() {
-    return std::get<Eigen::Quaterniond>(command);
-  }
-
-  [[nodiscard]] const Eigen::Quaterniond& orientation() const {
-    return std::get<Eigen::Quaterniond>(command);
-  }
-
-  Eigen::Vector3d& body_rates() { return std::get<Eigen::Vector3d>(command); }
-
-  [[nodiscard]] const Eigen::Vector3d& body_rates() const {
-    return std::get<Eigen::Vector3d>(command);
-  }
-};
 
 enum class ReferenceKind {
   kPosition = 1 << 0,

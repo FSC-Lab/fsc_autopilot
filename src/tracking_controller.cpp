@@ -136,8 +136,8 @@ ControlResult TrackingController::run(const VehicleState& state,
 
   ControlResult result;
   result.ec = ControllerErrc::kSuccess;
-  result.setpoint.input.thrust = thrust_per_rotor;
-  result.setpoint.input.command = Eigen::Quaterniond(attitude_sp);
+  result.setpoint.input =
+      VehicleInput{thrust_per_rotor, Eigen::Quaterniond(attitude_sp)};
   if (err) {
     err->position_error = raw_position_error;
     err->velocity_error = raw_velocity_error;

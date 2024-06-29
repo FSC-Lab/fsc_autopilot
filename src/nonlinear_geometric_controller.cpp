@@ -2,6 +2,7 @@
 
 #include "tracking_control/definitions.hpp"
 #include "tracking_control/math.hpp"
+#include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
 
@@ -29,7 +30,7 @@ ControlResult NonlinearGeometricController::run(
 
   ControlResult result;
   result.ec = ControllerErrc::kSuccess;
-  result.setpoint.input.command = body_rate_sp;
+  result.setpoint.input = VehicleInput{-1.0, body_rate_sp};
   return result;
 }
 }  // namespace fsc

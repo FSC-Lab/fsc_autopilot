@@ -108,41 +108,37 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
     return;
   }
 
+  const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
   // define output messages
   mavros_msgs::AttitudeTarget pld;
   pld.header.stamp = event.current_real;
-  // convert thrust command to normalized thrust input
-  // if the thrust is an acc command, then the thrust curve must change as well
-  pld.thrust = std::clamp(
-      static_cast<float>(motor_curve_.vals(pos_ctrl_out.input.thrust)), 0.0F,
-      1.0F);
-
   if (enable_inner_controller_) {
-    ROS_DEBUG("Running inner controller");
     fsc::Reference inner_ref;
-    inner_ref.state.pose.orientation = pos_ctrl_out.state.pose.orientation;
+    inner_ref.state.pose.orientation = orientation_sp;
     fsc::NonlinearGeometricControllerError att_ctrl_err;
     const auto& [att_ctrl_out, inner_success] =
         att_ctrl_.run(state_, inner_ref, &att_ctrl_err);
-
-    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
 
     geometry_msgs::Vector3Stamped pld_att_err;
     pld_att_err.header.stamp = event.current_real;
     pld_att_err.vector.x = fsc::rad2deg(att_ctrl_err.attitude_error.x());
     pld_att_err.vector.y = fsc::rad2deg(att_ctrl_err.attitude_error.y());
     pld_att_err.vector.z = fsc::rad2deg(att_ctrl_err.attitude_error.z());
-
-    tf2::toMsg(std::get<Eigen::Vector3d>(att_ctrl_out.input.command),
-               pld.body_rate);
     setpoint_attitude_error_pub_.publish(pld_att_err);
+
+    pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+    tf2::toMsg(att_ctrl_out.input.thrust_rates().body_rates, pld.body_rate);
   } else {
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
                     mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
                     mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
-    pld.orientation =
-        tf2::toMsg(std::get<Eigen::Quaterniond>(pos_ctrl_out.input.command));
+    pld.orientation = tf2::toMsg(orientation_sp);
   }
+  // convert thrust command to normalized thrust input
+  // if the thrust is an acc command, then the thrust curve must change as well
+  pld.thrust =
+      std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
+
   setpoint_pub_.publish(pld);
 
   tracking_control::TrackingError tracking_error_msg;
