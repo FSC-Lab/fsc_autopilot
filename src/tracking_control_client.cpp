@@ -244,6 +244,8 @@ void TrackingControlClient::dynamicReconfigureCb(
   const Eigen::IOFormat matlab_fmt{
       Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
 
+  const auto enable_inner_controller_prev = std::exchange(
+      enable_inner_controller_, config.groups.project.enable_inner_controller);
   const auto& tracker = config.groups.tracker;
   const auto& ude = config.groups.ude;
   int max_idx;
@@ -298,9 +300,11 @@ void TrackingControlClient::dynamicReconfigureCb(
 
   ROS_INFO_STREAM_THROTTLE(
       1.0,
-      "Dynamical Reconfigure Results:\nPosition Error Saturation: "
-          << apply_pos_err_saturation_prev << " -> "
-          << tc_params_->apply_pos_err_saturation
+      std::boolalpha
+          << "Dynamical Reconfigure Results:\nEnabled inner controller"
+          << enable_inner_controller_prev << " -> " << enable_inner_controller_
+          << "\nPosition Error Saturation: " << apply_pos_err_saturation_prev
+          << " -> " << tc_params_->apply_pos_err_saturation
           << "\nKp: " << k_pos_prev.transpose().format(matlab_fmt) << " -> "
           << tc_params_->k_pos.transpose().format(matlab_fmt)
           << "\nVelocity Error Saturation: " << apply_vel_err_saturation_prev
