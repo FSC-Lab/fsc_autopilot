@@ -37,7 +37,7 @@ ControlResult TrackingController::run(const VehicleState& state,
   if (params_->apply_pos_err_saturation) {
     position_error = SaturationSmoothing(raw_position_error, 1.0);
   } else {
-    position_error = raw_velocity_error;
+    position_error = raw_position_error;
   }
 
   if (params_->apply_vel_err_saturation) {
