@@ -1,5 +1,5 @@
-#ifndef TRACKING_CONTROL_TF2_EXTRAS_HPP_
-#define TRACKING_CONTROL_TF2_EXTRAS_HPP_
+#ifndef TRACKING_CONTROL_MSG_CONVERSION_HPP_
+#define TRACKING_CONTROL_MSG_CONVERSION_HPP_
 
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/TrackingError.h"
@@ -34,6 +34,7 @@ inline tracking_control::TrackingError& toMsg(
   toMsg(in.ude_state, out.ude_state);
   return out;
 }
+
 }  // namespace tf2
 
-#endif  // TRACKING_CONTROL_TF2_EXTRAS_HPP_
+#endif  // TRACKING_CONTROL_MSG_CONVERSION_HPP_
