@@ -38,6 +38,8 @@ class TrackingControlClient {
 
   void mainLoop(const ros::TimerEvent& event);
 
+  void watchdog(const ros::TimerEvent& event);
+
   void dispPara();
   void loadParams();
   void setupRosTopics();
@@ -55,6 +57,10 @@ class TrackingControlClient {
   AttitudeController::Parameters ac_params_;
   fsc::TrackingController::ParametersSharedPtr tc_params_{
       std::make_shared<fsc::TrackingControllerParameters>()};
+
+  ros::Time odom_last_recv_time_;
+  ros::Time imu_last_recv_time_;
+  ros::Time state_last_recv_time_;
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
   ros::Publisher setpoint_attitude_error_pub_;
@@ -66,7 +72,8 @@ class TrackingControlClient {
   MotorCurveType motor_curve_;
 
   double ros_rate_{0.0};
-  ros::Timer timer_;
+  ros::Timer main_loop_;
+  ros::Timer watchdog_;
   bool enable_inner_controller_{
       false};  // flag indicating wether inner atttiude controller is on
 };

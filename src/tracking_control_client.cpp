@@ -54,13 +54,17 @@ TrackingControlClient::TrackingControlClient() {
                          std::forward<decltype(PH2)>(PH2));
   });
   // register the main loop callback function here
-  timer_ = nh_.createTimer(update_rate, &TrackingControlClient::mainLoop, this);
+  main_loop_ =
+      nh_.createTimer(update_rate, &TrackingControlClient::mainLoop, this);
+  watchdog_ =
+      nh_.createTimer(update_rate, &TrackingControlClient::watchdog, this);
 
   initialized_ = true;
 }
 
 void TrackingControlClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
   // the estimation only provides position measurement
+  odom_last_recv_time_ = msg->header.stamp;
   tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
   tf2::fromMsg(msg->pose.pose.orientation, state_.pose.orientation);
   tf2::fromMsg(msg->twist.twist.linear, state_.twist.linear);
@@ -68,6 +72,7 @@ void TrackingControlClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
 }
 
 void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
+  imu_last_recv_time_ = msg->header.stamp;
   tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
   tf2::fromMsg(msg->orientation, state_.pose.orientation);
 }
@@ -84,6 +89,7 @@ void TrackingControlClient::setpointCb(
 }
 
 void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
+  state_last_recv_time_ = msg.header.stamp;
   mavrosState_ = msg;
 }
 
@@ -145,6 +151,23 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
              tracking_error_msg);
   tracking_error_pub_.publish(tracking_error_msg);
+}
+
+void TrackingControlClient::watchdog(const ros::TimerEvent& event) {
+  auto now = ros::Time::now();
+  std::map<std::string, ros::Duration> elapsed_since_last_recv = {
+      {"Odometry", odom_last_recv_time_ - now},
+      {"Imu", imu_last_recv_time_ - now},
+      {"Mavros State", state_last_recv_time_ - now},
+  };
+  auto threshold = ros::Duration(3);
+  for (const auto& [key, value] : elapsed_since_last_recv) {
+    if (value > threshold) {
+      ROS_ERROR_THROTTLE(3,
+                         "Time since %s was last received exceeded %f seconds",
+                         key.c_str(), threshold.toSec());
+    }
+  }
 }
 
 void TrackingControlClient::dispPara() {
