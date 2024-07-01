@@ -36,8 +36,10 @@ target_link_libraries(tracking_control_ude PUBLIC Eigen3::Eigen)
 add_library(tracking_control::ude ALIAS tracking_control_ude)
 set_target_properties(tracking_control_ude PROPERTIES EXPORT_NAME ude)
 
-add_library(tracking_control_controllers src/tracking_controller.cpp
-                                         src/nonlinear_geometric_controller.cpp)
+add_library(
+  tracking_control_controllers
+  src/tracking_controller.cpp src/nonlinear_geometric_controller.cpp
+  src/apm_attitude_controller.cpp)
 
 target_include_directories(tracking_control_controllers PUBLIC include)
 target_compile_features(tracking_control_controllers PUBLIC cxx_std_17)

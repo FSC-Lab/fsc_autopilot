@@ -15,8 +15,8 @@
 #include "sensor_msgs/Imu.h"
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingReference.h"
+#include "tracking_control/apm_attitude_controller.hpp"
 #include "tracking_control/logging.hpp"
-#include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
 #include "tracking_control/ude/ude_base.hpp"
@@ -56,7 +56,7 @@ class RosLogger : public fsc::LoggerBase {
 
 class TrackingControlClient {
  public:
-  using AttitudeController = fsc::NonlinearGeometricController;
+  using AttitudeController = fsc::APMAttitudeController;
   using TrackingController = fsc::TrackingController;
   TrackingControlClient();
 
@@ -90,7 +90,8 @@ class TrackingControlClient {
 
   fsc::Reference refs_;
 
-  AttitudeController::Parameters ac_params_;
+  AttitudeController::ParametersSharedPtr ac_params_{
+      std::make_shared<AttitudeController::Parameters>()};
   fsc::TrackingController::ParametersSharedPtr tc_params_{
       std::make_shared<fsc::TrackingControllerParameters>()};
   fsc::UDEBase::ParametersSharedPtr ude_params_{

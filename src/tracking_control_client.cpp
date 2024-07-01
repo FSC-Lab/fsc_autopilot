@@ -96,7 +96,9 @@ void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
 
 void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   // calculate time step
-  ude_params_->dt = (event.current_real - event.last_real).toSec();
+  ude_params_->dt = ac_params_->dt =
+      (event.current_real - event.last_real).toSec();
+
   if (ude_params_->dt <= 0.0 || ude_params_->dt > 1.0) {
     return;
   }
@@ -126,12 +128,12 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
     const auto& [att_ctrl_out, inner_success] =
         att_ctrl_.run(state_, inner_ref, &att_ctrl_err);
 
-    geometry_msgs::Vector3Stamped pld_att_err;
-    pld_att_err.header.stamp = event.current_real;
-    pld_att_err.vector.x = fsc::rad2deg(att_ctrl_err.attitude_error.x());
-    pld_att_err.vector.y = fsc::rad2deg(att_ctrl_err.attitude_error.y());
-    pld_att_err.vector.z = fsc::rad2deg(att_ctrl_err.attitude_error.z());
-    setpoint_attitude_error_pub_.publish(pld_att_err);
+    // geometry_msgs::Vector3Stamped pld_att_err;
+    // pld_att_err.header.stamp = event.current_real;
+    // pld_att_err.vector.x = fsc::rad2deg(att_ctrl_err.attitude_error.x());
+    // pld_att_err.vector.y = fsc::rad2deg(att_ctrl_err.attitude_error.y());
+    // pld_att_err.vector.z = fsc::rad2deg(att_ctrl_err.attitude_error.z());
+    // setpoint_attitude_error_pub_.publish(pld_att_err);
 
     pld.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
     tf2::toMsg(att_ctrl_out.input.thrust_rates().body_rates, pld.body_rate);
@@ -214,9 +216,6 @@ void TrackingControlClient::loadParams() {
   tracking_ctrl_.ude() = std::move(ude);
 
   constexpr auto kDefaultAttitudeControllerTau = 0.1;
-  ac_params_.time_constant =
-      pnh.param("attitude_controller/tau", kDefaultAttitudeControllerTau);
-
   att_ctrl_.params() = ac_params_;
 
   const auto mc_coeffs = pnh.param("tracking_controller/motor_curve",
