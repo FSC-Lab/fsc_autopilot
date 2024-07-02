@@ -1,31 +1,31 @@
 #ifndef TRACKING_CONTROL_UDE_VELOCITY_BASED_MULTIROTOR_UDE_HPP_
 #define TRACKING_CONTROL_UDE_VELOCITY_BASED_MULTIROTOR_UDE_HPP_
 
-#include "tracking_control/ude/multirotor_ude.hpp"
+#include "tracking_control/ude/ude_base.hpp"
 namespace fsc {
 
-class VelocityBasedMultirotorUDE : public MultirotorUDE {
+class VelocityBasedUDE : public UDEBase {
  public:
-  using MultirotorUDE::MultirotorUDE;
+  using UDEBase::UDEBase;
   Eigen::Vector3d computeIntegrand(const VehicleState& state,
                                    const VehicleInput& input,
-                                   MultirotorUDEState* err) const override;
+                                   UDEState* err) const override;
 
-  [[nodiscard]] Eigen::Vector3d computeDamping(
-      const VehicleState& state, MultirotorUDEState* err) const override;
+  [[nodiscard]] Eigen::Vector3d computeDamping(const VehicleState& state,
+                                               UDEState* err) const override;
 
   [[nodiscard]] bool isVelocityBased() const override { return true; }
 };
 
-class BodyVelocityBasedMultirotorUDE : public MultirotorUDE {
+class BodyVelocityBasedUDE : public UDEBase {
  public:
-  using MultirotorUDE::MultirotorUDE;
+  using UDEBase::UDEBase;
   Eigen::Vector3d computeIntegrand(const VehicleState& state,
                                    const VehicleInput& input,
-                                   MultirotorUDEState* err) const override;
+                                   UDEState* err) const override;
 
-  [[nodiscard]] Eigen::Vector3d computeDamping(
-      const VehicleState& state, MultirotorUDEState* err) const override;
+  [[nodiscard]] Eigen::Vector3d computeDamping(const VehicleState& state,
+                                               UDEState* err) const override;
 
   [[nodiscard]] bool isVelocityBased() const override { return true; }
 };

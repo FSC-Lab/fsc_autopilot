@@ -25,10 +25,8 @@ catkin_package(CATKIN_DEPENDS std_msgs geometry_msgs message_runtime)
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_library(
-  tracking_control_ude
-  src/multirotor_ude.cpp src/velocity_based_multirotor_ude.cpp
-  src/accel_based_multirotor_ude.cpp)
+add_library(tracking_control_ude src/ude_base.cpp src/velocity_based_ude.cpp
+                                 src/accel_based_ude.cpp src/ude_factory.cpp)
 target_include_directories(tracking_control_ude PUBLIC include)
 target_compile_features(tracking_control_ude PUBLIC cxx_std_17)
 target_link_libraries(tracking_control_ude PUBLIC Eigen3::Eigen)
@@ -41,8 +39,9 @@ add_library(tracking_control_controllers src/tracking_controller.cpp
 
 target_include_directories(tracking_control_controllers PUBLIC include)
 target_compile_features(tracking_control_controllers PUBLIC cxx_std_17)
-target_link_libraries(tracking_control_controllers PUBLIC Eigen3::Eigen
-                                                          tracking_control::ude)
+target_link_libraries(
+  tracking_control_controllers
+  PUBLIC Eigen3::Eigen $<LINK_LIBRARY:WHOLE_ARCHIVE,tracking_control::ude>)
 
 add_library(tracking_control::controllers ALIAS tracking_control_controllers)
 set_target_properties(tracking_control_controllers PROPERTIES EXPORT_NAME

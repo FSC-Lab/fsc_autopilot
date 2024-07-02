@@ -61,7 +61,11 @@ class ParameterBase {
 
   [[nodiscard]] virtual bool valid() const = 0;
 
-  [[nodiscard]] virtual std::string name() const = 0;
+  [[nodiscard]] virtual std::string parameterFor() const = 0;
+
+  [[nodiscard]] std::string name() const {
+    return parameterFor() + ".parameters";
+  }
 
   [[nodiscard]] virtual std::string toString() const = 0;
 };

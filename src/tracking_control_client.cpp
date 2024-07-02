@@ -1,5 +1,7 @@
 #include "tracking_control/tracking_control_client.hpp"
 
+#include <sstream>
+
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
@@ -10,9 +12,7 @@
 #include "tracking_control/msg_conversion.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
-#include "tracking_control/ude/accel_based_multirotor_ude.hpp"
-#include "tracking_control/ude/multirotor_ude.hpp"
-#include "tracking_control/ude/velocity_based_multirotor_ude.hpp"
+#include "tracking_control/ude/ude_factory.hpp"
 
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
@@ -211,6 +211,17 @@ void TrackingControlClient::loadParams() {
       pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
 
+  tc_params_->min_thrust = pnh.param("tracking_controller/min_thrust", 0.0);
+
+  tc_params_->max_thrust =
+      pnh.param("tracking_controller/max_thrust", tc_params_->max_thrust);
+
+  constexpr auto kDefaultMaxTiltAngle = 45.0;
+  tc_params_->max_tilt_angle =
+      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle);
+
+  tracking_ctrl_.params() = tc_params_;
+
   ude_params_->ude_lb << pnh.param("tracking_controller/de/lbx",
                                    ude_params_->ude_lb.x()),
       pnh.param("tracking_controller/de/lby", ude_params_->ude_lb.y()),
@@ -226,19 +237,7 @@ void TrackingControlClient::loadParams() {
                 ude_params_->ude_height_threshold);
   ude_params_->ude_gain =
       pnh.param("tracking_controller/de/gain", ude_params_->ude_gain);
-  std::string ude_type;
-  pnh.getParam("tracking_controller/de/type", ude_type);
-  if (ude_type == "velocity_based") {
-    ude_params_->type = fsc::MultirotorUDEType::kVelocityBased;
-  } else if (ude_type == "body_velocity_based") {
-    ude_params_->type = fsc::MultirotorUDEType::kBodyVelocityBased;
-  } else if (ude_type == "accel_based") {
-    ude_params_->type = fsc::MultirotorUDEType::kAccelBased;
-  } else if (ude_type == "body_accel_based") {
-    ude_params_->type = fsc::MultirotorUDEType::kBodyAccelBased;
-  } else {
-    ROS_ERROR("%s is not a valid UDE Type", ude_type.c_str());
-  }
+  pnh.getParam("tracking_controller/de/type", ude_params_->type_str);
 
   if (!pnh.getParam("tracking_controller/vehicle_mass",
                     tc_params_->vehicle_mass)) {
@@ -247,35 +246,24 @@ void TrackingControlClient::loadParams() {
   }
   ude_params_->vehicle_mass = tc_params_->vehicle_mass;
 
-  tc_params_->min_thrust = pnh.param("tracking_controller/min_thrust", 0.0);
-
-  tc_params_->max_thrust =
-      pnh.param("tracking_controller/max_thrust", tc_params_->max_thrust);
-
-  constexpr auto kDefaultMaxTiltAngle = 45.0;
-  tc_params_->max_tilt_angle =
-      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle);
-
-  tracking_ctrl_.params() = tc_params_;
-
-  switch (ude_params_->type) {
-    case fsc::MultirotorUDEType::kVelocityBased:
-      tracking_ctrl_.ude() =
-          std::make_shared<fsc::VelocityBasedMultirotorUDE>(ude_params_);
-      break;
-    case fsc::MultirotorUDEType::kAccelBased:
-      tracking_ctrl_.ude() =
-          std::make_shared<fsc::AccelBasedMultirotorUDE>(ude_params_);
-      break;
-    case fsc::MultirotorUDEType::kBodyVelocityBased:
-      tracking_ctrl_.ude() =
-          std::make_shared<fsc::BodyVelocityBasedMultirotorUDE>(ude_params_);
-      break;
-    case fsc::MultirotorUDEType::kBodyAccelBased:
-      tracking_ctrl_.ude() =
-          std::make_shared<fsc::BodyAccelBasedMultirotorUDE>(ude_params_);
-      break;
+  std::vector<std::string> ude_types;
+  fsc::UDEFactory::GetRegistryKeys(std::back_inserter(ude_types));
+  if (ude_types.empty()) {
+    ROS_ERROR("No UDE registered");
   }
+
+  std::ostringstream oss;
+  oss << ude_types.front();
+  for (auto it = std::next(ude_types.begin()); it != ude_types.end(); ++it) {
+    oss << ", " << *it;
+  }
+  ROS_INFO("Available UDE types are: %s", oss.str().c_str());
+  auto ude = fsc::UDEFactory::Create(ude_params_);
+  if (!ude) {
+    ROS_ERROR("Failed to create UDE: %s is not a valid UDE Type",
+              ude_params_->type_str.c_str());
+  }
+  tracking_ctrl_.ude() = std::move(ude);
 
   constexpr auto kDefaultAttitudeControllerTau = 0.1;
   ac_params_.time_constant =

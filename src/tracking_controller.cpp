@@ -3,7 +3,6 @@
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
-#include "tracking_control/ude/ude_base.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {

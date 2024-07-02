@@ -7,7 +7,6 @@
 
 #include "Eigen/Dense"
 #include "tracking_control/controller_base.hpp"
-#include "tracking_control/ude/multirotor_ude.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace fsc {
@@ -24,7 +23,7 @@ struct TrackingControllerError : public ContextBase {
   Eigen::Vector3d thrust_setpoint{Eigen::Vector3d::Zero()};
   double scalar_thrust_sp{0.0};  // thrust setpoint
   double thrust_per_rotor{0.0};  // thrust per rotor
-  MultirotorUDEState ude_state;
+  UDEState ude_state;
 };
 
 struct TrackingControllerParameters : public ParameterBase {
@@ -56,8 +55,8 @@ struct TrackingControllerParameters : public ParameterBase {
 
   [[nodiscard]] std::string toString() const override;
 
-  [[nodiscard]] std::string name() const override {
-    return "tracking_controller.parameters";
+  [[nodiscard]] std::string parameterFor() const override {
+    return "tracking_controller";
   }
 };
 

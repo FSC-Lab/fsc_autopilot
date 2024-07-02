@@ -1,10 +1,10 @@
-#ifndef TRACKING_CONTROL_UDE_BASE_HPP_
-#define TRACKING_CONTROL_UDE_BASE_HPP_
+#ifndef TRACKING_CONTROL_UDE_MULTIROTOR_UDE_HPP_
+#define TRACKING_CONTROL_UDE_MULTIROTOR_UDE_HPP_
 
+#include <memory>
 #include <string>
-#include <system_error>
-#include <type_traits>
 
+#include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
@@ -65,20 +65,88 @@ struct UDEResult {
   std::error_code ec;
 };
 
+enum class UDEType {
+  kVelocityBased,
+  kAccelBased,
+  kBodyVelocityBased,
+  kBodyAccelBased,
+};
+
+struct UDEParameters : public ParameterBase {
+  std::string type_str;
+
+  double dt;
+  static constexpr double kDefaultDEGain{1.0};
+  double ude_gain{kDefaultDEGain};
+
+  static constexpr double kDefaultDEHeightThreshold{0.1};
+  double ude_height_threshold{kDefaultDEHeightThreshold};
+
+  static constexpr double kVehicleMassSentinel{-1.0};
+  double vehicle_mass{kVehicleMassSentinel};
+
+  bool ude_active{true};
+
+  static constexpr double kDefaultUDEBounds{5};
+  Eigen::Vector3d ude_lb{Eigen::Vector3d::Constant(-kDefaultUDEBounds)};
+  Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
+
+  [[nodiscard]] bool valid() const override {
+    return (ude_lb.array() < ude_ub.array()).all() && vehicle_mass > 0.0 &&
+           dt > 0.0;
+  }
+
+  [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::string parameterFor() const override { return type_str; }
+};
+
+struct UDEState final : public ContextBase {
+  std::string type_str;
+  bool is_flying;
+  bool is_active;
+  Eigen::Vector3d damping_term{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d actuation_term{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d dynamical_term{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d integral{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d disturbance_estimate{Eigen::Vector3d::Zero()};
+
+  [[nodiscard]] std::string name() const override { return "ude.error"; }
+};
+
 class UDEBase {
  public:
-  virtual ~UDEBase() = default;
+  using Parameters = UDEParameters;
+  using ParametersSharedPtr = std::shared_ptr<Parameters>;
+  using ParametersConstSharedPtr = std::shared_ptr<const Parameters>;
 
-  virtual bool init([[maybe_unused]] const VehicleState& state) { return true; }
+  inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
 
-  virtual UDEErrc update(const VehicleState& state, const VehicleInput& input,
-                         ContextBase* error) = 0;
+  explicit UDEBase(ParametersSharedPtr params);
+
+  UDEErrc update(const VehicleState& state, const VehicleInput& input,
+                 ContextBase* error);
+
+  [[nodiscard]] ParametersConstSharedPtr params() const { return params_; }
+  ParametersSharedPtr& params() { return params_; }
 
   [[nodiscard]] virtual bool getEstimate(
-      Eigen::Ref<Eigen::VectorXd> estimate) const = 0;
+      Eigen::Ref<Eigen::VectorXd> estimate) const;
 
- private:
+  [[nodiscard]] virtual bool isVelocityBased() const = 0;
+
+ protected:
+  virtual Eigen::Vector3d computeIntegrand(const VehicleState& state,
+                                           const VehicleInput& input,
+                                           UDEState* err) const = 0;
+
+  virtual Eigen::Vector3d computeDamping(const VehicleState& state,
+                                         UDEState* err) const = 0;
+
+  ParametersSharedPtr params_{std::make_shared<Parameters>()};
+  Eigen::Vector3d ude_integral_;
+  Eigen::Vector3d ude_value_;
 };
 
 }  // namespace fsc
-#endif  // TRACKING_CONTROL_UDE_BASE_HPP_
+#endif  // TRACKING_CONTROL_UDE_MULTIROTOR_UDE_HPP_

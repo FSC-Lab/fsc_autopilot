@@ -1,19 +1,17 @@
-#include "tracking_control/ude/multirotor_ude.hpp"
+#include "tracking_control/ude/ude_base.hpp"
 
 #include "tracking_control/definitions.hpp"
-#include "tracking_control/ude/ude_base.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
-MultirotorUDE::MultirotorUDE(ParametersSharedPtr params)
-    : params_(std::move(params)) {}
+UDEBase::UDEBase(ParametersSharedPtr params) : params_(std::move(params)) {}
 
-UDEErrc MultirotorUDE::update(const VehicleState& state,
-                              const VehicleInput& input, ContextBase* error) {
+UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
+                        ContextBase* error) {
   if (params_ == nullptr || !params_->valid()) {
     return UDEErrc::kInvalidParameters;
   }
-  MultirotorUDEState* err;
+  UDEState* err;
   if (error->name() == "ude.error") {
     err = static_cast<decltype(err)>(error);
   }
@@ -38,7 +36,7 @@ UDEErrc MultirotorUDE::update(const VehicleState& state,
   ude_value_ = ude_value_.cwiseMax(params_->ude_lb).cwiseMin(params_->ude_ub);
 
   if (err) {
-    err->type = params_->type;
+    err->type_str = params_->type_str;
     err->is_active = params_->ude_active;
     err->is_flying = is_flying;
     err->integral = ude_integral_;
@@ -47,12 +45,12 @@ UDEErrc MultirotorUDE::update(const VehicleState& state,
   return UDEErrc::kSuccess;
 }
 
-bool MultirotorUDE::getEstimate(Eigen::Ref<Eigen::VectorXd> estimate) const {
+bool UDEBase::getEstimate(Eigen::Ref<Eigen::VectorXd> estimate) const {
   estimate = ude_value_;
   return true;
 }
 
-std::string MultirotorUDEParams::toString() const {
+std::string UDEParameters::toString() const {
   const Eigen::IOFormat f{
       Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
   std::ostringstream oss;

@@ -5,26 +5,12 @@
 #include "tracking_control/TrackingError.h"
 #include "tracking_control/UDEState.h"
 #include "tracking_control/tracking_controller.hpp"
-#include "tracking_control/ude/multirotor_ude.hpp"
+#include "tracking_control/ude/ude_base.hpp"
 namespace tf2 {
 
-inline tracking_control::UDEState& toMsg(const fsc::MultirotorUDEState& in,
+inline tracking_control::UDEState& toMsg(const fsc::UDEState& in,
                                          tracking_control::UDEState& out) {
-  switch (in.type) {
-    case fsc::MultirotorUDEType::kVelocityBased:
-      out.type = "velocity based";
-      break;
-    case fsc::MultirotorUDEType::kAccelBased:
-      out.type = "acceleration based";
-      break;
-    case fsc::MultirotorUDEType::kBodyVelocityBased:
-      out.type = "body velocity based";
-      break;
-    case fsc::MultirotorUDEType::kBodyAccelBased:
-      out.type = "body acceleration based";
-      break;
-  }
-
+  out.type = in.type_str;
   out.is_flying = static_cast<std::uint8_t>(in.is_flying);
   out.is_active = static_cast<std::uint8_t>(in.is_active);
   toMsg(in.damping_term, out.damping_term);

@@ -1,10 +1,12 @@
-#include "tracking_control/ude/velocity_based_multirotor_ude.hpp"
+#include "tracking_control/ude/velocity_based_ude.hpp"
+
+#include "tracking_control/ude/ude_factory.hpp"
 
 namespace fsc {
 
-Eigen::Vector3d VelocityBasedMultirotorUDE::computeIntegrand(
-    const VehicleState& state, const VehicleInput& input,
-    MultirotorUDEState* err) const {
+Eigen::Vector3d VelocityBasedUDE::computeIntegrand(const VehicleState& state,
+                                                   const VehicleInput& input,
+                                                   UDEState* err) const {
   // The expected thrust/acc
   // f = Rib * [0, 0, 1] * thrust
   const double scalar_thrust = input.thrust_attitude().thrust;
@@ -20,8 +22,10 @@ Eigen::Vector3d VelocityBasedMultirotorUDE::computeIntegrand(
   return -expected_thrust + vehicle_weight - ude_value_;
 }
 
-Eigen::Vector3d VelocityBasedMultirotorUDE::computeDamping(
-    const VehicleState& state, MultirotorUDEState* err) const {
+REGISTER_UDE(VelocityBasedUDE, "velocity_based");
+
+Eigen::Vector3d VelocityBasedUDE::computeDamping(const VehicleState& state,
+                                                 UDEState* err) const {
   Eigen::Vector3d ude_damping =
       params_->ude_gain * params_->vehicle_mass * state.twist.linear;
   if (err) {
@@ -31,9 +35,8 @@ Eigen::Vector3d VelocityBasedMultirotorUDE::computeDamping(
   return ude_damping;
 }
 
-Eigen::Vector3d BodyVelocityBasedMultirotorUDE::computeIntegrand(
-    const VehicleState& state, const VehicleInput& input,
-    MultirotorUDEState* err) const {
+Eigen::Vector3d BodyVelocityBasedUDE::computeIntegrand(
+    const VehicleState& state, const VehicleInput& input, UDEState* err) const {
   const auto& [velocity, body_rate] = state.twist;
   // omega x vb
   const Eigen::Vector3d dynamical_term =
@@ -57,8 +60,8 @@ Eigen::Vector3d BodyVelocityBasedMultirotorUDE::computeIntegrand(
   return dynamical_term - expected_thrust + vehicle_weight - ude_value_;
 }
 
-Eigen::Vector3d BodyVelocityBasedMultirotorUDE::computeDamping(
-    const VehicleState& state, MultirotorUDEState* err) const {
+Eigen::Vector3d BodyVelocityBasedUDE::computeDamping(const VehicleState& state,
+                                                     UDEState* err) const {
   const Eigen::Vector3d velocity_body =
       state.pose.orientation.inverse() * state.twist.linear;
   const Eigen::Vector3d ude_damping =
@@ -69,4 +72,6 @@ Eigen::Vector3d BodyVelocityBasedMultirotorUDE::computeDamping(
   }
   return ude_damping;
 }
+
+REGISTER_UDE(BodyVelocityBasedUDE, "body_velocity_based");
 }  // namespace fsc
