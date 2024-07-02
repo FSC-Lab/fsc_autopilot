@@ -25,7 +25,6 @@ catkin_package(CATKIN_DEPENDS std_msgs geometry_msgs message_runtime)
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_library(utils src/utils.cpp)
 add_library(tracking_control_controllers src/tracking_controller.cpp
                                          src/nonlinear_geometric_controller.cpp)
 
@@ -48,7 +47,7 @@ target_link_libraries(tracking_control_client
 add_executable(tracking_control_node src/tracking_control_node.cpp)
 
 target_link_libraries(tracking_control_node PRIVATE tracking_control_client
-                                                    utils ${catkin_LIBRARIES})
+                                                    ${catkin_LIBRARIES})
 
 add_dependencies(tracking_control_node ${${PROJECT_NAME}_EXPORTED_TARGETS}
                  ${catkin_EXPORTED_TARGETS})

@@ -7,7 +7,6 @@
 
 #include "Eigen/Dense"
 #include "tracking_control/controller_base.hpp"
-#include "utils/utils.hpp"
 
 namespace fsc {
 
