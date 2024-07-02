@@ -7,25 +7,16 @@
 
 #include "Eigen/Dense"
 #include "tracking_control/controller_base.hpp"
+#include "tracking_control/ude/multirotor_ude.hpp"
+#include "tracking_control/ude/ude_base.hpp"
 
 namespace fsc {
-
-struct TrackingControllerError : public ControlErrorBase {
+struct TrackingControllerError : public ContextBase {
   [[nodiscard]] std::string name() const final {
     return "tracking_controller.error";
   }
 
-  struct UDEState {
-    bool is_velocity_based;
-    Eigen::Vector3d damping{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d expected_thrust{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d inertial_force{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d integral{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d disturbance_estimate{Eigen::Vector3d::Zero()};
-  };
-
   bool int_flag{false};
-  bool pass_alt_threshold{false};
 
   Eigen::Vector3d position_error{Eigen::Vector3d::Zero()};
   Eigen::Vector3d velocity_error{Eigen::Vector3d::Zero()};
@@ -33,10 +24,10 @@ struct TrackingControllerError : public ControlErrorBase {
   Eigen::Vector3d thrust_setpoint{Eigen::Vector3d::Zero()};
   double scalar_thrust_sp{0.0};  // thrust setpoint
   double thrust_per_rotor{0.0};  // thrust per rotor
-  UDEState ude_state;
+  MultirotorUDEState ude_state;
 };
 
-struct TrackingControllerParameters : public ControllerParameterBase {
+struct TrackingControllerParameters : public ParameterBase {
   bool apply_pos_err_saturation{true};
   static constexpr double kDefaultKpXY{1.0};
   static constexpr double kDefaultKpZ{10.0};
@@ -54,48 +45,19 @@ struct TrackingControllerParameters : public ControllerParameterBase {
   static constexpr double kDefaultMaxTiltAngle{45};
   double max_tilt_angle{kDefaultMaxTiltAngle};
 
-  static constexpr double kDefaultDEGain{1.0};
-  double ude_gain{kDefaultDEGain};
-
-  static constexpr double kDefaultDEHeightThreshold{0.1};
-  double ude_height_threshold{kDefaultDEHeightThreshold};
-
   static constexpr double kVehicleMassSentinel{-1.0};
   double vehicle_mass{kVehicleMassSentinel};
 
   uint32_t num_of_rotors{4};
 
-  bool ude_active{false};
-  bool ude_is_velocity_based{false};
-
-  static constexpr double kDefaultUDEBounds{5};
-  Eigen::Vector3d ude_lb{Eigen::Vector3d::Constant(-kDefaultUDEBounds)};
-  Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
-
-  double dt{-1.0};
-
   [[nodiscard]] bool valid() const override {
-    return min_thrust < max_thrust && (ude_lb.array() < ude_ub.array()).all() &&
-           vehicle_mass > 0.0 && dt > 0.0;
+    return min_thrust < max_thrust && vehicle_mass > 0.0;
   }
 
-  [[nodiscard]] std::string toString() const override {
-    const Eigen::IOFormat f{
-        Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
-    std::ostringstream oss;
+  [[nodiscard]] std::string toString() const override;
 
-    oss << "dt: " << dt << "\n"
-        << "Quadrotor Mass: " << vehicle_mass << "\n"
-        << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
-        << "Tracking Controller parameters:\nk_pos: "
-        << k_pos.transpose().format(f)                     //
-        << "\nk_vel: " << k_vel.transpose().format(f)      //
-        << "\nUDE parameters:"                             //
-        << "\nheight_threshold: " << ude_height_threshold  //
-        << "\nde_gain: " << ude_gain                       //
-        << "\nde_lb: " << ude_lb.transpose().format(f)     //
-        << "\nde_ub: " << ude_ub.transpose().format(f);    //
-    return oss.str();
+  [[nodiscard]] std::string name() const override {
+    return "tracking_controller.parameters";
   }
 };
 
@@ -105,25 +67,31 @@ class TrackingController final : public ControllerBase {
   using ParametersConstSharedPtr =
       std::shared_ptr<const TrackingControllerParameters>;
 
+  using UDEConstSharedPtr = std::shared_ptr<const UDEBase>;
+  using UDESharedPtr = std::shared_ptr<UDEBase>;
+
   inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
 
   TrackingController() = default;
   explicit TrackingController(ParametersSharedPtr params);
 
+  TrackingController(ParametersSharedPtr params, UDESharedPtr ude);
+
   ControlResult run(const VehicleState& state, const Reference& refs,
-                    ControlErrorBase* error) override;
+                    ContextBase* error) override;
 
   [[nodiscard]] ParametersConstSharedPtr params() const { return params_; }
   ParametersSharedPtr& params() { return params_; }
 
+  [[nodiscard]] UDEConstSharedPtr ude() const { return ude_; }
+  UDESharedPtr& ude() { return ude_; }
+
   [[nodiscard]] std::string name() const final { return "tracking_controller"; }
 
  private:
-  Eigen::Vector3d ude_value_{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d ude_integral_{Eigen::Vector3d::Zero()};
-
   double scalar_thrust_setpoint_{0.0};
   ParametersSharedPtr params_;
+  UDESharedPtr ude_;
 };
 }  // namespace fsc
 

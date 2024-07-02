@@ -1,6 +1,4 @@
 std_msgs/Header header
-bool int_flag
-bool pass_alt_threshold
 
 float64 scalar_thrust_setpoint
 float64 thrust_per_rotor

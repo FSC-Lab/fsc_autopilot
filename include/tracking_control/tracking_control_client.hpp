@@ -16,6 +16,7 @@
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
+#include "tracking_control/ude/multirotor_ude.hpp"
 
 namespace nodelib {
 class TrackingControlClient {
@@ -57,6 +58,8 @@ class TrackingControlClient {
   AttitudeController::Parameters ac_params_;
   fsc::TrackingController::ParametersSharedPtr tc_params_{
       std::make_shared<fsc::TrackingControllerParameters>()};
+  fsc::MultirotorUDE::ParametersSharedPtr ude_params_{
+      std::make_shared<fsc::MultirotorUDE::Parameters>()};
 
   ros::Time odom_last_recv_time_;
   ros::Time imu_last_recv_time_;

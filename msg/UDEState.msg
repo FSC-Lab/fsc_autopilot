@@ -1,7 +1,9 @@
-bool is_velocity_based
-geometry_msgs/Vector3 damping
-geometry_msgs/Vector3 inertial_force
-geometry_msgs/Vector3 expected_thrust
+string type
+bool is_flying
+bool is_active
+geometry_msgs/Vector3 damping_term
+geometry_msgs/Vector3 dynamical_term
+geometry_msgs/Vector3 actuation_term
 geometry_msgs/Vector3 integral
 geometry_msgs/Vector3 disturbance_estimate
 

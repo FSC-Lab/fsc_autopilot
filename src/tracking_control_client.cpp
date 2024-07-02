@@ -10,6 +10,9 @@
 #include "tracking_control/msg_conversion.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
+#include "tracking_control/ude/accel_based_multirotor_ude.hpp"
+#include "tracking_control/ude/multirotor_ude.hpp"
+#include "tracking_control/ude/velocity_based_multirotor_ude.hpp"
 
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
@@ -95,14 +98,14 @@ void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
 
 void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
   // calculate time step
-  tc_params_->dt = (event.current_real - event.last_real).toSec();
-  if (tc_params_->dt <= 0.0 || tc_params_->dt > 1.0) {
+  ude_params_->dt = (event.current_real - event.last_real).toSec();
+  if (ude_params_->dt <= 0.0 || ude_params_->dt > 1.0) {
     return;
   }
   // check drone status
-  tc_params_->ude_active = (mavrosState_.connected != 0U) &&
-                           (mavrosState_.armed != 0U) &&
-                           (mavrosState_.mode == "OFFBOARD");
+  ude_params_->ude_active = (mavrosState_.connected != 0U) &&
+                            (mavrosState_.armed != 0U) &&
+                            (mavrosState_.mode == "OFFBOARD");
 
   fsc::TrackingControllerError pos_ctrl_err;
   // outerloop control
@@ -208,36 +211,41 @@ void TrackingControlClient::loadParams() {
       pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
       pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
 
-  tc_params_->ude_lb << pnh.param("tracking_controller/de/lbx",
-                                  tc_params_->ude_lb.x()),
-      pnh.param("tracking_controller/de/lby", tc_params_->ude_lb.y()),
-      pnh.param("tracking_controller/de/lbz", tc_params_->ude_lb.z());
+  ude_params_->ude_lb << pnh.param("tracking_controller/de/lbx",
+                                   ude_params_->ude_lb.x()),
+      pnh.param("tracking_controller/de/lby", ude_params_->ude_lb.y()),
+      pnh.param("tracking_controller/de/lbz", ude_params_->ude_lb.z());
 
-  tc_params_->ude_ub << pnh.param("tracking_controller/de/lbx",
-                                  tc_params_->ude_ub.x()),
-      pnh.param("tracking_controller/de/lby", tc_params_->ude_ub.y()),
-      pnh.param("tracking_controller/de/lbz", tc_params_->ude_ub.z());
+  ude_params_->ude_ub << pnh.param("tracking_controller/de/lbx",
+                                   ude_params_->ude_ub.x()),
+      pnh.param("tracking_controller/de/lby", ude_params_->ude_ub.y()),
+      pnh.param("tracking_controller/de/lbz", ude_params_->ude_ub.z());
 
-  tc_params_->ude_height_threshold =
+  ude_params_->ude_height_threshold =
       pnh.param("tracking_controller/de/height_threshold",
-                tc_params_->ude_height_threshold);
-  tc_params_->ude_gain =
-      pnh.param("tracking_controller/de/gain", tc_params_->ude_gain);
-
-  pnh.getParam("tracking_controller/de/is_velocity_based",
-               tc_params_->ude_is_velocity_based);
+                ude_params_->ude_height_threshold);
+  ude_params_->ude_gain =
+      pnh.param("tracking_controller/de/gain", ude_params_->ude_gain);
+  std::string ude_type;
+  pnh.getParam("tracking_controller/de/type", ude_type);
+  if (ude_type == "velocity_based") {
+    ude_params_->type = fsc::MultirotorUDEType::kVelocityBased;
+  } else if (ude_type == "body_velocity_based") {
+    ude_params_->type = fsc::MultirotorUDEType::kBodyVelocityBased;
+  } else if (ude_type == "accel_based") {
+    ude_params_->type = fsc::MultirotorUDEType::kAccelBased;
+  } else if (ude_type == "body_accel_based") {
+    ude_params_->type = fsc::MultirotorUDEType::kBodyAccelBased;
+  } else {
+    ROS_ERROR("%s is not a valid UDE Type", ude_type.c_str());
+  }
 
   if (!pnh.getParam("tracking_controller/vehicle_mass",
                     tc_params_->vehicle_mass)) {
     ROS_FATAL("Vehicle mass unspecified in parameters!");
     std::terminate();
   }
-
-  constexpr auto kDefaultAttitudeControllerTau = 0.1;
-  ac_params_.time_constant =
-      pnh.param("attitude_controller/tau", kDefaultAttitudeControllerTau);
-
-  att_ctrl_.params() = ac_params_;
+  ude_params_->vehicle_mass = tc_params_->vehicle_mass;
 
   tc_params_->min_thrust = pnh.param("tracking_controller/min_thrust", 0.0);
 
@@ -249,6 +257,31 @@ void TrackingControlClient::loadParams() {
       pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle);
 
   tracking_ctrl_.params() = tc_params_;
+
+  switch (ude_params_->type) {
+    case fsc::MultirotorUDEType::kVelocityBased:
+      tracking_ctrl_.ude() =
+          std::make_shared<fsc::VelocityBasedMultirotorUDE>(ude_params_);
+      break;
+    case fsc::MultirotorUDEType::kAccelBased:
+      tracking_ctrl_.ude() =
+          std::make_shared<fsc::AccelBasedMultirotorUDE>(ude_params_);
+      break;
+    case fsc::MultirotorUDEType::kBodyVelocityBased:
+      tracking_ctrl_.ude() =
+          std::make_shared<fsc::BodyVelocityBasedMultirotorUDE>(ude_params_);
+      break;
+    case fsc::MultirotorUDEType::kBodyAccelBased:
+      tracking_ctrl_.ude() =
+          std::make_shared<fsc::BodyAccelBasedMultirotorUDE>(ude_params_);
+      break;
+  }
+
+  constexpr auto kDefaultAttitudeControllerTau = 0.1;
+  ac_params_.time_constant =
+      pnh.param("attitude_controller/tau", kDefaultAttitudeControllerTau);
+
+  att_ctrl_.params() = ac_params_;
 
   const auto mc_coeffs = pnh.param("tracking_controller/motor_curve",
                                    std::vector<double>{0.1, 0.05});
@@ -308,18 +341,16 @@ void TrackingControlClient::dynamicReconfigureCb(
   const Eigen::Vector3d k_vel_prev =
       std::exchange(tc_params_->k_vel, k_vel_new);
 
-  auto ude_is_velocity_based_prev =
-      std::exchange(tc_params_->ude_is_velocity_based, ude.is_velocity_based);
   auto ude_height_threshold_prev =
-      std::exchange(tc_params_->ude_height_threshold, ude.height_threshold);
+      std::exchange(ude_params_->ude_height_threshold, ude.height_threshold);
 
-  const auto ude_gain_step = std::abs(ude.gain - tc_params_->ude_gain);
+  const auto ude_gain_step = std::abs(ude.gain - ude_params_->ude_gain);
   if (check_reconfiguration_ && ude_gain_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: Δ ude_gain = %f > %f", ude_gain_step,
               kMaxParamStep);
     return;
   }
-  auto ude_gain_prev = std::exchange(tc_params_->ude_gain, ude.gain);
+  auto ude_gain_prev = std::exchange(ude_params_->ude_gain, ude.gain);
 
   ROS_INFO_STREAM_THROTTLE(
       1.0,
@@ -334,14 +365,10 @@ void TrackingControlClient::dynamicReconfigureCb(
           << " -> " << tc_params_->apply_vel_err_saturation
           << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt) << " -> "
           << tc_params_->k_vel.transpose().format(matlab_fmt)
-          << "\nUDE is "
-             "velocity based: "
-          << ude_is_velocity_based_prev << " -> "
-          << tc_params_->ude_is_velocity_based
           << "\nUDE "
              "height threshold: "
           << ude_height_threshold_prev << " -> "
-          << tc_params_->ude_height_threshold << "\nUDE gain: " << ude_gain_prev
-          << " -> " << tc_params_->ude_gain);
+          << ude_params_->ude_height_threshold << "\nUDE gain: "
+          << ude_gain_prev << " -> " << ude_params_->ude_gain);
 }
 }  // namespace nodelib

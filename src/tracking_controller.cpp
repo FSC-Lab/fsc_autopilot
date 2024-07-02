@@ -3,17 +3,23 @@
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/ude/ude_base.hpp"
+#include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
 TrackingController::TrackingController(ParametersSharedPtr params)
     : params_(std::move(params)) {}
+
+TrackingController::TrackingController(ParametersSharedPtr params,
+                                       UDESharedPtr ude)
+    : params_(std::move(params)), ude_(std::move(ude)) {}
 
 ControlResult TrackingController::run(const VehicleState& state,
                                       const Reference& refs,
                                       ContextBase* error) {
   using std::atan2;
 
-  if (!params_->valid()) {
+  if (params_ == nullptr || !params_->valid()) {
     return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
   }
 
@@ -24,7 +30,7 @@ ControlResult TrackingController::run(const VehicleState& state,
   const auto& ref_velocity = refs.state.twist.linear;
   const auto& ref_yaw = refs.yaw;
 
-  TrackingControllerError* err;
+  TrackingControllerError* err = nullptr;
   if ((error != nullptr) && error->name() == "tracking_controller.error") {
     err = static_cast<decltype(err)>(error);
   }
@@ -54,69 +60,28 @@ ControlResult TrackingController::run(const VehicleState& state,
   const Eigen::Vector3d feedback = params_->k_vel.cwiseProduct(
       velocity_error + params_->k_pos.cwiseProduct(position_error));
 
-  // safety logic:
-  // if int_flag && alti_threshold == true: enable integration
-  // if int_flag == false : reset integration
-  // if alti_threshold == false && int_flag == true: hold integration
-
-  bool pass_alt_threshold =
-      (state.pose.position.z() > params_->ude_height_threshold);
-  // m * g * [0,0,1]
-  Eigen::Vector3d vehicle_weight = -params_->vehicle_mass * kGravity;
-
-  const bool int_flag = params_->ude_active;
-  const double dt = params_->dt;
-
-  Eigen::Vector3d expected_thrust{Eigen::Vector3d::Zero()};
-
-  if (!int_flag) {
-    ude_integral_.setZero();
-  } else if (int_flag && pass_alt_threshold) {
-    // The expected thrust/acc
-    // f = Rib * [0, 0, 1] * thrust
-    expected_thrust = state.pose.orientation * Eigen::Vector3d::UnitZ() *
-                      scalar_thrust_setpoint_;
-
-    Eigen::Vector3d ude_integrand;
-    if (params_->ude_is_velocity_based) {
-      ude_integrand = ude_value_ + expected_thrust + vehicle_weight;
-    } else {
-      // The expected interial force: R_ib * [0,0,1] * a_b * m
-      const Eigen::Vector3d inertial_force =
-          (state.pose.orientation * state.accel.linear - kGravity) *
-          params_->vehicle_mass;
-      if (err) {
-        err->ude_state.damping.setConstant(-1.0);
-        err->ude_state.inertial_force = inertial_force;
-      }
-
-      ude_integrand =
-          ude_value_ + expected_thrust + vehicle_weight - inertial_force;
+  Eigen::Vector3d ude_value = Eigen::Vector3d::Zero();
+  if (ude_) {
+    auto ude_result = ude_->update(
+        state, VehicleInput{ThrustAttitude{scalar_thrust_setpoint_}},
+        err ? &err->ude_state : nullptr);
+    if (ude_result != UDEErrc::kSuccess) {
+      return {getFallBackSetpoint(), ControllerErrc::kSubcomponentError};
     }
-    // disturbance estimator
-    ude_integral_ -= params_->ude_gain * ude_integrand * dt;
-  }
 
-  // std::cout << "dt: " << dt << '\n';
-  // std::cout << "intFlag is: " << std::boolalpha << int_flag
-  //<< ", altiThreshold: " << std::boolalpha << pass_alt_threshold
-  //<< '\n';
-  //
-  if (params_->ude_is_velocity_based) {
-    const Eigen::Vector3d ude_damping =
-        params_->ude_gain * params_->vehicle_mass * curr_velocity;
-    ude_value_ = ude_integral_ + ude_damping;
-    if (err) {
-      err->ude_state.damping = ude_damping;
-      err->ude_state.inertial_force.setConstant(-1.0);
+    if (!ude_->getEstimate(ude_value)) {
+      return {getFallBackSetpoint(), ControllerErrc::kSubcomponentError};
     }
   } else {
-    ude_value_ = ude_integral_;
+    return {getFallBackSetpoint(), ControllerErrc::kSubcomponentMissing};
   }
+
+  // m * g * [0,0,1]
+  const Eigen::Vector3d vehicle_weight = -params_->vehicle_mass * kGravity;
 
   // virtual control force: TO DO: check this function so that it take bounds
   // as arguments
-  Eigen::Vector3d thrust_setpoint_raw = -feedback - vehicle_weight - ude_value_;
+  Eigen::Vector3d thrust_setpoint_raw = -feedback - vehicle_weight - ude_value;
   Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
       thrust_setpoint_raw, {params_->min_thrust, params_->max_thrust},
       params_->max_tilt_angle);
@@ -144,17 +109,26 @@ ControlResult TrackingController::run(const VehicleState& state,
     err->feedback = feedback;
     err->thrust_setpoint = thrust_setpoint;
     // msg output
-    err->pass_alt_threshold = pass_alt_threshold;
-    err->int_flag = int_flag;
     err->scalar_thrust_sp = scalar_thrust_setpoint_;
     err->thrust_per_rotor =
         scalar_thrust_setpoint_ / static_cast<double>(params_->num_of_rotors);
-    err->ude_state.is_velocity_based = params_->ude_is_velocity_based;
-    err->ude_state.expected_thrust = expected_thrust;
-    err->ude_state.integral = ude_integral_;
-    err->ude_state.disturbance_estimate = ude_value_;
   }
 
   return result;
 }
+
+std::string TrackingControllerParameters::toString() const {
+  const Eigen::IOFormat f{
+      Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
+  std::ostringstream oss;
+
+  oss << "Quadrotor Mass: " << vehicle_mass << "\n"
+      << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
+      << "Tracking Controller parameters:\nk_pos: "
+      << k_pos.transpose().format(f)                  //
+      << "\nk_vel: " << k_vel.transpose().format(f);  //
+
+  return oss.str();
+}
+
 }  // namespace fsc

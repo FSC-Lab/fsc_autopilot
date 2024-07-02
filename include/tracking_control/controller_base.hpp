@@ -27,7 +27,9 @@ enum class ControllerErrc {
   kInvalidState = 1,
   kInvalidReference = 2,
   kInvalidParameters = 3,
-  kComputationError = 4
+  kComputationError = 4,
+  kSubcomponentMissing = 5,
+  kSubcomponentError = 6,
 };
 
 namespace detail {
@@ -49,6 +51,11 @@ class ControllerErrcCategory final : public std::error_category {
         return "controller parameters are invalid";
       case fsc::ControllerErrc::kComputationError:
         return "error in controller computation";
+      case fsc::ControllerErrc::kSubcomponentMissing:
+        return "controller subcomponent is missing";
+      case fsc::ControllerErrc::kSubcomponentError:
+        return "error in a controller subcomponent";
+
       default:
         return "Invalid error code";
     }
