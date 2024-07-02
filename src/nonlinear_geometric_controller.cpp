@@ -11,7 +11,7 @@ NonlinearGeometricController::NonlinearGeometricController(Parameters params)
 
 ControlResult NonlinearGeometricController::run(
     const VehicleState& state, const Reference& refs,
-    [[maybe_unused]] ControlErrorBase* error) {
+    [[maybe_unused]] ContextBase* error) {
   const auto rotmat = state.pose.orientation.toRotationMatrix();
   const auto rotmat_sp = refs.state.pose.orientation.toRotationMatrix();
 

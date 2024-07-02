@@ -10,7 +10,7 @@ TrackingController::TrackingController(ParametersSharedPtr params)
 
 ControlResult TrackingController::run(const VehicleState& state,
                                       const Reference& refs,
-                                      ControlErrorBase* error) {
+                                      ContextBase* error) {
   using std::atan2;
 
   if (!params_->valid()) {

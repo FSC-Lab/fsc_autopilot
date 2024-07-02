@@ -8,7 +8,7 @@
 
 namespace fsc {
 
-struct NonlinearGeometricControllerError final : public ControlErrorBase {
+struct NonlinearGeometricControllerError final : public ContextBase {
   Eigen::Vector3d attitude_error;
 
   [[nodiscard]] std::string name() const final {
@@ -29,7 +29,7 @@ struct NonlinearGeometricController : public ControllerBase {
   explicit NonlinearGeometricController(Parameters params);
 
   ControlResult run(const VehicleState& state, const Reference& refs,
-                    ControlErrorBase* error) override;
+                    ContextBase* error) override;
 
   [[nodiscard]] const Parameters& params() const { return params_; }
 
