@@ -55,6 +55,31 @@ struct ContextBase {
   [[nodiscard]] virtual std::string name() const = 0;
 };
 
+class ParameterLoaderBase {
+ public:
+  virtual ~ParameterLoaderBase() = default;
+
+  template <typename T>
+  T param(const std::string& key, const T& fallback) const {
+    if (T value; getParam(key, value)) {
+      return value;
+    }
+    return fallback;
+  }
+
+  [[nodiscard]] virtual bool hasParam(const std::string& key) const {
+    return false;
+  }
+
+  virtual bool getParam(const std::string& key, bool& value) const = 0;
+
+  virtual bool getParam(const std::string& key, int& value) const = 0;
+
+  virtual bool getParam(const std::string& key, double& value) const = 0;
+
+  virtual bool getParam(const std::string& key, std::string& value) const = 0;
+};
+
 class ParameterBase {
  public:
   virtual ~ParameterBase() = default;
@@ -66,6 +91,8 @@ class ParameterBase {
   [[nodiscard]] std::string name() const {
     return parameterFor() + ".parameters";
   }
+
+  virtual bool load(const ParameterLoaderBase& loader) = 0;
 
   [[nodiscard]] virtual std::string toString() const = 0;
 };

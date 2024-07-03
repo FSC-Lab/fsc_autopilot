@@ -197,55 +197,20 @@ void TrackingControlClient::loadParams() {
   pnh.getParam("tracking_controller/check_reconfiguration",
                check_reconfiguration_);
 
-  constexpr auto kDefaultKPosXY = 1.0;
-  constexpr auto kDefaultKPosZ = 10.0;
-  tc_params_->k_pos <<  // Force a line break
-      pnh.param("tracking_controller/k_pos/x", kDefaultKPosXY),
-      pnh.param("tracking_controller/k_pos/y", kDefaultKPosXY),
-      pnh.param("tracking_controller/k_pos/z", kDefaultKPosZ);
+  ros::NodeHandle tracking_controller_nh(pnh, "tracking_controller");
+  RosParamLoader control_param_loader(tracking_controller_nh);
 
-  constexpr auto kDefaultKVelXY = 1.5;
-  constexpr auto kDefaultkVelZ = 3.3;
-  tc_params_->k_vel <<  // Force a line break
-      pnh.param("tracking_controller/k_vel/x", kDefaultKVelXY),
-      pnh.param("tracking_controller/k_vel/y", kDefaultKVelXY),
-      pnh.param("tracking_controller/k_vel/z", kDefaultkVelZ);
-
-  tc_params_->min_thrust = pnh.param("tracking_controller/min_thrust", 0.0);
-
-  tc_params_->max_thrust =
-      pnh.param("tracking_controller/max_thrust", tc_params_->max_thrust);
-
-  constexpr auto kDefaultMaxTiltAngle = 45.0;
-  tc_params_->max_tilt_angle =
-      pnh.param("tracking_controller/max_tilt_angle", kDefaultMaxTiltAngle);
+  if (!tc_params_->load(control_param_loader)) {
+    ROS_FATAL("Failed to load TrackingController parameters");
+  }
 
   tracking_ctrl_.params() = tc_params_;
 
-  ude_params_->ude_lb << pnh.param("tracking_controller/de/lbx",
-                                   ude_params_->ude_lb.x()),
-      pnh.param("tracking_controller/de/lby", ude_params_->ude_lb.y()),
-      pnh.param("tracking_controller/de/lbz", ude_params_->ude_lb.z());
-
-  ude_params_->ude_ub << pnh.param("tracking_controller/de/lbx",
-                                   ude_params_->ude_ub.x()),
-      pnh.param("tracking_controller/de/lby", ude_params_->ude_ub.y()),
-      pnh.param("tracking_controller/de/lbz", ude_params_->ude_ub.z());
-
-  ude_params_->ude_height_threshold =
-      pnh.param("tracking_controller/de/height_threshold",
-                ude_params_->ude_height_threshold);
-  ude_params_->ude_gain =
-      pnh.param("tracking_controller/de/gain", ude_params_->ude_gain);
-  pnh.getParam("tracking_controller/de/type", ude_params_->type_str);
-
-  if (!pnh.getParam("tracking_controller/vehicle_mass",
-                    tc_params_->vehicle_mass)) {
-    ROS_FATAL("Vehicle mass unspecified in parameters!");
-    std::terminate();
+  ros::NodeHandle ude_nh(tracking_controller_nh, "de");
+  RosParamLoader ude_param_loader(ude_nh);
+  if (!ude_params_->load(ude_param_loader)) {
+    ROS_FATAL("Failed to load UDE parameters");
   }
-  ude_params_->vehicle_mass = tc_params_->vehicle_mass;
-
   std::vector<std::string> ude_types;
   fsc::UDEFactory::GetRegistryKeys(std::back_inserter(ude_types));
   if (ude_types.empty()) {

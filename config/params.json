@@ -23,7 +23,8 @@
       "type": "body_accel_based",
       "gain": 4.0,
       "height_threshold": 0.2,
-      "is_velocity_based": true
+      "is_velocity_based": true,
+      "vehicle_mass": 1.7
     }
   },
   "attitude_controller": {

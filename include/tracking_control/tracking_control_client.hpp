@@ -81,6 +81,30 @@ class TrackingControlClient {
       false};  // flag indicating wether inner atttiude controller is on
 };
 
+class RosParamLoader : public fsc::ParameterLoaderBase {
+ public:
+  explicit RosParamLoader(ros::NodeHandle& pnh) : pnh_(pnh) {}
+
+  bool getParam(const std::string& key, bool& value) const override {
+    return pnh_.getParam(key, value);
+  }
+
+  bool getParam(const std::string& key, int& value) const override {
+    return pnh_.getParam(key, value);
+  }
+
+  bool getParam(const std::string& key, double& value) const override {
+    return pnh_.getParam(key, value);
+  }
+
+  bool getParam(const std::string& key, std::string& value) const override {
+    return pnh_.getParam(key, value);
+  }
+
+ private:
+  ros::NodeHandle& pnh_;
+};
+
 }  // namespace nodelib
 
 #endif  // TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
