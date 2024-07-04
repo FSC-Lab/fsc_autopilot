@@ -55,21 +55,25 @@ struct TrackingControllerParameters : public ParameterBase {
   }
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader) override {
+    std::ignore =
+        loader.getParam("apply_pos_err_saturation", apply_pos_err_saturation);
     k_pos <<  // Force a line break
         loader.param("k_pos/x", kDefaultKpXY),
         loader.param("k_pos/y", kDefaultKpXY),
         loader.param("k_pos/z", kDefaultKpZ);
 
-    constexpr auto kDefaultKVelXY = 1.5;
-    constexpr auto kDefaultkVelZ = 3.3;
+    std::ignore =
+        loader.getParam("apply_vel_err_saturation", apply_vel_err_saturation);
     k_vel <<  // Force a line break
-        loader.param("k_vel/x", kDefaultKVelXY),
-        loader.param("k_vel/y", kDefaultKVelXY),
-        loader.param("k_vel/z", kDefaultkVelZ);
+        loader.param("k_vel/x", kDefaultKvXY),
+        loader.param("k_vel/y", kDefaultKvXY),
+        loader.param("k_vel/z", kDefaultKvZ);
 
-    if (!loader.getParam("min_thrust", min_thrust)) {
+    if (!loader.getParam("vehicle_mass", vehicle_mass)) {
       return false;
     }
+
+    std::ignore = loader.getParam("min_thrust", min_thrust);
 
     std::ignore = loader.getParam("max_thrust", max_thrust);
 
