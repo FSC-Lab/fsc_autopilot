@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "tracking_control/logging.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace fsc {
@@ -19,7 +20,8 @@ class UDEFactory {
 
   static bool Register(std::string name, UDECreator creator);
 
-  static UDEUniquePtr Create(ParameterBaseSharedPtr params);
+  static UDEUniquePtr Create(ParameterBaseSharedPtr params,
+                             LoggerBase* logger = nullptr);
 
   template <typename OutputIter>
   static void GetRegistryKeys(OutputIter first) {

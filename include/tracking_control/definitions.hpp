@@ -4,6 +4,7 @@
 
 #include "Eigen/Core"      // IWYU pragma: keep
 #include "Eigen/Geometry"  // IWYU pragma: keep
+#include "tracking_control/logging.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
@@ -92,7 +93,9 @@ class ParameterBase {
     return parameterFor() + ".parameters";
   }
 
-  virtual bool load(const ParameterLoaderBase& loader) = 0;
+  bool load(const ParameterLoaderBase& loader) { return load(loader, nullptr); }
+
+  virtual bool load(const ParameterLoaderBase& loader, LoggerBase* logger) = 0;
 
   [[nodiscard]] virtual std::string toString() const = 0;
 };

@@ -8,6 +8,7 @@
 #include "Eigen/Dense"
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/logging.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace fsc {
@@ -54,7 +55,8 @@ struct TrackingControllerParameters : public ParameterBase {
     return min_thrust < max_thrust && vehicle_mass > 0.0;
   }
 
-  [[nodiscard]] bool load(const ParameterLoaderBase& loader) override {
+  [[nodiscard]] bool load(const ParameterLoaderBase& loader,
+                          LoggerBase* logger) override {
     std::ignore =
         loader.getParam("apply_pos_err_saturation", apply_pos_err_saturation);
     k_pos <<  // Force a line break
@@ -70,6 +72,10 @@ struct TrackingControllerParameters : public ParameterBase {
         loader.param("k_vel/z", kDefaultKvZ);
 
     if (!loader.getParam("vehicle_mass", vehicle_mass)) {
+      if (logger) {
+        logger->log(Severity::kError,
+                    "Failed to load parameter `vehicle_mass`");
+      }
       return false;
     }
 

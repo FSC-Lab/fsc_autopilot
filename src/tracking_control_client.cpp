@@ -206,22 +206,10 @@ void TrackingControlClient::loadParams() {
     ROS_FATAL("Failed to load UDE parameters");
     std::terminate();
   }
-  std::vector<std::string> ude_types;
-  fsc::UDEFactory::GetRegistryKeys(std::back_inserter(ude_types));
-  if (ude_types.empty()) {
-    ROS_ERROR("No UDE registered");
-  }
 
-  std::ostringstream oss;
-  oss << ude_types.front();
-  for (auto it = std::next(ude_types.begin()); it != ude_types.end(); ++it) {
-    oss << ", " << *it;
-  }
-  ROS_INFO("Available UDE types are: %s", oss.str().c_str());
-  auto ude = fsc::UDEFactory::Create(ude_params_);
+  auto ude = fsc::UDEFactory::Create(ude_params_, &logger_);
   if (!ude) {
-    ROS_ERROR("Failed to create UDE: %s is not a valid UDE Type",
-              ude_params_->type_str.c_str());
+    std::terminate();
   }
   tracking_ctrl_.ude() = std::move(ude);
 

@@ -4,21 +4,56 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "dynamic_reconfigure/server.h"
 #include "mavros_msgs/State.h"
 #include "nav_msgs/Odometry.h"
+#include "ros/console_backend.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
 #include "sensor_msgs/Imu.h"
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingReference.h"
+#include "tracking_control/logging.hpp"
 #include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace nodelib {
+
+class RosLogger : public fsc::LoggerBase {
+ public:
+  using RosSeverity = ros::console::levels::Level;
+
+  explicit RosLogger(std::string name) : name_(std::move(name)) {}
+
+  void log(fsc::Severity severity, const char* msg) noexcept override {
+    switch (severity) {
+      case fsc::Severity::kInternalError:
+        ROS_FATAL("%s", msg);
+        break;
+      case fsc::Severity::kError:
+        ROS_ERROR("%s", msg);
+        break;
+      case fsc::Severity::kWarning:
+        ROS_WARN("%s", msg);
+        break;
+      case fsc::Severity::kInfo:
+        ROS_INFO("%s", msg);
+      case fsc::Severity::kVerbose:
+        ROS_DEBUG("%s", msg);
+        break;
+    }
+  }
+
+  [[nodiscard]] std::string name() const override { return name_; }
+
+ private:
+  std::string name_;
+};
+
 class TrackingControlClient {
  public:
   using AttitudeController = fsc::NonlinearGeometricController;
@@ -79,6 +114,8 @@ class TrackingControlClient {
   ros::Timer watchdog_;
   bool enable_inner_controller_{
       false};  // flag indicating wether inner atttiude controller is on
+
+  RosLogger logger_{"tracking_control"};
 };
 
 class RosParamLoader : public fsc::ParameterLoaderBase {

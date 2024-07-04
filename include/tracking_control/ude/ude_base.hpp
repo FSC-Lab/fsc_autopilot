@@ -6,6 +6,7 @@
 
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/logging.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
@@ -96,7 +97,8 @@ struct UDEParameters : public ParameterBase {
            dt > 0.0;
   }
 
-  [[nodiscard]] bool load(const ParameterLoaderBase& loader) override {
+  [[nodiscard]] bool load(const ParameterLoaderBase& loader,
+                          LoggerBase* logger) override {
     ude_lb << loader.param("lbx", ude_lb.x()),  //
         loader.param("lby", ude_lb.y()),        //
         loader.param("lbz", ude_lb.z());
@@ -108,10 +110,18 @@ struct UDEParameters : public ParameterBase {
     std::ignore = loader.getParam("height_threshold", ude_height_threshold);
     std::ignore = loader.getParam("gain", ude_gain);
     if (!loader.getParam("type", type_str)) {
+      if (logger) {
+        logger->log(Severity::kError) << "Failed to load parameter `type`";
+      }
       return false;
     }
 
     if (!loader.getParam("vehicle_mass", vehicle_mass)) {
+      if (logger) {
+        logger->log(Severity::kError,
+                    "Failed to load parameter `vehicle_mass`");
+      }
+
       return false;
     }
     return true;
