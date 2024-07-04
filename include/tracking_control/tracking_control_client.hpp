@@ -83,7 +83,8 @@ class TrackingControlClient {
 
 class RosParamLoader : public fsc::ParameterLoaderBase {
  public:
-  explicit RosParamLoader(ros::NodeHandle& pnh) : pnh_(pnh) {}
+  explicit RosParamLoader(const ros::NodeHandle& pnh) : pnh_(pnh) {}
+  explicit RosParamLoader(const std::string& pnh) : pnh_(pnh) {}
 
   bool getParam(const std::string& key, bool& value) const override {
     return pnh_.getParam(key, value);
@@ -102,7 +103,7 @@ class RosParamLoader : public fsc::ParameterLoaderBase {
   }
 
  private:
-  ros::NodeHandle& pnh_;
+  ros::NodeHandle pnh_;
 };
 
 }  // namespace nodelib

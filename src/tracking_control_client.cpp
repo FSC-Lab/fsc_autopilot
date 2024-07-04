@@ -197,19 +197,16 @@ void TrackingControlClient::loadParams() {
   pnh.getParam("tracking_controller/check_reconfiguration",
                check_reconfiguration_);
 
-  ros::NodeHandle tracking_controller_nh(pnh, "tracking_controller");
-  RosParamLoader control_param_loader(tracking_controller_nh);
-
-  if (!tc_params_->load(control_param_loader)) {
+  if (!tc_params_->load(RosParamLoader{"~tracking_controller"})) {
     ROS_FATAL("Failed to load TrackingController parameters");
+    std::terminate();
   }
 
   tracking_ctrl_.params() = tc_params_;
 
-  ros::NodeHandle ude_nh(tracking_controller_nh, "de");
-  RosParamLoader ude_param_loader(ude_nh);
-  if (!ude_params_->load(ude_param_loader)) {
+  if (!ude_params_->load(RosParamLoader{"~tracking_controller"})) {
     ROS_FATAL("Failed to load UDE parameters");
+    std::terminate();
   }
   std::vector<std::string> ude_types;
   fsc::UDEFactory::GetRegistryKeys(std::back_inserter(ude_types));
