@@ -1,7 +1,5 @@
 #include "tracking_control/tracking_control_client.hpp"
 
-#include <sstream>
-
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
@@ -159,9 +157,9 @@ void TrackingControlClient::mainLoop(const ros::TimerEvent& event) {
 void TrackingControlClient::watchdog(const ros::TimerEvent& event) {
   auto now = ros::Time::now();
   std::map<std::string, ros::Duration> elapsed_since_last_recv = {
-      {"Odometry", odom_last_recv_time_ - now},
-      {"Imu", imu_last_recv_time_ - now},
-      {"Mavros State", state_last_recv_time_ - now},
+      {"Odometry", now - odom_last_recv_time_},
+      {"Imu", now - imu_last_recv_time_},
+      {"Mavros State", now - state_last_recv_time_},
   };
   auto threshold = ros::Duration(3);
   for (const auto& [key, value] : elapsed_since_last_recv) {
