@@ -97,21 +97,21 @@ struct UDEParameters : public ParameterBase {
   }
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader) override {
-    ude_lb << loader.param("de/lbx", ude_lb.x()),  //
-        loader.param("de/lby", ude_lb.y()),        //
-        loader.param("de/lbz", ude_lb.z());
+    ude_lb << loader.param("lbx", ude_lb.x()),  //
+        loader.param("lby", ude_lb.y()),        //
+        loader.param("lbz", ude_lb.z());
 
-    ude_ub << loader.param("de/lbx", ude_ub.x()),  //
-        loader.param("de/lby", ude_ub.y()),        //
-        loader.param("de/lbz", ude_ub.z());
+    ude_ub << loader.param("lbx", ude_ub.x()),  //
+        loader.param("lby", ude_ub.y()),        //
+        loader.param("lbz", ude_ub.z());
 
-    std::ignore = loader.getParam("de/height_threshold", ude_height_threshold);
-    std::ignore = loader.getParam("de/gain", ude_gain);
-    if (!loader.getParam("de/type", type_str)) {
+    std::ignore = loader.getParam("height_threshold", ude_height_threshold);
+    std::ignore = loader.getParam("gain", ude_gain);
+    if (!loader.getParam("type", type_str)) {
       return false;
     }
 
-    if (!loader.getParam("de/vehicle_mass", vehicle_mass)) {
+    if (!loader.getParam("vehicle_mass", vehicle_mass)) {
       return false;
     }
     return true;

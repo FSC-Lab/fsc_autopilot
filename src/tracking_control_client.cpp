@@ -202,7 +202,7 @@ void TrackingControlClient::loadParams() {
 
   tracking_ctrl_.params() = tc_params_;
 
-  if (!ude_params_->load(RosParamLoader{"~tracking_controller"})) {
+  if (!ude_params_->load(RosParamLoader{"~tracking_controller/de"})) {
     ROS_FATAL("Failed to load UDE parameters");
     std::terminate();
   }
