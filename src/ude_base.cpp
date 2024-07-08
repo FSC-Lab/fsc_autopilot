@@ -64,4 +64,32 @@ std::string UDEParameters::toString() const {
   return oss.str();
 }
 
+bool UDEParameters::load(const ParameterLoaderBase& loader,
+                         LoggerBase* logger) {
+  ude_lb << loader.param("lbx", ude_lb.x()),  //
+      loader.param("lby", ude_lb.y()),        //
+      loader.param("lbz", ude_lb.z());
+
+  ude_ub << loader.param("lbx", ude_ub.x()),  //
+      loader.param("lby", ude_ub.y()),        //
+      loader.param("lbz", ude_ub.z());
+
+  std::ignore = loader.getParam("height_threshold", ude_height_threshold);
+  std::ignore = loader.getParam("gain", ude_gain);
+  if (!loader.getParam("type", type_str)) {
+    if (logger) {
+      logger->log(Severity::kError) << "Failed to load parameter `type`";
+    }
+    return false;
+  }
+
+  if (!loader.getParam("vehicle_mass", vehicle_mass)) {
+    if (logger) {
+      logger->log(Severity::kError, "Failed to load parameter `vehicle_mass`");
+    }
+
+    return false;
+  }
+  return true;
+}
 }  // namespace fsc

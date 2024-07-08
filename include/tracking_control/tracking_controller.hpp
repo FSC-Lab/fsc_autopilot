@@ -56,36 +56,7 @@ struct TrackingControllerParameters : public ParameterBase {
   }
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
-                          LoggerBase* logger) override {
-    std::ignore =
-        loader.getParam("apply_pos_err_saturation", apply_pos_err_saturation);
-    k_pos <<  // Force a line break
-        loader.param("k_pos/x", kDefaultKpXY),
-        loader.param("k_pos/y", kDefaultKpXY),
-        loader.param("k_pos/z", kDefaultKpZ);
-
-    std::ignore =
-        loader.getParam("apply_vel_err_saturation", apply_vel_err_saturation);
-    k_vel <<  // Force a line break
-        loader.param("k_vel/x", kDefaultKvXY),
-        loader.param("k_vel/y", kDefaultKvXY),
-        loader.param("k_vel/z", kDefaultKvZ);
-
-    if (!loader.getParam("vehicle_mass", vehicle_mass)) {
-      if (logger) {
-        logger->log(Severity::kError,
-                    "Failed to load parameter `vehicle_mass`");
-      }
-      return false;
-    }
-
-    std::ignore = loader.getParam("min_thrust", min_thrust);
-
-    std::ignore = loader.getParam("max_thrust", max_thrust);
-
-    std::ignore = loader.getParam("max_tilt_angle", max_tilt_angle);
-    return true;
-  }
+                          LoggerBase* logger) override;
 
   [[nodiscard]] std::string toString() const override;
 
