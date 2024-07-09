@@ -195,14 +195,14 @@ void TrackingControlClient::loadParams() {
   pnh.getParam("tracking_controller/check_reconfiguration",
                check_reconfiguration_);
 
-  if (!tc_params_->load(RosParamLoader{"~tracking_controller"})) {
+  if (!tc_params_->load(RosParamLoader{"~tracking_controller"}, &logger_)) {
     ROS_FATAL("Failed to load TrackingController parameters");
     std::terminate();
   }
 
   tracking_ctrl_.params() = tc_params_;
 
-  if (!ude_params_->load(RosParamLoader{"~tracking_controller/de"})) {
+  if (!ude_params_->load(RosParamLoader{"~tracking_controller/de"}, &logger_)) {
     ROS_FATAL("Failed to load UDE parameters");
     std::terminate();
   }

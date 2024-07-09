@@ -74,6 +74,8 @@ enum class UDEType {
 };
 
 struct UDEParameters : public ParameterBase {
+  using ParameterBase::load;
+
   std::string type_str;
 
   double dt;

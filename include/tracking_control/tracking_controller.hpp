@@ -29,6 +29,8 @@ struct TrackingControllerError : public ContextBase {
 };
 
 struct TrackingControllerParameters : public ParameterBase {
+  using ParameterBase::load;
+
   bool apply_pos_err_saturation{true};
   static constexpr double kDefaultKpXY{1.0};
   static constexpr double kDefaultKpZ{10.0};
