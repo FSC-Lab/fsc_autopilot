@@ -1,5 +1,7 @@
 #include "tracking_control/tracking_control_client.hpp"
 
+#include <exception>
+
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "tf2_eigen/tf2_eigen.h"
@@ -215,7 +217,10 @@ void TrackingControlClient::loadParams() {
   }
   tracking_ctrl_.ude() = std::move(ude);
 
-  constexpr auto kDefaultAttitudeControllerTau = 0.1;
+  if (!ac_params_->load(RosParamLoader{"~attitude_controller"}, &logger_)) {
+    ROS_FATAL("Failed to load attitude controller parameters");
+    std::terminate();
+  }
   att_ctrl_.params() = ac_params_;
 
   const auto mc_coeffs = pnh.param("tracking_controller/motor_curve",

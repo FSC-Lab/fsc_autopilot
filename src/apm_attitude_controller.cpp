@@ -7,6 +7,7 @@
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
+#include "tracking_control/logging.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
@@ -186,5 +187,36 @@ Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(
   }
 
   return body_rate_target;
+}
+bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
+                                       LoggerBase* logger) {
+  std::ignore = loader.getParam("dt", dt);
+  if (dt == -1.0) {
+    logger->log(
+        Severity::kWarning,
+        "`dt` left at default. Take care to set it to a positive value later");
+  } else if (dt < 0.0) {
+    logger->log(Severity::kError, "`dt` must not be negative");
+    return true;
+  }
+
+  std::ignore = loader.getParam("input_tc", input_tc);
+  if (input_tc < 0.0) {
+    logger->log(Severity::kError, "`input_tc` must not be negative");
+    return true;
+  }
+  std::ignore = loader.getParam("use_sqrt_controller", use_sqrt_controller);
+  std::ignore = loader.getParam("enable_rate_feedforward", rate_bf_ff_enabled);
+  std::ignore = loader.getParam("roll_p", kp_angle.x());
+  std::ignore = loader.getParam("pitch_p", kp_angle.y());
+  std::ignore = loader.getParam("yaw_p", kp_angle.z());
+  std::ignore = loader.getParam("yawrate_p", kp_yawrate);
+  std::ignore = loader.getParam("rollrate_max", ang_vel_max.x());
+  std::ignore = loader.getParam("pitchrate_max", ang_vel_max.y());
+  std::ignore = loader.getParam("yawrate_max", ang_vel_max.z());
+  std::ignore = loader.getParam("roll_accel_max", ang_accel_max.x());
+  std::ignore = loader.getParam("pitch_accel_max", ang_accel_max.y());
+  std::ignore = loader.getParam("yaw_accel_max", ang_accel_max.z());
+  return true;
 }
 }  // namespace fsc

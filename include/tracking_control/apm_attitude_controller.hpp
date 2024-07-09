@@ -23,7 +23,7 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   bool rate_bf_ff_enabled{true};
   bool use_sqrt_controller{true};
   double input_tc{1.0};
-  double dt;
+  double dt{-1.0};
   Eigen::Vector3d ang_accel_max{deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
                                 deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
                                 deg2rad(kMaxYawAccelDefaultCdss / 100.0)};
@@ -46,10 +46,9 @@ struct APMAttitudeControllerParams final : public ParameterBase {
     return "apm_attitude_controller";
   }
   [[nodiscard]] std::string toString() const override { return "WIP"; }
+
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
-                          LoggerBase* logger) override {
-    return true;
-  }
+                          LoggerBase* logger) override;
 };
 
 // Thrust angle error above which yaw corrections are limited

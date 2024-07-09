@@ -28,7 +28,11 @@
     }
   },
   "attitude_controller": {
-    "tau": 0.5
+    "input_tc": 1.0,
+    "roll_p": 6.5,
+    "pitch_p": 6.5,
+    "yaw_p": 6.5,
+    "yawrate_p": 0.20
   },
   "indoor_mode": false
 }

@@ -2,7 +2,6 @@
 #define TRACKING_CONTROL_CONTROL_HPP_
 
 #include <algorithm>
-#include <iostream>
 #include <limits>
 
 #include "Eigen/Dense"
@@ -194,7 +193,7 @@ template <typename T>
 T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
   using std::abs;
   if (D_max > T{0} && IsClose(p, T{0})) {
-    return (output * output) / (2.0 * D_max);
+    return (output * output) / (T{2} * D_max);
   }
   if ((D_max < T{0} || IsClose(D_max, T{0})) && !IsClose(p, T{0})) {
     return output / p;
