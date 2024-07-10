@@ -1,6 +1,7 @@
 #include "tracking_control/tracking_control_client.hpp"
 
 #include <exception>
+#include <utility>
 
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
@@ -247,15 +248,40 @@ void TrackingControlClient::dynamicReconfigureCb(
       enable_inner_controller_, config.groups.project.enable_inner_controller);
   const auto& tracker = config.groups.tracker;
   const auto& ude = config.groups.ude;
+  const auto& attitude_tracking = config.groups.attitude_tracking;
   int max_idx;
 
+  const auto use_sqrt_controller_prev = std::exchange(
+      ac_params_->use_sqrt_controller, attitude_tracking.use_sqrt_controller);
+  const auto enable_rate_feedforward_prev =
+      std::exchange(ac_params_->rate_bf_ff_enabled,
+                    attitude_tracking.enable_rate_feedforward);
+
+  const auto input_tc_prev =
+      std::exchange(ac_params_->input_tc, attitude_tracking.input_tc);
+  const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
+                                     attitude_tracking.pitch_p,
+                                     attitude_tracking.yaw_p};
+
+  const auto max_kp_angle_step =
+      (kp_angle_new - ac_params_->kp_angle).cwiseAbs().maxCoeff(&max_idx);
+  if (check_reconfiguration_ && max_kp_angle_step > kMaxParamStep) {
+    constexpr char const* kAxname[] = {"roll", "pitch", "yaw"};
+    ROS_ERROR("Refusing reconfiguration: delta Kp[%s] = %f > %f",
+              kAxname[max_idx], max_kp_angle_step, kMaxParamStep);
+  }
+
+  const Eigen::Vector3d kp_angle_prev =
+      std::exchange(ac_params_->kp_angle, kp_angle_new);
+
+  const auto& position_tracking = tracker.position_tracking;
   const auto apply_pos_err_saturation_prev =
       std::exchange(tc_params_->apply_pos_err_saturation,
-                    tracker.position_tracking.apply_pos_err_saturation);
+                    position_tracking.apply_pos_err_saturation);
 
-  const Eigen::Vector3d k_pos_new{tracker.position_tracking.pos_p_x,  //
-                                  tracker.position_tracking.pos_p_y,  //
-                                  tracker.position_tracking.pos_p_z};
+  const Eigen::Vector3d k_pos_new{position_tracking.pos_p_x,  //
+                                  position_tracking.pos_p_y,  //
+                                  position_tracking.pos_p_z};
   const auto max_k_pos_step =
       (k_pos_new - tc_params_->k_pos).cwiseAbs().maxCoeff(&max_idx);
   if (check_reconfiguration_ && max_k_pos_step > kMaxParamStep) {
@@ -264,16 +290,17 @@ void TrackingControlClient::dynamicReconfigureCb(
     return;
   }
 
-  const auto apply_vel_err_saturation_prev =
-      std::exchange(tc_params_->apply_vel_err_saturation,
-                    tracker.velocity_tracking.apply_vel_err_saturation);
-
   const Eigen::Vector3d k_pos_prev =
       std::exchange(tc_params_->k_pos, k_pos_new);
 
-  const Eigen::Vector3d k_vel_new{tracker.velocity_tracking.vel_p_x,  //
-                                  tracker.velocity_tracking.vel_p_y,  //
-                                  tracker.velocity_tracking.vel_p_z};
+  const auto& velocity_tracking = tracker.velocity_tracking;
+  const auto apply_vel_err_saturation_prev =
+      std::exchange(tc_params_->apply_vel_err_saturation,
+                    velocity_tracking.apply_vel_err_saturation);
+
+  const Eigen::Vector3d k_vel_new{velocity_tracking.vel_p_x,  //
+                                  velocity_tracking.vel_p_y,  //
+                                  velocity_tracking.vel_p_z};
   const auto max_k_vel_step =
       (k_vel_new - tc_params_->k_vel).cwiseAbs().maxCoeff(&max_idx);
   if (check_reconfiguration_ && max_k_vel_step > kMaxParamStep) {
@@ -300,6 +327,13 @@ void TrackingControlClient::dynamicReconfigureCb(
       std::boolalpha
           << "Dynamical Reconfigure Results:\nEnabled inner controller"
           << enable_inner_controller_prev << " -> " << enable_inner_controller_
+          << "\nUsing sqrt controller: " << use_sqrt_controller_prev << " -> "
+          << ac_params_->use_sqrt_controller << "\nenable_rate_feedforward"
+          << enable_rate_feedforward_prev << " -> "
+          << ac_params_->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
+          << " -> " << ac_params_->input_tc
+          << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
+          << " -> " << kp_angle_new.transpose().format(matlab_fmt)
           << "\nPosition Error Saturation: " << apply_pos_err_saturation_prev
           << " -> " << tc_params_->apply_pos_err_saturation
           << "\nKp: " << k_pos_prev.transpose().format(matlab_fmt) << " -> "
