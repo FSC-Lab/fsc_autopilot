@@ -18,21 +18,25 @@
     },
     "vehicle_mass": 1.7,
     "num_of_rotors": 4,
-    "rate": 50,
+    "rate": 100,
     "de": {
       "type": "body_accel_based",
       "gain": 4.0,
       "height_threshold": 0.2,
       "is_velocity_based": true,
       "vehicle_mass": 1.7
-    }
+    },
+    "enable_inner_controller": true
   },
   "attitude_controller": {
-    "input_tc": 1.0,
+    "rate": 100,
+    "enable_rate_feedforward": false,
+    "input_tc": 1.5,
     "roll_p": 6.5,
     "pitch_p": 6.5,
-    "yaw_p": 6.5,
-    "yawrate_p": 0.20
+    "yaw_p": 2,
+    "yawrate_p": 0,
+    "yawrate_max": 1.0471975511965976
   },
   "indoor_mode": false
 }

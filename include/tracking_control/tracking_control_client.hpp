@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "dynamic_reconfigure/server.h"
+#include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/State.h"
 #include "nav_msgs/Odometry.h"
 #include "ros/console_backend.h"
@@ -72,7 +73,9 @@ class TrackingControlClient {
       const tracking_control::TrackingControlConfig& config,
       std::uint32_t level);
 
-  void mainLoop(const ros::TimerEvent& event);
+  void outerLoop(const ros::TimerEvent& event);
+
+  void innerLoop(const ros::TimerEvent& event);
 
   void watchdog(const ros::TimerEvent& event);
 
@@ -88,7 +91,8 @@ class TrackingControlClient {
 
   fsc::VehicleState state_;
 
-  fsc::Reference refs_;
+  fsc::Reference outer_ref_;
+  fsc::Reference inner_ref_;
 
   AttitudeController::ParametersSharedPtr ac_params_{
       std::make_shared<AttitudeController::Parameters>()};
@@ -96,7 +100,6 @@ class TrackingControlClient {
       std::make_shared<fsc::TrackingControllerParameters>()};
   fsc::UDEBase::ParametersSharedPtr ude_params_{
       std::make_shared<fsc::UDEBase::Parameters>()};
-
   ros::Time odom_last_recv_time_;
   ros::Time imu_last_recv_time_;
   ros::Time state_last_recv_time_;
@@ -108,10 +111,12 @@ class TrackingControlClient {
 
   mavros_msgs::State mavrosState_;
 
+  mavros_msgs::AttitudeTarget cmd_;
+
   MotorCurveType motor_curve_;
 
-  double ros_rate_{0.0};
-  ros::Timer main_loop_;
+  ros::Timer outer_loop_;
+  ros::Timer inner_loop_;
   ros::Timer watchdog_;
   bool enable_inner_controller_{
       false};  // flag indicating wether inner atttiude controller is on

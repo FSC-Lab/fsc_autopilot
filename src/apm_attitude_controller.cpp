@@ -22,9 +22,6 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
                                  params_->slew_yaw_max());
   const auto heading_angle = refs.yaw;
 
-  // calculate the attitude target euler angles
-  euler_angle_target_ = fsc::QuaternionToEulerAngles(attitude_target_);
-
   // convert thrust vector and heading to a quaternion attitude
   const Eigen::Quaterniond desired_attitude_quat = refs.state.pose.orientation;
 
@@ -56,13 +53,8 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
     attitude_target_ = desired_attitude_quat;
 
     // Set rate feedforward requests to zero
-    euler_rate_target_.setZero();
     ang_vel_target_.setZero();
   }
-
-  // Convert body-frame angular velocity into euler angle derivative of
-  // desired attitude
-  euler_rate_target_ = BodyRatesToEulerRate(attitude_target_, ang_vel_target_);
 
   // Call quaternion attitude controller
   auto ang_vel_body =
@@ -107,9 +99,8 @@ Eigen::Vector3d APMAttitudeController::attitudeControllerRunQuat(
   if (thrust_error_angle > kThrustErrorAngleThresh * 2.0) {
     ang_vel_body.z() = body_rates.z();
   } else if (thrust_error_angle > kThrustErrorAngleThresh) {
-    feedforward_scalar_ =
-        (1.0 - (thrust_error_angle - kThrustErrorAngleThresh) /
-                   kThrustErrorAngleThresh);
+    feedforward_scalar_ = 1.0 - (thrust_error_angle - kThrustErrorAngleThresh) /
+                                    kThrustErrorAngleThresh;
     ang_vel_body.x() += ang_vel_body_feedforward.x() * feedforward_scalar_;
     ang_vel_body.y() += ang_vel_body_feedforward.y() * feedforward_scalar_;
     ang_vel_body.z() += ang_vel_body_feedforward.z();
@@ -125,11 +116,6 @@ Eigen::Vector3d APMAttitudeController::attitudeControllerRunQuat(
         fsc::AngleAxisToQuaternion(ang_vel_target_ * params_->dt);
   }
 
-  // ensure Eigen::Quaternionf stay normalised
-  attitude_target_.normalize();
-
-  // Record error to handle EKF resets
-  attitude_ang_error_ = orientation.inverse() * attitude_target_;
   return ang_vel_body;
 }
 
@@ -218,5 +204,22 @@ bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
   std::ignore = loader.getParam("pitch_accel_max", ang_accel_max.y());
   std::ignore = loader.getParam("yaw_accel_max", ang_accel_max.z());
   return true;
+}
+
+std::string APMAttitudeControllerParams::toString() const {
+  const Eigen::IOFormat f{
+      Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
+
+  std::ostringstream oss;
+
+  oss << "APM Attitude Controller parameters:" << std::boolalpha     //
+      << "\nrate_bf_ff_enabled: " << rate_bf_ff_enabled              //
+      << "\nuse_sqrt_controller: " << use_sqrt_controller            //
+      << "\ninput_tc: " << input_tc                                  //
+      << "\ndt: " << dt                                              //
+      << "\nkp_angle: " << kp_angle.transpose().format(f)            //
+      << "\nang_accel_lax: " << ang_accel_max.transpose().format(f)  //
+      << "\nang_vel_lax: " << ang_vel_max.transpose().format(f);     //
+  return oss.str();
 }
 }  // namespace fsc

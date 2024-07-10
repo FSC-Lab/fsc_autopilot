@@ -24,12 +24,11 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   bool use_sqrt_controller{true};
   double input_tc{1.0};
   double dt{-1.0};
+  Eigen::Vector3d kp_angle{Eigen::Vector3d::Constant(kDefaultAngleP)};
   Eigen::Vector3d ang_accel_max{deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
                                 deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
                                 deg2rad(kMaxYawAccelDefaultCdss / 100.0)};
   Eigen::Vector3d ang_vel_max{Eigen::Vector3d::Zero()};
-
-  Eigen::Vector3d kp_angle{Eigen::Vector3d::Constant(kDefaultAngleP)};
 
   static constexpr double kDefaultYawRateP = 0.180;
   double kp_yawrate{kDefaultYawRateP};
@@ -45,7 +44,7 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   [[nodiscard]] std::string parameterFor() const override {
     return "apm_attitude_controller";
   }
-  [[nodiscard]] std::string toString() const override { return "WIP"; }
+  [[nodiscard]] std::string toString() const override;
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
                           LoggerBase* logger) override;
@@ -80,9 +79,6 @@ class APMAttitudeController : public ControllerBase {
   ParametersSharedPtr params_{std::make_shared<Parameters>()};
   double feedforward_scalar_{0.0};
   Eigen::Quaterniond attitude_target_{Eigen::Quaterniond::Identity()};
-  Eigen::Quaterniond attitude_ang_error_{Eigen::Quaterniond::Identity()};
   Eigen::Vector3d ang_vel_target_{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d euler_angle_target_{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d euler_rate_target_{Eigen::Vector3d::Zero()};
 };
 }  // namespace fsc
