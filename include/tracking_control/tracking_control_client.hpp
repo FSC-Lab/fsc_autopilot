@@ -48,8 +48,7 @@ class TrackingControlClient {
 
   void watchdog(const ros::TimerEvent& event);
 
-  void dispPara();
-  void loadParams();
+  bool loadParams();
   void setupRosTopics();
 
   bool initialized_{false};

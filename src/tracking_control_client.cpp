@@ -1,10 +1,10 @@
 #include "tracking_control/tracking_control_client.hpp"
 
-#include <exception>
 #include <utility>
 
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
+#include "ros/exceptions.h"
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingError.h"
@@ -20,7 +20,9 @@ using namespace std::string_literals;  // NOLINT
 
 TrackingControlClient::TrackingControlClient() {
   ros::NodeHandle pnh("~");
-  loadParams();
+  if (!loadParams()) {
+    throw ros::InvalidParameterException("Got invalid parameters");
+  }
   const ros::Rate outer_rate = pnh.param("tracking_controller/rate", 30);
   const ros::Rate inner_rate = pnh.param("attitude_controller/rate", 250);
 
@@ -180,19 +182,7 @@ void TrackingControlClient::watchdog(const ros::TimerEvent& event) {
   }
 }
 
-void TrackingControlClient::dispPara() {
-  // offboard control mode
-  if (enable_inner_controller_) {
-    ROS_INFO("Inner controller (rate mode) enabled!");
-    ROS_INFO_STREAM(ac_params_->toString());
-  } else {
-    ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
-  }
-
-  ROS_INFO_STREAM(tc_params_->toString());
-}
-
-void TrackingControlClient::loadParams() {
+bool TrackingControlClient::loadParams() {
   ros::NodeHandle pnh("~");
   // put load parameters into a function
   enable_inner_controller_ =
@@ -205,25 +195,25 @@ void TrackingControlClient::loadParams() {
 
   if (!tc_params_->load(RosParamLoader{"~tracking_controller"}, &logger_)) {
     ROS_FATAL("Failed to load TrackingController parameters");
-    std::terminate();
+    return false;
   }
 
   tracking_ctrl_.params() = tc_params_;
 
   if (!ude_params_->load(RosParamLoader{"~tracking_controller/de"}, &logger_)) {
     ROS_FATAL("Failed to load UDE parameters");
-    std::terminate();
+    return false;
   }
 
   auto ude = fsc::UDEFactory::Create(ude_params_, &logger_);
   if (!ude) {
-    std::terminate();
+    return false;
   }
   tracking_ctrl_.ude() = std::move(ude);
 
   if (!ac_params_->load(RosParamLoader{"~attitude_controller"}, &logger_)) {
     ROS_FATAL("Failed to load attitude controller parameters");
-    std::terminate();
+    return false;
   }
   att_ctrl_.params() = ac_params_;
 
@@ -231,6 +221,17 @@ void TrackingControlClient::loadParams() {
                                    std::vector<double>{0.1, 0.05});
   motor_curve_ = MotorCurveType(Eigen::VectorXd::Map(
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
+
+  // offboard control mode
+  if (enable_inner_controller_) {
+    ROS_INFO("Inner controller (rate mode) enabled!");
+    ROS_INFO_STREAM(ac_params_->toString());
+  } else {
+    ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
+  }
+
+  ROS_INFO_STREAM(tc_params_->toString());
+  return true;
 }
 
 void TrackingControlClient::dynamicReconfigureCb(
