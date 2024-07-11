@@ -1,5 +1,5 @@
 
-#include "tracking_control/apm_attitude_controller.hpp"
+#include "tracking_control/attitude_control/apm_attitude_controller.hpp"
 
 #include <utility>
 

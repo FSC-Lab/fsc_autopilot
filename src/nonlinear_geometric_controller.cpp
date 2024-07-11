@@ -1,4 +1,4 @@
-#include "tracking_control/nonlinear_geometric_controller.hpp"
+#include "tracking_control/attitude_control/nonlinear_geometric_controller.hpp"
 
 #include "tracking_control/definitions.hpp"
 #include "tracking_control/math.hpp"

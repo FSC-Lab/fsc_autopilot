@@ -16,7 +16,7 @@
 #include "sensor_msgs/Imu.h"
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingReference.h"
-#include "tracking_control/apm_attitude_controller.hpp"
+#include "tracking_control/attitude_control/apm_attitude_controller.hpp"
 #include "tracking_control/logging.hpp"
 #include "tracking_control/polynomial.hpp"
 #include "tracking_control/tracking_controller.hpp"

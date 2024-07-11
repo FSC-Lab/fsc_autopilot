@@ -8,10 +8,10 @@
 #include "tf2_eigen/tf2_eigen.h"
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingError.h"
+#include "tracking_control/attitude_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/definitions.hpp"
 #include "tracking_control/math.hpp"
 #include "tracking_control/msg_conversion.hpp"
-#include "tracking_control/nonlinear_geometric_controller.hpp"
 #include "tracking_control/tracking_controller.hpp"
 #include "tracking_control/ude/ude_factory.hpp"
 
