@@ -1,8 +1,8 @@
 #ifndef TRACKING_CONTROL_ROS_SUPPORT_HPP_
 #define TRACKING_CONTROL_ROS_SUPPORT_HPP_
 
+#include <memory>
 #include <string>
-#include <utility>
 
 #include "ros/console.h"
 #include "ros/node_handle.h"
@@ -28,6 +28,9 @@ class RosParamLoader : public fsc::ParameterLoaderBase {
  public:
   explicit RosParamLoader(const ros::NodeHandle& pnh);
   explicit RosParamLoader(const std::string& pnh);
+
+  [[nodiscard]] std::shared_ptr<fsc::ParameterLoaderBase> getChildLoader(
+      const std::string& ns) const override;
 
   bool getParam(const std::string& key, bool& value) const override;
 

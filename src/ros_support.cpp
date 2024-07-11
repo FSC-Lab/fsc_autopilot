@@ -28,6 +28,11 @@ RosParamLoader::RosParamLoader(const ros::NodeHandle& pnh) : pnh_(pnh) {}
 
 RosParamLoader::RosParamLoader(const std::string& pnh) : pnh_(pnh) {}
 
+std::shared_ptr<fsc::ParameterLoaderBase> RosParamLoader::getChildLoader(
+    const std::string& ns) const {
+  return std::make_shared<RosParamLoader>(ros::NodeHandle(pnh_, ns));
+}
+
 bool RosParamLoader::getParam(const std::string& key, bool& value) const {
   return pnh_.getParam(key, value);
 }

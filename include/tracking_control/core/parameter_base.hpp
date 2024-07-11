@@ -1,6 +1,7 @@
 #ifndef TRACKING_CONTROL_CORE_PARAMETER_BASE_HPP_
 #define TRACKING_CONTROL_CORE_PARAMETER_BASE_HPP_
 
+#include <memory>
 #include <string>
 
 #include "tracking_control/core/logger_base.hpp"
@@ -9,6 +10,11 @@ namespace fsc {
 class ParameterLoaderBase {
  public:
   virtual ~ParameterLoaderBase() = default;
+
+  [[nodiscard]] virtual std::shared_ptr<ParameterLoaderBase> getChildLoader(
+      const std::string& ns) const {
+    return nullptr;
+  }
 
   template <typename T>
   T param(const std::string& key, const T& fallback) const {
