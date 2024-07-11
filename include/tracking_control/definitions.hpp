@@ -4,7 +4,6 @@
 
 #include "Eigen/Core"      // IWYU pragma: keep
 #include "Eigen/Geometry"  // IWYU pragma: keep
-#include "tracking_control/logging.hpp"
 #include "tracking_control/vehicle_input.hpp"
 
 namespace fsc {
@@ -55,50 +54,6 @@ struct ContextBase {
   [[nodiscard]] virtual std::string message() const { return ""; }
 
   [[nodiscard]] virtual std::string name() const = 0;
-};
-
-class ParameterLoaderBase {
- public:
-  virtual ~ParameterLoaderBase() = default;
-
-  template <typename T>
-  T param(const std::string& key, const T& fallback) const {
-    if (T value; getParam(key, value)) {
-      return value;
-    }
-    return fallback;
-  }
-
-  [[nodiscard]] virtual bool hasParam(const std::string& key) const {
-    return false;
-  }
-
-  virtual bool getParam(const std::string& key, bool& value) const = 0;
-
-  virtual bool getParam(const std::string& key, int& value) const = 0;
-
-  virtual bool getParam(const std::string& key, double& value) const = 0;
-
-  virtual bool getParam(const std::string& key, std::string& value) const = 0;
-};
-
-class ParameterBase {
- public:
-  virtual ~ParameterBase() = default;
-
-  [[nodiscard]] virtual bool valid() const = 0;
-
-  [[nodiscard]] virtual std::string parameterFor() const = 0;
-
-  [[nodiscard]] std::string name() const {
-    return parameterFor() + ".parameters";
-  }
-
-  bool load(const ParameterLoaderBase& loader) { return load(loader, nullptr); }
-
-  virtual bool load(const ParameterLoaderBase& loader, LoggerBase* logger) = 0;
-
-  [[nodiscard]] virtual std::string toString() const = 0;
 };
 
 }  // namespace fsc

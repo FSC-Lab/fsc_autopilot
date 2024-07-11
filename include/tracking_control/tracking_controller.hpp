@@ -2,13 +2,11 @@
 #define TRACKING_CONTROL_TRACKING_CONTROLLER_HPP_
 
 #include <memory>
-#include <sstream>
 #include <string>
 
 #include "Eigen/Dense"
 #include "tracking_control/controller_base.hpp"
 #include "tracking_control/definitions.hpp"
-#include "tracking_control/logging.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace fsc {

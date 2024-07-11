@@ -1,6 +1,6 @@
 #include "tracking_control/ude/ude_factory.hpp"
 
-#include "tracking_control/logging.hpp"
+#include "tracking_control/core/logger_base.hpp"
 
 namespace fsc {
 bool UDEFactory::Register(std::string name, UDECreator creator) {

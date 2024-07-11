@@ -10,50 +10,19 @@
 #include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/State.h"
 #include "nav_msgs/Odometry.h"
-#include "ros/console_backend.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
 #include "sensor_msgs/Imu.h"
 #include "tracking_control/TrackingControlConfig.h"
 #include "tracking_control/TrackingReference.h"
 #include "tracking_control/attitude_control/apm_attitude_controller.hpp"
-#include "tracking_control/logging.hpp"
+#include "tracking_control/controller_base.hpp"
 #include "tracking_control/polynomial.hpp"
+#include "tracking_control/ros_support.hpp"
 #include "tracking_control/tracking_controller.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace nodelib {
-
-class RosLogger : public fsc::LoggerBase {
- public:
-  using RosSeverity = ros::console::levels::Level;
-
-  explicit RosLogger(std::string name) : name_(std::move(name)) {}
-
-  void log(fsc::Severity severity, const char* msg) noexcept override {
-    switch (severity) {
-      case fsc::Severity::kInternalError:
-        ROS_FATAL("%s", msg);
-        break;
-      case fsc::Severity::kError:
-        ROS_ERROR("%s", msg);
-        break;
-      case fsc::Severity::kWarning:
-        ROS_WARN("%s", msg);
-        break;
-      case fsc::Severity::kInfo:
-        ROS_INFO("%s", msg);
-      case fsc::Severity::kVerbose:
-        ROS_DEBUG("%s", msg);
-        break;
-    }
-  }
-
-  [[nodiscard]] std::string name() const override { return name_; }
-
- private:
-  std::string name_;
-};
 
 class TrackingControlClient {
  public:
@@ -122,31 +91,6 @@ class TrackingControlClient {
       false};  // flag indicating wether inner atttiude controller is on
 
   RosLogger logger_{"tracking_control"};
-};
-
-class RosParamLoader : public fsc::ParameterLoaderBase {
- public:
-  explicit RosParamLoader(const ros::NodeHandle& pnh) : pnh_(pnh) {}
-  explicit RosParamLoader(const std::string& pnh) : pnh_(pnh) {}
-
-  bool getParam(const std::string& key, bool& value) const override {
-    return pnh_.getParam(key, value);
-  }
-
-  bool getParam(const std::string& key, int& value) const override {
-    return pnh_.getParam(key, value);
-  }
-
-  bool getParam(const std::string& key, double& value) const override {
-    return pnh_.getParam(key, value);
-  }
-
-  bool getParam(const std::string& key, std::string& value) const override {
-    return pnh_.getParam(key, value);
-  }
-
- private:
-  ros::NodeHandle pnh_;
 };
 
 }  // namespace nodelib

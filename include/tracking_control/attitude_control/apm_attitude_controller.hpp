@@ -5,8 +5,9 @@
 #include "Eigen/Dense"
 #include "tracking_control/control.hpp"
 #include "tracking_control/controller_base.hpp"
+#include "tracking_control/core/logger_base.hpp"
+#include "tracking_control/core/parameter_base.hpp"
 #include "tracking_control/definitions.hpp"
-#include "tracking_control/logging.hpp"
 #include "tracking_control/math.hpp"
 
 namespace fsc {

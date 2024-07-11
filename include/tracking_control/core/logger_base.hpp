@@ -1,5 +1,5 @@
-#ifndef TRACKING_CONTROL_LOGGING_HPP_
-#define TRACKING_CONTROL_LOGGING_HPP_
+#ifndef TRACKING_CONTROL_CORE_LOGGER_BASE_HPP_
+#define TRACKING_CONTROL_CORE_LOGGER_BASE_HPP_
 
 #include <cstdint>
 #include <sstream>
@@ -64,4 +64,4 @@ class LoggerBase {
 };
 }  // namespace fsc
 
-#endif  // TRACKING_CONTROL_LOGGING_HPP_
+#endif  // TRACKING_CONTROL_CORE_LOGGER_BASE_HPP_

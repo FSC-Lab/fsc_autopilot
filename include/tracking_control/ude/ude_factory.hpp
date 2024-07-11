@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "tracking_control/logging.hpp"
+#include "tracking_control/core/logger_base.hpp"
 #include "tracking_control/ude/ude_base.hpp"
 
 namespace fsc {
