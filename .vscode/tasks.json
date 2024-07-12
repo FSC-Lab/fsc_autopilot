@@ -7,7 +7,7 @@
       "command": "catkin",
       "args": [
         "build",
-        "tracking_control",
+        "fsc_autopilot_full",
         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         "-DCMAKE_BUILD_TYPE=Debug"

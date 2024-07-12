@@ -1,2 +1,2 @@
 CompileFlags:
-  CompilationDatabase: ../../build/tracking_control
+  CompilationDatabase: ../../build/fsc_autopilot_full

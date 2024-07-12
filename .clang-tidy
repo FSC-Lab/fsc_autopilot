@@ -44,9 +44,9 @@ CheckOptions:
   - key: readability-implicit-bool-conversion.AllowPointerConditions
     value: 1
   - key: readability-magic-numbers.IgnoredIntegerValues
-    value: 1;2;3;4;5;6;10;20;40;50;100;500;1000
+    value: 1;2;3;4;5;6;10;20;40;50;90;100;180;360;500;540;720;1000
   - key: readability-magic-numbers.IgnoredFloatingPointValues
-    value: 1.0;2.0;3.0;4.0;5.0;6.0;10.0;20.0;40.0;50.0;100.0;500.0;1000.0
+    value: 0.25;0.5;0.75;1.25;1.0;2.0;3.0;4.0;5.0;6.0;10.0;20.0;40.0;50.0;100.0;500.0;1000.0
   - key: readability-magic-numbers.IgnoreTypeAliases
     value: 1
   - key: misc-unused-parameters.IgnoreVirtual

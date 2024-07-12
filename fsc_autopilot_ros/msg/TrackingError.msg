@@ -1,0 +1,11 @@
+std_msgs/Header header
+
+float64 scalar_thrust_setpoint
+float64 thrust_per_rotor
+
+geometry_msgs/Vector3 position_error
+geometry_msgs/Vector3 velocity_error
+geometry_msgs/Vector3 feedback
+geometry_msgs/Vector3 thrust_setpoint
+
+fsc_autopilot_ros/UDEState ude_state

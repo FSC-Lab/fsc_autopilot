@@ -1,0 +1,5 @@
+add_subdirectory(core)
+add_subdirectory(math)
+add_subdirectory(ude)
+add_subdirectory(position_control)
+add_subdirectory(attitude_control)
