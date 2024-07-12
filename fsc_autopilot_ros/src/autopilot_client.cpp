@@ -180,16 +180,7 @@ void TrackingControlClient::watchdog(const ros::TimerEvent& event) {
 }
 
 bool TrackingControlClient::loadParams() {
-  ros::NodeHandle pnh("~");
-  // put load parameters into a function
-  enable_inner_controller_ =
-      pnh.param("position_controller/enable_inner_controller", false);
-  ROS_INFO("Inner controller is %s",
-           (enable_inner_controller_ ? "enabled" : "disabled"));
-
-  pnh.getParam("position_controller/check_reconfiguration",
-               check_reconfiguration_);
-
+  // Position controller parameters
   if (!tc_params_->load(RosParamLoader{"~position_controller"}, &logger_)) {
     ROS_FATAL("Failed to load TrackingController parameters");
     return false;
@@ -197,8 +188,7 @@ bool TrackingControlClient::loadParams() {
 
   tracking_ctrl_.params() = tc_params_;
 
-  if (!ude_params_->load(RosParamLoader{"~position_controller/de"},
-                         &logger_)) {
+  if (!ude_params_->load(RosParamLoader{"~position_controller/de"}, &logger_)) {
     ROS_FATAL("Failed to load UDE parameters");
     return false;
   }
@@ -209,14 +199,22 @@ bool TrackingControlClient::loadParams() {
   }
   tracking_ctrl_.ude() = std::move(ude);
 
+  // Attitude controller parameters
   if (!ac_params_->load(RosParamLoader{"~attitude_controller"}, &logger_)) {
     ROS_FATAL("Failed to load attitude controller parameters");
     return false;
   }
   att_ctrl_.params() = ac_params_;
 
-  const auto mc_coeffs = pnh.param("position_controller/motor_curve",
-                                   std::vector<double>{0.1, 0.05});
+  // Core client lib parameters
+  ros::NodeHandle pnh("~");
+  // put load parameters into a function
+  enable_inner_controller_ = pnh.param("enable_inner_controller", false);
+
+  pnh.getParam("check_reconfiguration", check_reconfiguration_);
+
+  const auto mc_coeffs =
+      pnh.param("motor_curve", std::vector<double>{0.1, 0.05});
   motor_curve_ = MotorCurveType(Eigen::VectorXd::Map(
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
 

@@ -1,11 +1,13 @@
 {
+  "motor_curve": [
+    0.36,
+    0.082
+  ],
+  "enable_inner_controller": true,
+  "check_reconfiguration": false,
   "position_controller": {
     "min_thrust": 0.0,
     "max_thrust": 100.0,
-    "motor_curve": [
-      0.36,
-      0.082
-    ],
     "k_pos": {
       "x": 0.75,
       "y": 0.75,
@@ -25,9 +27,7 @@
       "height_threshold": 0.2,
       "is_velocity_based": true,
       "vehicle_mass": 1.7
-    },
-    "enable_inner_controller": true,
-    "check_reconfiguration": false
+    }
   },
   "attitude_controller": {
     "rate": 250,
@@ -38,6 +38,5 @@
     "yaw_p": 2,
     "yawrate_p": 0,
     "yawrate_max": 10.471975511965976
-  },
-  "indoor_mode": false
+  }
 }
