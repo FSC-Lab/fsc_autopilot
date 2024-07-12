@@ -23,7 +23,7 @@ TrackingControlClient::TrackingControlClient() {
   if (!loadParams()) {
     throw ros::InvalidParameterException("Got invalid parameters");
   }
-  const ros::Rate outer_rate = pnh.param("fsc_autopilot_rosler/rate", 30);
+  const ros::Rate outer_rate = pnh.param("position_controller/rate", 30);
   const ros::Rate inner_rate = pnh.param("attitude_controller/rate", 250);
 
   const auto mavros_ns = pnh.param("mavros_ns", "/mavros"s);
@@ -36,7 +36,7 @@ TrackingControlClient::TrackingControlClient() {
                                         &TrackingControlClient::imuCb, this));
 
   subs_.emplace("target"s,
-                nh_.subscribe("fsc_autopilot_rosler/target", 1,
+                nh_.subscribe("position_controller/target", 1,
                               &TrackingControlClient::setpointCb, this));
 
   subs_.emplace("state"s,
@@ -47,10 +47,10 @@ TrackingControlClient::TrackingControlClient() {
       "/mavros/setpoint_raw/attitude", 1);
 
   setpoint_attitude_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
-      "fsc_autopilot_rosler/setpoint_attitude_error", 1);
+      "position_controller/setpoint_attitude_error", 1);
 
   tracking_error_pub_ = nh_.advertise<fsc_autopilot_ros::TrackingError>(
-      "fsc_autopilot_rosler/output_data", 1);
+      "position_controller/output_data", 1);
 
   cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
     dynamicReconfigureCb(std::forward<decltype(PH1)>(PH1),
@@ -183,21 +183,21 @@ bool TrackingControlClient::loadParams() {
   ros::NodeHandle pnh("~");
   // put load parameters into a function
   enable_inner_controller_ =
-      pnh.param("fsc_autopilot_rosler/enable_inner_controller", false);
+      pnh.param("position_controller/enable_inner_controller", false);
   ROS_INFO("Inner controller is %s",
            (enable_inner_controller_ ? "enabled" : "disabled"));
 
-  pnh.getParam("fsc_autopilot_rosler/check_reconfiguration",
+  pnh.getParam("position_controller/check_reconfiguration",
                check_reconfiguration_);
 
-  if (!tc_params_->load(RosParamLoader{"~fsc_autopilot_rosler"}, &logger_)) {
+  if (!tc_params_->load(RosParamLoader{"~position_controller"}, &logger_)) {
     ROS_FATAL("Failed to load TrackingController parameters");
     return false;
   }
 
   tracking_ctrl_.params() = tc_params_;
 
-  if (!ude_params_->load(RosParamLoader{"~fsc_autopilot_rosler/de"},
+  if (!ude_params_->load(RosParamLoader{"~position_controller/de"},
                          &logger_)) {
     ROS_FATAL("Failed to load UDE parameters");
     return false;
@@ -215,7 +215,7 @@ bool TrackingControlClient::loadParams() {
   }
   att_ctrl_.params() = ac_params_;
 
-  const auto mc_coeffs = pnh.param("fsc_autopilot_rosler/motor_curve",
+  const auto mc_coeffs = pnh.param("position_controller/motor_curve",
                                    std::vector<double>{0.1, 0.05});
   motor_curve_ = MotorCurveType(Eigen::VectorXd::Map(
       mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));

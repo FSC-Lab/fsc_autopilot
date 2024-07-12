@@ -1,5 +1,5 @@
 {
-  "fsc_autopilot_rosler": {
+  "position_controller": {
     "min_thrust": 0.0,
     "max_thrust": 100.0,
     "motor_curve": [
