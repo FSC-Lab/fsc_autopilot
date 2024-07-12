@@ -52,14 +52,11 @@ TrackingControlClient::TrackingControlClient() {
   tracking_error_pub_ = nh_.advertise<tracking_control::TrackingError>(
       "tracking_controller/output_data", 1);
 
-  // show the parameters
-  dispPara();
-
   cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
     dynamicReconfigureCb(std::forward<decltype(PH1)>(PH1),
                          std::forward<decltype(PH2)>(PH2));
   });
-  // register the main loop callback function here
+
   outer_loop_ =
       nh_.createTimer(outer_rate, &TrackingControlClient::outerLoop, this);
   inner_loop_ =
