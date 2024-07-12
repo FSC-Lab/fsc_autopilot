@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+
+<!-- A package.xml in the root of a cmake projects allows it to be built using catkin or colcon (the ROS build system) -->
+
+<package format="2">
+  <name>fsc_autopilot</name>
+  <version>0.0.0</version>
+  <description>
+  TODO
+  </description>
+
+  <maintainer email="hei.go@mail.utoronto.ca">H S Helson Go</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>cmake</buildtool_depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

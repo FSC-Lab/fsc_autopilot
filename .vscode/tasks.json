@@ -7,10 +7,12 @@
       "command": "catkin",
       "args": [
         "build",
-        "fsc_autopilot_full",
+        "fsc_autopilot",
+        "fsc_autopilot_ros",
         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-        "-DCMAKE_BUILD_TYPE=Debug"
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DPYTHON_EXECUTABLE=/usr/bin/python3"
       ],
       "options": {
         "cwd": "${workspaceFolder}/../.."

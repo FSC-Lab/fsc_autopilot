@@ -1,0 +1,7 @@
+<launch>
+  <!-- Tracking Control Node -->
+  <arg name="launch_prefix" default=""/>
+  <node pkg="fsc_autopilot_ros" type="autopilot_node" name="fsc_autopilot_ros" output="screen" launch-prefix="$(arg launch_prefix)">
+    <rosparam command="load" file="$(find fsc_autopilot_ros)/params/params.json" />
+  </node>
+</launch>

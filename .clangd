@@ -1,2 +1,10 @@
+If:
+  PathMatch: fsc_autopilot/.*
 CompileFlags:
-  CompilationDatabase: ../../build/fsc_autopilot_full
+  CompilationDatabase: ../../build/fsc_autopilot
+
+---
+If:
+  PathMatch: fsc_autopilot_ros/.*
+CompileFlags:
+  CompilationDatabase: ../../build/fsc_autopilot_ros
