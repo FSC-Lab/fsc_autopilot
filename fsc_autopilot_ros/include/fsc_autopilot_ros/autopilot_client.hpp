@@ -46,6 +46,8 @@ class TrackingControlClient {
  public:
   using AttitudeController = fsc::APMAttitudeController;
   using TrackingController = fsc::TrackingController;
+
+  using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
   TrackingControlClient();
 
  private:
@@ -80,12 +82,8 @@ class TrackingControlClient {
   fsc::Reference outer_ref_;
   fsc::Reference inner_ref_;
 
-  AttitudeController::ParametersSharedPtr ac_params_{
-      std::make_shared<AttitudeController::Parameters>()};
-  fsc::TrackingController::ParametersSharedPtr tc_params_{
-      std::make_shared<fsc::TrackingControllerParameters>()};
-  fsc::UDEBase::ParametersSharedPtr ude_params_{
-      std::make_shared<fsc::UDEBase::Parameters>()};
+  fsc::APMAttitudeControllerParams ac_params_;
+  fsc::TrackingControllerParameters tc_params_;
   ros::Time odom_last_recv_time_;
   ros::Time imu_last_recv_time_;
   ros::Time state_last_recv_time_;

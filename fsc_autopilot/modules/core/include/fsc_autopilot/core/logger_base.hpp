@@ -25,6 +25,11 @@
 #include <sstream>
 #include <string>
 
+#define LOG_OPTIONAL(logger, ...) \
+  if (logger) {                   \
+    logger->log(__VA_ARGS__);     \
+  }
+
 namespace fsc {
 
 class LoggerBase;

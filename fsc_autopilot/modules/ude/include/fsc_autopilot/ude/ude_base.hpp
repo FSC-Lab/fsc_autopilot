@@ -96,9 +96,6 @@ enum class UDEType {
 struct UDEParameters : public ParameterBase {
   using ParameterBase::load;
 
-  std::string type_str;
-
-  double dt;
   static constexpr double kDefaultDEGain{1.0};
   double ude_gain{kDefaultDEGain};
 
@@ -115,8 +112,7 @@ struct UDEParameters : public ParameterBase {
   Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
 
   [[nodiscard]] bool valid() const override {
-    return (ude_lb.array() < ude_ub.array()).all() && vehicle_mass > 0.0 &&
-           dt > 0.0;
+    return (ude_lb.array() < ude_ub.array()).all() && vehicle_mass > 0.0;
   }
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
@@ -124,7 +120,7 @@ struct UDEParameters : public ParameterBase {
 
   [[nodiscard]] std::string toString() const override;
 
-  [[nodiscard]] std::string parameterFor() const override { return type_str; }
+  [[nodiscard]] std::string parameterFor() const override { return "ude"; }
 };
 
 struct UDEState final : public ContextBase {
@@ -142,24 +138,19 @@ struct UDEState final : public ContextBase {
 
 class UDEBase {
  public:
-  using Parameters = UDEParameters;
-  using ParametersSharedPtr = std::shared_ptr<Parameters>;
-  using ParametersConstSharedPtr = std::shared_ptr<const Parameters>;
-
   inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
 
-  explicit UDEBase(ParametersSharedPtr params);
+  UDEBase() = default;
 
   UDEErrc update(const VehicleState& state, const VehicleInput& input,
-                 ContextBase* error);
+                 double dt, ContextBase* error);
 
-  [[nodiscard]] ParametersConstSharedPtr params() const { return params_; }
-  ParametersSharedPtr& params() { return params_; }
+  bool setParams(const UDEParameters& params);
 
   [[nodiscard]] virtual bool getEstimate(
       Eigen::Ref<Eigen::VectorXd> estimate) const;
 
-  [[nodiscard]] virtual bool isVelocityBased() const = 0;
+  [[nodiscard]] virtual std::string type() const = 0;
 
  protected:
   virtual Eigen::Vector3d computeIntegrand(const VehicleState& state,
@@ -169,7 +160,14 @@ class UDEBase {
   virtual Eigen::Vector3d computeDamping(const VehicleState& state,
                                          UDEState* err) const = 0;
 
-  ParametersSharedPtr params_{std::make_shared<Parameters>()};
+  bool ude_active_;
+
+  double vehicle_mass_;
+  double ude_height_threshold_;
+  double ude_gain_;
+  Eigen::Vector3d ude_lb_;
+  Eigen::Vector3d ude_ub_;
+
   Eigen::Vector3d ude_integral_;
   Eigen::Vector3d ude_value_;
 };

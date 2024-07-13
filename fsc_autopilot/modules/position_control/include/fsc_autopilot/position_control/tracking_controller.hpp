@@ -27,6 +27,7 @@
 #include "Eigen/Dense"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/position_control/control.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 
 namespace fsc {
@@ -71,6 +72,9 @@ struct TrackingControllerParameters : public ParameterBase {
 
   uint32_t num_of_rotors{4};
 
+  std::string ude_type;
+  UDEParameters ude_params;
+
   [[nodiscard]] bool valid() const override {
     return min_thrust < max_thrust && vehicle_mass > 0.0;
   }
@@ -101,20 +105,25 @@ class TrackingController final : public ControllerBase {
 
   TrackingController(ParametersSharedPtr params, UDESharedPtr ude);
 
-  ControlResult run(const VehicleState& state, const Reference& refs,
+  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     ContextBase* error) override;
 
-  [[nodiscard]] ParametersConstSharedPtr params() const { return params_; }
-  ParametersSharedPtr& params() { return params_; }
-
-  [[nodiscard]] UDEConstSharedPtr ude() const { return ude_; }
-  UDESharedPtr& ude() { return ude_; }
+  bool setParams(const ParameterBase& params, LoggerBase* logger) override;
 
   [[nodiscard]] std::string name() const final { return "tracking_controller"; }
 
  private:
   double scalar_thrust_setpoint_{0.0};
-  ParametersSharedPtr params_;
+  bool params_valid_;
+
+  std::uint32_t num_rotors_;
+  bool apply_pos_err_saturation_;
+  bool apply_vel_err_saturation_;
+  double vehicle_mass_;
+  double max_tilt_angle_;
+  Eigen::Vector3d k_pos_;
+  Eigen::Vector3d k_vel_;
+  ThrustBounds<double> thrust_bnds_;
   UDESharedPtr ude_;
 };
 }  // namespace fsc

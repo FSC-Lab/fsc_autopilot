@@ -33,14 +33,13 @@ namespace fsc {
 class UDEFactory {
  public:
   using UDEUniquePtr = std::unique_ptr<UDEBase>;
-  using ParameterBaseSharedPtr = std::shared_ptr<UDEParameters>;
-  using UDECreator = std::function<UDEUniquePtr(ParameterBaseSharedPtr)>;
+  using UDECreator = std::function<UDEUniquePtr()>;
 
   UDEFactory() = delete;
 
   static bool Register(std::string name, UDECreator creator);
 
-  static UDEUniquePtr Create(ParameterBaseSharedPtr params,
+  static UDEUniquePtr Create(const std::string& name,
                              LoggerBase* logger = nullptr);
 
   template <typename OutputIter>
@@ -62,7 +61,6 @@ class UDERegistrar {
       std::is_base_of_v<UDEBase, T>,
       "This registrar can only register classes derived from UDEBase");
 
-  using ParameterBaseSharedPtr = UDEFactory::ParameterBaseSharedPtr;
   using UDEUniquePtr = UDEFactory::UDEUniquePtr;
 
   explicit UDERegistrar(std::string name) {
@@ -70,9 +68,7 @@ class UDERegistrar {
   }
 
  private:
-  static UDEUniquePtr createImpl(ParameterBaseSharedPtr params) {
-    return std::make_unique<T>(std::move(params));
-  }
+  static UDEUniquePtr createImpl() { return std::make_unique<T>(); }
 };
 
 #define REGISTER_UDE(UDE, name) \

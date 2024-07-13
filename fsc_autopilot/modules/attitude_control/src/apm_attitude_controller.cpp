@@ -20,8 +20,6 @@
 
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 
-#include <utility>
-
 #include "Eigen/Dense"
 #include "fsc_autopilot/attitude_control/control.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
@@ -31,21 +29,23 @@
 #include "fsc_autopilot/math/rotation.hpp"
 
 namespace fsc {
-APMAttitudeController::APMAttitudeController(ParametersSharedPtr params)
-    : params_(std::move(params)) {}
 
 ControlResult APMAttitudeController::run(const VehicleState& state,
-                                         const Reference& refs,
+                                         const Reference& refs, double dt,
                                          [[maybe_unused]] ContextBase* error) {
+  if (dt <= 0) {
+    return {getFallBackSetpoint(), ControllerErrc::kTimestepError};
+  }
   // // Convert from centidegrees on public interface to radians
-  auto heading_rate = std::clamp(refs.yaw_rate, -params_->slew_yaw_max(),
-                                 params_->slew_yaw_max());
+  const auto slew_yaw_max = ang_vel_max_.z();
+  const auto heading_rate =
+      std::clamp(refs.yaw_rate, -slew_yaw_max, slew_yaw_max);
   const auto heading_angle = refs.yaw;
 
   // convert thrust vector and heading to a quaternion attitude
   const Eigen::Quaterniond desired_attitude_quat = refs.state.pose.orientation;
 
-  if (params_->rate_bf_ff_enabled) {
+  if (rate_bf_ff_enabled_) {
     // calculate the angle error in x and y.
     const Eigen::Vector3d attitude_error =
         apm::ThrustVectorRotationAngles(desired_attitude_quat, attitude_target_)
@@ -54,20 +54,18 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
     // When yaw acceleration limiting is enabled, the yaw input shaper
     // constrains angular acceleration about the yaw axis, slewing the output
     // rate towards the input rate.
-    ang_vel_target_.x() = apm::InputShapingAngle(
-        attitude_error.x(), params_->input_tc, params_->ang_accel_max.x(),
-        ang_vel_target_.x(), params_->dt);
-    ang_vel_target_.y() = apm::InputShapingAngle(
-        attitude_error.y(), params_->input_tc, params_->ang_accel_max.y(),
-        ang_vel_target_.y(), params_->dt);
+    ang_vel_target_.x() =
+        apm::InputShapingAngle(attitude_error.x(), input_tc_,
+                               ang_accel_max_.x(), ang_vel_target_.x(), dt);
+    ang_vel_target_.y() =
+        apm::InputShapingAngle(attitude_error.y(), input_tc_,
+                               ang_accel_max_.y(), ang_vel_target_.y(), dt);
     ang_vel_target_.z() = apm::InputShapingAngle(
-        attitude_error.z(), params_->input_tc, params_->ang_accel_max.z(),
-        ang_vel_target_.z(), heading_rate, params_->ang_vel_max.z(),
-        params_->dt);
+        attitude_error.z(), input_tc_, ang_accel_max_.z(), ang_vel_target_.z(),
+        heading_rate, ang_vel_max_.z(), dt);
 
     // Limit the angular velocity
-    ang_vel_target_ =
-        apm::BodyRateLimiting(ang_vel_target_, params_->ang_vel_max);
+    ang_vel_target_ = apm::BodyRateLimiting(ang_vel_target_, ang_vel_max_);
   } else {
     // set persisted quaternion target attitude
     attitude_target_ = desired_attitude_quat;
@@ -77,8 +75,8 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
   }
 
   // Call quaternion attitude controller
-  auto ang_vel_body =
-      attitudeControllerRunQuat(state.pose.orientation, state.twist.angular);
+  auto ang_vel_body = attitudeControllerRunQuat(state.pose.orientation,
+                                                state.twist.angular, dt);
 
   return {Setpoint{{}, VehicleInput{0.0, ang_vel_body}},
           ControllerErrc::kSuccess};
@@ -88,21 +86,23 @@ Eigen::Vector3d updateAngVelTargetFromAttError(
     const Eigen::Vector3d& attitude_error_rot_vec_rad);
 
 Eigen::Vector3d APMAttitudeController::attitudeControllerRunQuat(
-    const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates) {
+    const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates,
+    double dt) {
   // This represents a quaternion rotation in NED frame to the body
 
   // This vector represents the angular error to rotate the thrust vector
   // using x and y and heading using z
   const auto& [_, attitude_error, thrust_error_angle] =
-      apm::ThrustHeadingRotationAngles(
-          attitude_target_, orientation, params_->kp_angle.z(),
-          params_->kp_yawrate, params_->ang_accel_max.z());
+      apm::ThrustHeadingRotationAngles(attitude_target_, orientation,
+                                       kp_angle_.z(), kp_yawrate_,
+                                       ang_accel_max_.z());
 
   // Compute the angular velocity corrections in the body frame from the
   // attitude error
   // ensure angular velocity does not go over configured limits
-  Eigen::Vector3d ang_vel_body = updateAngVelTargetFromAttError(attitude_error);
-  ang_vel_body = apm::BodyRateLimiting(ang_vel_body, params_->ang_vel_max);
+  Eigen::Vector3d ang_vel_body =
+      updateAngVelTargetFromAttError(attitude_error, dt);
+  ang_vel_body = apm::BodyRateLimiting(ang_vel_body, ang_vel_max_);
 
   // rotation from the target frame to the body frame
   const Eigen::Quaterniond rotation_target_to_body =
@@ -130,17 +130,16 @@ Eigen::Vector3d APMAttitudeController::attitudeControllerRunQuat(
     ang_vel_body += ang_vel_body_feedforward;
   }
 
-  if (params_->rate_bf_ff_enabled) {
+  if (rate_bf_ff_enabled_) {
     // rotate target and normalize
-    attitude_target_ *=
-        fsc::AngleAxisToQuaternion(ang_vel_target_ * params_->dt);
+    attitude_target_ *= fsc::AngleAxisToQuaternion(ang_vel_target_ * dt);
   }
 
   return ang_vel_body;
 }
 
 Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(
-    const Eigen::Vector3d& attitude_error) const {
+    const Eigen::Vector3d& attitude_error, double dt) const {
   // minimum body-frame acceleration limit for the stability controller (for
   // roll and pitch axis)
   constexpr double kMinRollPitchAccel = deg2rad(40.0);
@@ -155,57 +154,72 @@ Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(
   // maximum body-frame acceleration limit for the stability controller (for
   // yaw axis)
   constexpr double kMaxYawAccel = deg2rad(120.0);
-  if (!params_->use_sqrt_controller) {
-    return params_->kp_angle.cwiseProduct(attitude_error);
+  if (!use_sqrt_controller_) {
+    return kp_angle_.cwiseProduct(attitude_error);
   }
   Eigen::Vector3d body_rate_target;
   // Compute the roll angular velocity demand from the roll angle error
-  if (params_->ang_accel_max.x() > 0.0) {
+  if (ang_accel_max_.x() > 0.0) {
     body_rate_target.x() = apm::PiecewiseProportionalSqrt(
-        attitude_error.x(), params_->kp_angle.x(),
-        std::clamp(params_->ang_accel_max.x() / 2.0, kMinRollPitchAccel,
+        attitude_error.x(), kp_angle_.x(),
+        std::clamp(ang_accel_max_.x() / 2.0, kMinRollPitchAccel,
                    kMaxRollPitchAccel),
-        params_->dt);
+        dt);
   } else {
-    body_rate_target.x() = params_->kp_angle.x() * attitude_error.x();
+    body_rate_target.x() = kp_angle_.x() * attitude_error.x();
   }
 
   // Compute the pitch angular velocity demand from the pitch angle error
-  if (params_->ang_accel_max.y() > 0.0) {
+  if (ang_accel_max_.y() > 0.0) {
     body_rate_target.y() = apm::PiecewiseProportionalSqrt(
-        attitude_error.y(), params_->kp_angle.y(),
-        std::clamp(params_->ang_accel_max.y() / 2.0, kMinRollPitchAccel,
+        attitude_error.y(), kp_angle_.y(),
+        std::clamp(ang_accel_max_.y() / 2.0, kMinRollPitchAccel,
                    kMaxRollPitchAccel),
-        params_->dt);
+        dt);
   } else {
-    body_rate_target.y() = params_->kp_angle.y() * attitude_error.y();
+    body_rate_target.y() = kp_angle_.y() * attitude_error.y();
   }
 
   // Compute the yaw angular velocity demand from the yaw angle error
-  if (params_->ang_accel_max.z() > 0.0) {
+  if (ang_accel_max_.z() > 0.0) {
     body_rate_target.z() = apm::PiecewiseProportionalSqrt(
-        attitude_error.z(), params_->kp_angle.z(),
-        std::clamp(params_->ang_accel_max.z() / 2.0, kMinYawAccel,
-                   kMaxYawAccel),
-        params_->dt);
+        attitude_error.z(), kp_angle_.z(),
+        std::clamp(ang_accel_max_.z() / 2.0, kMinYawAccel, kMaxYawAccel), dt);
   } else {
-    body_rate_target.z() = params_->kp_angle.z() * attitude_error.z();
+    body_rate_target.z() = kp_angle_.z() * attitude_error.z();
   }
 
   return body_rate_target;
 }
-bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
-                                       LoggerBase* logger) {
-  std::ignore = loader.getParam("dt", dt);
-  if (dt == -1.0) {
-    logger->log(
-        Severity::kWarning,
-        "`dt` left at default. Take care to set it to a positive value later");
-  } else if (dt < 0.0) {
-    logger->log(Severity::kError, "`dt` must not be negative");
-    return true;
+
+bool APMAttitudeController::setParams(const ParameterBase& params,
+                                      LoggerBase* logger) {
+  if (params.parameterFor() != "apm_attitude_controller") {
+    LOG_OPTIONAL(logger, Severity::kError,
+                 "Mismatch in parameter and receiver");
+    return false;
   }
 
+  if (!params.valid()) {
+    LOG_OPTIONAL(logger, Severity::kError, "Parameters are invalid");
+    return false;
+  }
+
+  const auto& p = static_cast<const APMAttitudeControllerParams&>(params);
+
+  rate_bf_ff_enabled_ = p.rate_bf_ff_enabled;
+  use_sqrt_controller_ = p.use_sqrt_controller;
+  input_tc_ = p.input_tc;
+  kp_yawrate_ = p.kp_yawrate;
+  kp_angle_ = p.kp_angle;
+  ang_accel_max_ = p.ang_accel_max;
+  ang_vel_max_ = p.ang_vel_max;
+  parameters_valid_ = true;
+  return true;
+}
+
+bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
+                                       LoggerBase* logger) {
   std::ignore = loader.getParam("input_tc", input_tc);
   if (input_tc < 0.0) {
     logger->log(Severity::kError, "`input_tc` must not be negative");
@@ -236,10 +250,10 @@ std::string APMAttitudeControllerParams::toString() const {
       << "\nrate_bf_ff_enabled: " << rate_bf_ff_enabled              //
       << "\nuse_sqrt_controller: " << use_sqrt_controller            //
       << "\ninput_tc: " << input_tc                                  //
-      << "\ndt: " << dt                                              //
       << "\nkp_angle: " << kp_angle.transpose().format(f)            //
       << "\nang_accel_lax: " << ang_accel_max.transpose().format(f)  //
       << "\nang_vel_lax: " << ang_vel_max.transpose().format(f);     //
   return oss.str();
 }
+
 }  // namespace fsc

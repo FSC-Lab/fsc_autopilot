@@ -24,13 +24,9 @@
 #include "fsc_autopilot/core/vehicle_input.hpp"
 
 namespace fsc {
-UDEBase::UDEBase(ParametersSharedPtr params) : params_(std::move(params)) {}
 
 UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
-                        ContextBase* error) {
-  if (params_ == nullptr || !params_->valid()) {
-    return UDEErrc::kInvalidParameters;
-  }
+                        double dt, ContextBase* error) {
   UDEState* err;
   if (error->name() == "ude.error") {
     err = static_cast<decltype(err)>(error);
@@ -40,29 +36,42 @@ UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
   // if int_flag == false : reset integration
   // if alti_threshold == false && int_flag == true: hold integration
 
-  const bool int_flag = params_->ude_active;
-  const bool is_flying =
-      (state.pose.position.z() > params_->ude_height_threshold);
+  const bool int_flag = ude_active_;
+  const bool is_flying = (state.pose.position.z() > ude_height_threshold_);
   if (!int_flag) {
     ude_integral_.setZero();
   } else if (int_flag && is_flying) {
     // disturbance estimator
-    ude_integral_ +=
-        params_->ude_gain * computeIntegrand(state, input, err) * params_->dt;
+    ude_integral_ += ude_gain_ * computeIntegrand(state, input, err) * dt;
   }
 
   ude_value_ = ude_integral_ + computeDamping(state, err);
 
-  ude_value_ = ude_value_.cwiseMax(params_->ude_lb).cwiseMin(params_->ude_ub);
+  ude_value_ = ude_value_.cwiseMax(ude_lb_).cwiseMin(ude_ub_);
 
   if (err) {
-    err->type_str = params_->type_str;
-    err->is_active = params_->ude_active;
+    err->type_str = type();
+    err->is_active = ude_active_;
     err->is_flying = is_flying;
     err->integral = ude_integral_;
     err->disturbance_estimate = ude_value_;
   }
   return UDEErrc::kSuccess;
+}
+
+bool UDEBase::setParams(const UDEParameters& params) {
+  if (!params.valid()) {
+    return false;
+  }
+  ude_active_ = params.ude_active;
+
+  vehicle_mass_ = params.vehicle_mass;
+  ude_height_threshold_ = params.ude_height_threshold;
+
+  ude_gain_ = params.ude_gain;
+  ude_lb_ = params.ude_lb;
+  ude_ub_ = params.ude_ub;
+  return true;
 }
 
 bool UDEBase::getEstimate(Eigen::Ref<Eigen::VectorXd> estimate) const {
@@ -76,7 +85,7 @@ std::string UDEParameters::toString() const {
   std::ostringstream oss;
 
   oss << "UDE parameters:"                               //
-      << "dt: " << dt                                    //
+      << "\nvehicle_mass: " << vehicle_mass              //
       << "\nheight_threshold: " << ude_height_threshold  //
       << "\nde_gain: " << ude_gain                       //
       << "\nde_lb: " << ude_lb.transpose().format(f)     //
@@ -96,13 +105,6 @@ bool UDEParameters::load(const ParameterLoaderBase& loader,
 
   std::ignore = loader.getParam("height_threshold", ude_height_threshold);
   std::ignore = loader.getParam("gain", ude_gain);
-  if (!loader.getParam("type", type_str)) {
-    if (logger) {
-      logger->log(Severity::kError) << "Failed to load parameter `type`";
-    }
-    return false;
-  }
-
   if (!loader.getParam("vehicle_mass", vehicle_mass)) {
     if (logger) {
       logger->log(Severity::kError, "Failed to load parameter `vehicle_mass`");
@@ -112,4 +114,5 @@ bool UDEParameters::load(const ParameterLoaderBase& loader,
   }
   return true;
 }
+
 }  // namespace fsc

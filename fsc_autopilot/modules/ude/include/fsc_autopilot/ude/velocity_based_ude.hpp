@@ -21,7 +21,10 @@
 #ifndef FSC_AUTOPILOT_UDE_VELOCITY_BASED_UDE_HPP_
 #define FSC_AUTOPILOT_UDE_VELOCITY_BASED_UDE_HPP_
 
+#include <string>
+
 #include "fsc_autopilot/ude/ude_base.hpp"
+
 namespace fsc {
 
 class VelocityBasedUDE : public UDEBase {
@@ -34,7 +37,7 @@ class VelocityBasedUDE : public UDEBase {
   [[nodiscard]] Eigen::Vector3d computeDamping(const VehicleState& state,
                                                UDEState* err) const override;
 
-  [[nodiscard]] bool isVelocityBased() const override { return true; }
+  [[nodiscard]] std::string type() const override { return "velocity_based"; }
 };
 
 class BodyVelocityBasedUDE : public UDEBase {
@@ -47,7 +50,9 @@ class BodyVelocityBasedUDE : public UDEBase {
   [[nodiscard]] Eigen::Vector3d computeDamping(const VehicleState& state,
                                                UDEState* err) const override;
 
-  [[nodiscard]] bool isVelocityBased() const override { return true; }
+  [[nodiscard]] std::string type() const override {
+    return "body_velocity_based";
+  }
 };
 
 }  // namespace fsc

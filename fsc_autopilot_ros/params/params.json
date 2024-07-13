@@ -22,7 +22,7 @@
     "num_of_rotors": 4,
     "rate": 100,
     "de": {
-      "type": "body_accel_based",
+      "type": "velocity_based",
       "gain": 4.0,
       "height_threshold": 0.2,
       "is_velocity_based": true,

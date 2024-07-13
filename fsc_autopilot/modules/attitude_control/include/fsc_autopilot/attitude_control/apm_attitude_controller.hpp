@@ -45,7 +45,6 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   bool rate_bf_ff_enabled{true};
   bool use_sqrt_controller{true};
   double input_tc{1.0};
-  double dt{-1.0};
   Eigen::Vector3d kp_angle{Eigen::Vector3d::Constant(kDefaultAngleP)};
   Eigen::Vector3d ang_accel_max{deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
                                 deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
@@ -58,7 +57,7 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   [[nodiscard]] double slew_yaw_max() const { return ang_vel_max.z(); }
 
   [[nodiscard]] bool valid() const override {
-    return input_tc > 0 && dt > 0 && (kp_angle.array() >= 0.0).all() &&
+    return input_tc > 0 && (kp_angle.array() >= 0.0).all() &&
            (ang_accel_max.array() >= 0.0).all() &&
            (ang_vel_max.array() >= 0.0).all();
   }
@@ -77,31 +76,36 @@ struct APMAttitudeControllerParams final : public ParameterBase {
 class APMAttitudeController : public ControllerBase {
  public:
   using Parameters = APMAttitudeControllerParams;
-  using ParametersSharedPtr = std::shared_ptr<Parameters>;
   APMAttitudeController() = default;
-  explicit APMAttitudeController(ParametersSharedPtr params);
 
-  ControlResult run(const VehicleState& state, const Reference& refs,
+  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     [[maybe_unused]] ContextBase* error) override;
 
   Eigen::Vector3d attitudeControllerRunQuat(
-      const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates);
+      const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates,
+      double dt);
 
   [[nodiscard]] std::string name() const override {
     return "apm_attitude_controller";
   }
-  [[nodiscard]] const ParametersSharedPtr& params() const { return params_; }
 
-  ParametersSharedPtr& params() { return params_; }
+  bool setParams(const ParameterBase& params, LoggerBase* logger) override;
 
  private:
   [[nodiscard]] Eigen::Vector3d updateAngVelTargetFromAttError(
-      const Eigen::Vector3d& attitude_error_rot_vec_rad) const;
+      const Eigen::Vector3d& attitude_error_rot_vec_rad, double dt) const;
+  bool rate_bf_ff_enabled_{true};
+  bool use_sqrt_controller_{true};
+  double input_tc_{1.0};
+  double kp_yawrate_;
+  Eigen::Vector3d kp_angle_;
+  Eigen::Vector3d ang_accel_max_;
+  Eigen::Vector3d ang_vel_max_{Eigen::Vector3d::Zero()};
 
-  ParametersSharedPtr params_{std::make_shared<Parameters>()};
   double feedforward_scalar_{0.0};
   Eigen::Quaterniond attitude_target_{Eigen::Quaterniond::Identity()};
   Eigen::Vector3d ang_vel_target_{Eigen::Vector3d::Zero()};
+  bool parameters_valid_;
 };
 }  // namespace fsc
 

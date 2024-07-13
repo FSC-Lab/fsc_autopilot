@@ -29,7 +29,7 @@ bool UDEFactory::Register(std::string name, UDECreator creator) {
   return success;
 }
 
-UDEFactory::UDEUniquePtr UDEFactory::Create(ParameterBaseSharedPtr params,
+UDEFactory::UDEUniquePtr UDEFactory::Create(const std::string& name,
                                             LoggerBase* logger) {
   if (registry_.empty()) {
     if (logger) {
@@ -38,7 +38,6 @@ UDEFactory::UDEUniquePtr UDEFactory::Create(ParameterBaseSharedPtr params,
     }
   }
 
-  const auto& name = params->parameterFor();
   if (name.empty()) {
     if (logger) {
       logger->log(Severity::kError) << "UDE name is empty";
@@ -47,7 +46,7 @@ UDEFactory::UDEUniquePtr UDEFactory::Create(ParameterBaseSharedPtr params,
   }
 
   if (auto it = registry_.find(name); it != registry_.end()) {
-    return it->second(std::move(params));
+    return it->second();
   }
 
   if (logger) {

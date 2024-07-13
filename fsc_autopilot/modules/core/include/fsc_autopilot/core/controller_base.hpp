@@ -27,6 +27,7 @@
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 
 namespace fsc {
@@ -50,6 +51,7 @@ enum class ControllerErrc {
   kComputationError = 4,
   kSubcomponentMissing = 5,
   kSubcomponentError = 6,
+  kTimestepError = 7
 };
 
 namespace detail {
@@ -75,6 +77,8 @@ class ControllerErrcCategory final : public std::error_category {
         return "controller subcomponent is missing";
       case fsc::ControllerErrc::kSubcomponentError:
         return "error in a controller subcomponent";
+      case fsc::ControllerErrc::kTimestepError:
+        return "timestep is invalid";
 
       default:
         return "Invalid error code";
@@ -107,14 +111,19 @@ class ControllerBase {
   virtual ~ControllerBase() = default;
 
   virtual ControlResult run(const VehicleState& state, const Reference& refs,
-                            ContextBase* error) = 0;
+                            double dt, ContextBase* error) = 0;
 
-  ControlResult run(const VehicleState& state, const Reference& refs) {
-    return run(state, refs, nullptr);
+  ControlResult run(const VehicleState& state, const Reference& refs,
+                    double dt) {
+    return run(state, refs, dt, nullptr);
   }
 
   [[nodiscard]] virtual Setpoint getFallBackSetpoint() const {
     return {VehicleState{}, VehicleInput{0.0, Eigen::Quaterniond::Identity()}};
+  }
+
+  virtual bool setParams(const fsc::ParameterBase& params, LoggerBase* logger) {
+    return false;
   }
 
   [[nodiscard]] virtual std::string name() const = 0;

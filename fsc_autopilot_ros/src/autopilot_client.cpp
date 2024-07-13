@@ -121,20 +121,20 @@ void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
 
 void TrackingControlClient::outerLoop(const ros::TimerEvent& event) {
   // calculate time step
-  ude_params_->dt = (event.current_real - event.last_real).toSec();
-
-  if (ude_params_->dt <= 0.0 || ude_params_->dt > 1.0) {
+  const auto dt = (event.current_real - event.last_real).toSec();
+  if (dt <= 0.0 || dt > 1.0) {
     return;
   }
+
   // check drone status
-  ude_params_->ude_active = (mavrosState_.connected != 0U) &&
-                            (mavrosState_.armed != 0U) &&
-                            (mavrosState_.mode == "OFFBOARD");
+  tc_params_.ude_params.ude_active = (mavrosState_.connected != 0U) &&
+                                     (mavrosState_.armed != 0U) &&
+                                     (mavrosState_.mode == "OFFBOARD");
 
   fsc::TrackingControllerError pos_ctrl_err;
   // outerloop control
   const auto& [pos_ctrl_out, outer_success] =
-      tracking_ctrl_.run(state_, outer_ref_, &pos_ctrl_err);
+      tracking_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
 
   if (outer_success != fsc::ControllerErrc::kSuccess) {
     ROS_ERROR("Outer controller failed!: %s", outer_success.message().c_str());
@@ -166,13 +166,14 @@ void TrackingControlClient::outerLoop(const ros::TimerEvent& event) {
 }
 
 void TrackingControlClient::innerLoop(const ros::TimerEvent& event) {
-  ac_params_->dt = (event.current_real - event.last_real).toSec();
-  if (ac_params_->dt <= 0.0 || ac_params_->dt > 1.0) {
+  const auto dt = (event.current_real - event.last_real).toSec();
+  if (dt <= 0.0 || dt > 1.0) {
     return;
   }
+
   fsc::NonlinearGeometricControllerError att_ctrl_err;
   const auto& [att_ctrl_out, inner_success] =
-      att_ctrl_.run(state_, inner_ref_, &att_ctrl_err);
+      att_ctrl_.run(state_, inner_ref_, dt, &att_ctrl_err);
 
   if (enable_inner_controller_) {
     cmd_.header.stamp = event.current_real;
@@ -182,7 +183,7 @@ void TrackingControlClient::innerLoop(const ros::TimerEvent& event) {
   }
 }
 
-void TrackingControlClient::watchdog(const ros::TimerEvent& event) {
+void TrackingControlClient::watchdog(const ros::TimerEvent& /*event*/) {
   auto now = ros::Time::now();
   std::map<std::string, ros::Duration> elapsed_since_last_recv = {
       {"Odometry", now - odom_last_recv_time_},
@@ -201,30 +202,25 @@ void TrackingControlClient::watchdog(const ros::TimerEvent& event) {
 
 bool TrackingControlClient::loadParams() {
   // Position controller parameters
-  if (!tc_params_->load(RosParamLoader{"~position_controller"}, &logger_)) {
+  if (!tc_params_.load(RosParamLoader{"~position_controller"}, &logger_)) {
     ROS_FATAL("Failed to load TrackingController parameters");
     return false;
   }
 
-  tracking_ctrl_.params() = tc_params_;
-
-  if (!ude_params_->load(RosParamLoader{"~position_controller/de"}, &logger_)) {
-    ROS_FATAL("Failed to load UDE parameters");
+  if (!tracking_ctrl_.setParams(tc_params_, &logger_)) {
+    ROS_FATAL("Failed to set tracking controller parameters");
     return false;
   }
-
-  auto ude = fsc::UDEFactory::Create(ude_params_, &logger_);
-  if (!ude) {
-    return false;
-  }
-  tracking_ctrl_.ude() = std::move(ude);
 
   // Attitude controller parameters
-  if (!ac_params_->load(RosParamLoader{"~attitude_controller"}, &logger_)) {
+  if (!ac_params_.load(RosParamLoader{"~attitude_controller"}, &logger_)) {
     ROS_FATAL("Failed to load attitude controller parameters");
     return false;
   }
-  att_ctrl_.params() = ac_params_;
+  if (!att_ctrl_.setParams(ac_params_, &logger_)) {
+    ROS_FATAL("Failed to set attitude controller parameters");
+    return false;
+  }
 
   // Core client lib parameters
   ros::NodeHandle pnh("~");
@@ -241,12 +237,12 @@ bool TrackingControlClient::loadParams() {
   // offboard control mode
   if (enable_inner_controller_) {
     ROS_INFO("Inner controller (rate mode) enabled!");
-    ROS_INFO_STREAM(ac_params_->toString());
+    ROS_INFO_STREAM(ac_params_.toString());
   } else {
     ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
   }
 
-  ROS_INFO_STREAM(tc_params_->toString());
+  ROS_INFO_STREAM(tc_params_.toString());
   return true;
 }
 
@@ -269,19 +265,18 @@ void TrackingControlClient::dynamicReconfigureCb(
   int max_idx;
 
   const auto use_sqrt_controller_prev = std::exchange(
-      ac_params_->use_sqrt_controller, attitude_tracking.use_sqrt_controller);
-  const auto enable_rate_feedforward_prev =
-      std::exchange(ac_params_->rate_bf_ff_enabled,
-                    attitude_tracking.enable_rate_feedforward);
+      ac_params_.use_sqrt_controller, attitude_tracking.use_sqrt_controller);
+  const auto enable_rate_feedforward_prev = std::exchange(
+      ac_params_.rate_bf_ff_enabled, attitude_tracking.enable_rate_feedforward);
 
   const auto input_tc_prev =
-      std::exchange(ac_params_->input_tc, attitude_tracking.input_tc);
+      std::exchange(ac_params_.input_tc, attitude_tracking.input_tc);
   const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
                                      attitude_tracking.pitch_p,
                                      attitude_tracking.yaw_p};
 
   const auto max_kp_angle_step =
-      (kp_angle_new - ac_params_->kp_angle).cwiseAbs().maxCoeff(&max_idx);
+      (kp_angle_new - ac_params_.kp_angle).cwiseAbs().maxCoeff(&max_idx);
   if (check_reconfiguration_ && max_kp_angle_step > kMaxParamStep) {
     constexpr char const* kAxname[] = {"roll", "pitch", "yaw"};
     ROS_ERROR("Refusing reconfiguration: delta Kp[%s] = %f > %f",
@@ -289,55 +284,57 @@ void TrackingControlClient::dynamicReconfigureCb(
   }
 
   const Eigen::Vector3d kp_angle_prev =
-      std::exchange(ac_params_->kp_angle, kp_angle_new);
+      std::exchange(ac_params_.kp_angle, kp_angle_new);
+  att_ctrl_.setParams(ac_params_, &logger_);
 
   const auto& position_tracking = tracker.position_tracking;
   const auto apply_pos_err_saturation_prev =
-      std::exchange(tc_params_->apply_pos_err_saturation,
+      std::exchange(tc_params_.apply_pos_err_saturation,
                     position_tracking.apply_pos_err_saturation);
 
   const Eigen::Vector3d k_pos_new{position_tracking.pos_p_x,  //
                                   position_tracking.pos_p_y,  //
                                   position_tracking.pos_p_z};
   const auto max_k_pos_step =
-      (k_pos_new - tc_params_->k_pos).cwiseAbs().maxCoeff(&max_idx);
+      (k_pos_new - tc_params_.k_pos).cwiseAbs().maxCoeff(&max_idx);
   if (check_reconfiguration_ && max_k_pos_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: ΔKp[%d] = %f > %f", max_idx,
               max_k_pos_step, kMaxParamStep);
     return;
   }
 
-  const Eigen::Vector3d k_pos_prev =
-      std::exchange(tc_params_->k_pos, k_pos_new);
+  const Eigen::Vector3d k_pos_prev = std::exchange(tc_params_.k_pos, k_pos_new);
 
   const auto& velocity_tracking = tracker.velocity_tracking;
   const auto apply_vel_err_saturation_prev =
-      std::exchange(tc_params_->apply_vel_err_saturation,
+      std::exchange(tc_params_.apply_vel_err_saturation,
                     velocity_tracking.apply_vel_err_saturation);
 
   const Eigen::Vector3d k_vel_new{velocity_tracking.vel_p_x,  //
                                   velocity_tracking.vel_p_y,  //
                                   velocity_tracking.vel_p_z};
   const auto max_k_vel_step =
-      (k_vel_new - tc_params_->k_vel).cwiseAbs().maxCoeff(&max_idx);
+      (k_vel_new - tc_params_.k_vel).cwiseAbs().maxCoeff(&max_idx);
   if (check_reconfiguration_ && max_k_vel_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: ΔKv[%d] = %f > %f", max_idx,
               max_k_vel_step, kMaxParamStep);
     return;
   }
-  const Eigen::Vector3d k_vel_prev =
-      std::exchange(tc_params_->k_vel, k_vel_new);
+  const Eigen::Vector3d k_vel_prev = std::exchange(tc_params_.k_vel, k_vel_new);
 
-  auto ude_height_threshold_prev =
-      std::exchange(ude_params_->ude_height_threshold, ude.height_threshold);
+  auto ude_height_threshold_prev = std::exchange(
+      tc_params_.ude_params.ude_height_threshold, ude.height_threshold);
 
-  const auto ude_gain_step = std::abs(ude.gain - ude_params_->ude_gain);
+  const auto ude_gain_step =
+      std::abs(ude.gain - tc_params_.ude_params.ude_gain);
   if (check_reconfiguration_ && ude_gain_step > kMaxParamStep) {
     ROS_ERROR("Refusing reconfiguration: Δ ude_gain = %f > %f", ude_gain_step,
               kMaxParamStep);
     return;
   }
-  auto ude_gain_prev = std::exchange(ude_params_->ude_gain, ude.gain);
+  auto ude_gain_prev = std::exchange(tc_params_.ude_params.ude_gain, ude.gain);
+
+  tracking_ctrl_.setParams(tc_params_, &logger_);
 
   ROS_INFO_STREAM_THROTTLE(
       1.0,
@@ -345,24 +342,24 @@ void TrackingControlClient::dynamicReconfigureCb(
           << "Dynamical Reconfigure Results:\nEnabled inner controller"
           << enable_inner_controller_prev << " -> " << enable_inner_controller_
           << "\nUsing sqrt controller: " << use_sqrt_controller_prev << " -> "
-          << ac_params_->use_sqrt_controller << "\nenable_rate_feedforward"
+          << ac_params_.use_sqrt_controller << "\nenable_rate_feedforward"
           << enable_rate_feedforward_prev << " -> "
-          << ac_params_->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
-          << " -> " << ac_params_->input_tc
+          << ac_params_.rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
+          << " -> " << ac_params_.input_tc
           << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
           << " -> " << kp_angle_new.transpose().format(matlab_fmt)
           << "\nPosition Error Saturation: " << apply_pos_err_saturation_prev
-          << " -> " << tc_params_->apply_pos_err_saturation
+          << " -> " << tc_params_.apply_pos_err_saturation
           << "\nKp: " << k_pos_prev.transpose().format(matlab_fmt) << " -> "
-          << tc_params_->k_pos.transpose().format(matlab_fmt)
+          << tc_params_.k_pos.transpose().format(matlab_fmt)
           << "\nVelocity Error Saturation: " << apply_vel_err_saturation_prev
-          << " -> " << tc_params_->apply_vel_err_saturation
+          << " -> " << tc_params_.apply_vel_err_saturation
           << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt) << " -> "
-          << tc_params_->k_vel.transpose().format(matlab_fmt)
+          << tc_params_.k_vel.transpose().format(matlab_fmt)
           << "\nUDE "
              "height threshold: "
           << ude_height_threshold_prev << " -> "
-          << ude_params_->ude_height_threshold << "\nUDE gain: "
-          << ude_gain_prev << " -> " << ude_params_->ude_gain);
+          << tc_params_.ude_params.ude_height_threshold << "\nUDE gain: "
+          << ude_gain_prev << " -> " << tc_params_.ude_params.ude_gain);
 }
 }  // namespace nodelib

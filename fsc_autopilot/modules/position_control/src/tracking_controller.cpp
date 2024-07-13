@@ -22,23 +22,19 @@
 
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
+#include "fsc_autopilot/ude/ude_factory.hpp"
 
 namespace fsc {
-TrackingController::TrackingController(ParametersSharedPtr params)
-    : params_(std::move(params)) {}
-
-TrackingController::TrackingController(ParametersSharedPtr params,
-                                       UDESharedPtr ude)
-    : params_(std::move(params)), ude_(std::move(ude)) {}
 
 ControlResult TrackingController::run(const VehicleState& state,
-                                      const Reference& refs,
+                                      const Reference& refs, double dt,
                                       ContextBase* error) {
   using std::atan2;
 
-  if (params_ == nullptr || !params_->valid()) {
+  if (!params_valid_) {
     return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
   }
 
@@ -59,13 +55,13 @@ ControlResult TrackingController::run(const VehicleState& state,
   Eigen::Vector3d position_error;
   Eigen::Vector3d velocity_error;
 
-  if (params_->apply_pos_err_saturation) {
+  if (apply_pos_err_saturation_) {
     position_error = SaturationSmoothing(raw_position_error, 1.0);
   } else {
     position_error = raw_position_error;
   }
 
-  if (params_->apply_vel_err_saturation) {
+  if (apply_vel_err_saturation_) {
     velocity_error = SaturationSmoothing(raw_velocity_error, 1.0);
   } else {
     velocity_error = raw_velocity_error;
@@ -76,13 +72,13 @@ ControlResult TrackingController::run(const VehicleState& state,
   // bound the velocity and position error
   // kv * (ev + kp * sat(ep))
   // x and y direction
-  const Eigen::Vector3d feedback = params_->k_vel.cwiseProduct(
-      velocity_error + params_->k_pos.cwiseProduct(position_error));
+  const Eigen::Vector3d feedback =
+      k_vel_.cwiseProduct(velocity_error + k_pos_.cwiseProduct(position_error));
 
   Eigen::Vector3d ude_value = Eigen::Vector3d::Zero();
   if (ude_) {
     auto ude_result = ude_->update(
-        state, VehicleInput{ThrustAttitude{scalar_thrust_setpoint_}},
+        state, VehicleInput{ThrustAttitude{scalar_thrust_setpoint_}}, dt,
         err ? &err->ude_state : nullptr);
     if (ude_result != UDEErrc::kSuccess) {
       return {getFallBackSetpoint(), ControllerErrc::kSubcomponentError};
@@ -96,14 +92,13 @@ ControlResult TrackingController::run(const VehicleState& state,
   }
 
   // m * g * [0,0,1]
-  const Eigen::Vector3d vehicle_weight = -params_->vehicle_mass * kGravity;
+  const Eigen::Vector3d vehicle_weight = -vehicle_mass_ * kGravity;
 
   // virtual control force: TO DO: check this function so that it take bounds
   // as arguments
   Eigen::Vector3d thrust_setpoint_raw = -feedback - vehicle_weight - ude_value;
   Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
-      thrust_setpoint_raw, {params_->min_thrust, params_->max_thrust},
-      params_->max_tilt_angle);
+      thrust_setpoint_raw, thrust_bnds_, max_tilt_angle_);
 
   // attitude target
   Eigen::Matrix3d attitude_sp =
@@ -115,7 +110,7 @@ ControlResult TrackingController::run(const VehicleState& state,
   // std::cout << "thrust setpoint (N) is: " << thrust_sp_ << '\n';
   //  required thrust per rotor
   double thrust_per_rotor =
-      scalar_thrust_setpoint_ / static_cast<double>(params_->num_of_rotors);
+      scalar_thrust_setpoint_ / static_cast<double>(num_rotors_);
   // std::cout << "thrust per rotor (N) is: " << thrust_per_rotor << '\n';
 
   ControlResult result;
@@ -130,10 +125,50 @@ ControlResult TrackingController::run(const VehicleState& state,
     // msg output
     err->scalar_thrust_sp = scalar_thrust_setpoint_;
     err->thrust_per_rotor =
-        scalar_thrust_setpoint_ / static_cast<double>(params_->num_of_rotors);
+        scalar_thrust_setpoint_ / static_cast<double>(num_rotors_);
   }
 
   return result;
+}
+
+bool TrackingController::setParams(const ParameterBase& params,
+                                   LoggerBase* logger) {
+  if (params.parameterFor() != "tracking_controller") {
+    LOG_OPTIONAL(logger, Severity::kError,
+                 "Mismatch in parameter and receiver");
+
+    return true;
+  }
+
+  if (!params.valid()) {
+    LOG_OPTIONAL(logger, Severity::kError, "Parameters are invalid");
+    return false;
+  }
+
+  const auto& p = static_cast<const TrackingControllerParameters&>(params);
+  num_rotors_ = p.num_of_rotors;
+  apply_pos_err_saturation_ = p.apply_pos_err_saturation;
+  apply_vel_err_saturation_ = p.apply_vel_err_saturation;
+  vehicle_mass_ = p.vehicle_mass;
+  max_tilt_angle_ = p.max_tilt_angle;
+  k_pos_ = p.k_pos;
+  k_vel_ = p.k_vel;
+  thrust_bnds_ = {p.min_thrust, p.max_thrust};
+
+  if (!ude_) {
+    auto ude = UDEFactory::Create(p.ude_type, logger);
+    if (!ude) {
+      return false;
+    }
+    ude_ = std::move(ude);
+  }
+  if (!ude_->setParams(p.ude_params)) {
+    LOG_OPTIONAL(logger, Severity::kError, "Failed to set UDE parameters");
+    return false;
+  }
+
+  params_valid_ = true;
+  return true;
 }
 
 std::string TrackingControllerParameters::toString() const {
@@ -144,8 +179,9 @@ std::string TrackingControllerParameters::toString() const {
   oss << "Quadrotor Mass: " << vehicle_mass << "\n"
       << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
       << "Tracking Controller parameters:\nk_pos: "
-      << k_pos.transpose().format(f)                  //
-      << "\nk_vel: " << k_vel.transpose().format(f);  //
+      << k_pos.transpose().format(f)  //
+      << "\nk_vel: " << k_vel.transpose().format(f) << "\n"
+      << ude_params.toString();
 
   return oss.str();
 }
@@ -178,6 +214,14 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
   std::ignore = loader.getParam("max_thrust", max_thrust);
 
   std::ignore = loader.getParam("max_tilt_angle", max_tilt_angle);
-  return true;
+
+  auto sub_loader = loader.getChildLoader("de");
+  if (!sub_loader) {
+    return false;
+  }
+
+  sub_loader->getParam("type", ude_type);
+  return ude_params.load(*sub_loader, logger);
 }
+
 }  // namespace fsc
