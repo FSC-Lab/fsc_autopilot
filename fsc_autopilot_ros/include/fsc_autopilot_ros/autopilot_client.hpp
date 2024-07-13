@@ -18,17 +18,15 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
-#define TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
+#ifndef FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
+#define FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
 
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <utility>
 
 #include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
-#include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/math/polynomial.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
@@ -115,4 +113,4 @@ class TrackingControlClient {
 
 }  // namespace nodelib
 
-#endif  // TRACKING_CONTROL_TRACKING_CONTROL_CLIENT_HPP_
+#endif  // FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_

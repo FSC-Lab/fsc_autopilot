@@ -21,12 +21,6 @@
 #ifndef FSC_AUTOPILOT_MATH_ROTATION_HPP_
 #define FSC_AUTOPILOT_MATH_ROTATION_HPP_
 
-#include <algorithm>
-#include <iterator>
-#include <numeric>
-#include <random>
-#include <utility>
-
 #include "Eigen/Dense"
 #include "fsc_autopilot/math/math_extras.hpp"
 

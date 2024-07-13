@@ -18,15 +18,14 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef TRACKING_CONTROL_ROS_SUPPORT_HPP_
-#define TRACKING_CONTROL_ROS_SUPPORT_HPP_
+#ifndef FSC_AUTOPILOT_ROS_ROS_SUPPORT_HPP_
+#define FSC_AUTOPILOT_ROS_ROS_SUPPORT_HPP_
 
 #include <memory>
 #include <string>
 
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
-#include "ros/console.h"
 #include "ros/node_handle.h"
 
 namespace nodelib {
@@ -66,4 +65,4 @@ class RosParamLoader : public fsc::ParameterLoaderBase {
 
 }  // namespace nodelib
 
-#endif  // TRACKING_CONTROL_ROS_SUPPORT_HPP_
+#endif  // FSC_AUTOPILOT_ROS_ROS_SUPPORT_HPP_

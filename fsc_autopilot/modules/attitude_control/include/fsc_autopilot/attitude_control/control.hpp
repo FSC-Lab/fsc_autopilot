@@ -18,11 +18,10 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef TRACKING_CONTROL_CONTROL_HPP_
-#define TRACKING_CONTROL_CONTROL_HPP_
+#ifndef FSC_AUTOPILOT_ATTITUDE_CONTROL_CONTROL_HPP_
+#define FSC_AUTOPILOT_ATTITUDE_CONTROL_CONTROL_HPP_
 
 #include <algorithm>
-#include <limits>
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/math/math_extras.hpp"
@@ -368,4 +367,4 @@ Eigen::Matrix<Scalar, 3, 1> BodyRateLimiting(
 }  // namespace apm
 }  // namespace fsc
 
-#endif  // TRACKING_CONTROL_CONTROL_HPP_
+#endif  // FSC_AUTOPILOT_ATTITUDE_CONTROL_CONTROL_HPP_
