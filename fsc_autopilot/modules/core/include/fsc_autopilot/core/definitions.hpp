@@ -58,8 +58,8 @@ enum class ReferenceKind {
 
 struct Reference {
   VehicleState state;
-  double yaw;
-  double yaw_rate;
+  double yaw{0.0};
+  double yaw_rate{0.0};
   ReferenceKind kind;
 };
 

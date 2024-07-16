@@ -28,6 +28,7 @@
 
 #include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
+#include "fsc_autopilot/attitude_control/px4_attitude_controller.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/math/polynomial.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
@@ -46,7 +47,7 @@ namespace nodelib {
 
 class TrackingControlClient {
  public:
-  using AttitudeController = fsc::APMAttitudeController;
+  using AttitudeController = fsc::PX4AttitudeController;
   using TrackingController = fsc::TrackingController;
   TrackingControlClient();
 

@@ -5,8 +5,9 @@ project(attitude_control)
 find_package(Eigen3 REQUIRED)
 
 add_library(
-  ${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/apm_attitude_controller.cpp
-                                       src/nonlinear_geometric_controller.cpp)
+  ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
+  src/px4_attitude_controller.cpp src/apm_attitude_controller.cpp
+  src/nonlinear_geometric_controller.cpp)
 target_include_directories(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

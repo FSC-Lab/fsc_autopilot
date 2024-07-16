@@ -268,14 +268,14 @@ void TrackingControlClient::dynamicReconfigureCb(
   const auto& attitude_tracking = config.groups.attitude_tracking;
   int max_idx;
 
-  const auto use_sqrt_controller_prev = std::exchange(
-      ac_params_->use_sqrt_controller, attitude_tracking.use_sqrt_controller);
-  const auto enable_rate_feedforward_prev =
-      std::exchange(ac_params_->rate_bf_ff_enabled,
-                    attitude_tracking.enable_rate_feedforward);
+  // const auto use_sqrt_controller_prev = std::exchange(
+  //     ac_params_->use_sqrt_controller, attitude_tracking.use_sqrt_controller);
+  // const auto enable_rate_feedforward_prev =
+  //     std::exchange(ac_params_->rate_bf_ff_enabled,
+  //                   attitude_tracking.enable_rate_feedforward);
 
-  const auto input_tc_prev =
-      std::exchange(ac_params_->input_tc, attitude_tracking.input_tc);
+  // const auto input_tc_prev =
+  //     std::exchange(ac_params_->input_tc, attitude_tracking.input_tc);
   const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
                                      attitude_tracking.pitch_p,
                                      attitude_tracking.yaw_p};
@@ -343,12 +343,13 @@ void TrackingControlClient::dynamicReconfigureCb(
       1.0,
       std::boolalpha
           << "Dynamical Reconfigure Results:\nEnabled inner controller"
-          << enable_inner_controller_prev << " -> " << enable_inner_controller_
-          << "\nUsing sqrt controller: " << use_sqrt_controller_prev << " -> "
-          << ac_params_->use_sqrt_controller << "\nenable_rate_feedforward"
-          << enable_rate_feedforward_prev << " -> "
-          << ac_params_->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
-          << " -> " << ac_params_->input_tc
+          << enable_inner_controller_prev << " -> "
+          << enable_inner_controller_
+          // << "\nUsing sqrt controller: " << use_sqrt_controller_prev << " -> "
+          // << ac_params_->use_sqrt_controller << "\nenable_rate_feedforward"
+          // << enable_rate_feedforward_prev << " -> "
+          // << ac_params_->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
+          // << " -> " << ac_params_->input_tc
           << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
           << " -> " << kp_angle_new.transpose().format(matlab_fmt)
           << "\nPosition Error Saturation: " << apply_pos_err_saturation_prev
