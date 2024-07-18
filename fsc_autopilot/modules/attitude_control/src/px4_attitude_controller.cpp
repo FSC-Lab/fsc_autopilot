@@ -3,6 +3,7 @@
 #include <iostream>
 #include <limits>
 
+#include "fsc_autopilot/attitude_control/control.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 
 namespace fsc {
@@ -105,74 +106,56 @@ EIGEN_DEVICE_FUNC Eigen::Quaternion<Scalar> FromTwoVectors(
 ControlResult PX4AttitudeController::run(const VehicleState& state,
                                          const Reference& refs,
                                          [[maybe_unused]] ContextBase* error) {
-  using std::acos;
+  using std::abs;
   using std::asin;
-  using std::cos;
+  using std::atan2;
   using std::sin;
+  using std::sqrt;
   const auto& q = state.pose.orientation;
   Eigen::Quaterniond qd = refs.state.pose.orientation;
   const auto yawspeed_setpoint = refs.yaw_rate;
 
-  // calculate reduced desired attitude neglecting vehicle's yaw to
-  // prioritize roll and pitch
-  const Eigen::Vector3d e_z = q.toRotationMatrix().col(2);
-  const Eigen::Vector3d e_z_d = qd.toRotationMatrix().col(2);
-  Eigen::Quaterniond qd_red = details::FromTwoVectors(e_z, e_z_d);
-
-  if (IsClose(qd_red.x(), 1.0) || IsClose(qd_red.y(), 1.0)) {
-    // In the infinitesimal corner case where the vehicle and thrust have the
-    // completely opposite direction, full attitude control anyways generates
-    // no yaw input and directly takes the combination of roll and pitch
-    // leading to the correct desired yaw. Ignoring this case would still be
-    // totally safe and stable.
-    qd_red = qd;
-
-  } else {
-    // transform rotation from current to desired thrust vector into a world
-    // frame reduced desired attitude
-    qd_red *= q;
-  }
-
-  // mix full and reduced desired attitude
-  Eigen::Quaterniond q_mix = details::Canonical(qd_red.inverse() * qd);
-  // q_mix.canonicalize();
-  // catch numerical problems with the domain of acosf and asinf
-  q_mix.w() = std::clamp(q_mix.w(), -1.0, 1.0);
-  q_mix.z() = std::clamp(q_mix.z(), -1.0, 1.0);
-  qd = qd_red * Eigen::Quaterniond(cos(params_->yaw_weight * acos(q_mix.w())),
-                                   0, 0,
-                                   sin(params_->yaw_weight * asin(q_mix.z())));
-
-  // quaternion attitude control law, qe is rotation from q to qd
   const Eigen::Quaterniond qe = q.inverse() * qd;
 
-  // using sin(alpha/2) scaled rotation axis as attitude error (see
-  // quaternion definition by axis angle) also taking care of the antipodal
-  // unit quaternion ambiguity
-  const Eigen::Vector3d eq = 2.0 * details::Canonical(qe).vec();
+  Eigen::Quaterniond qe_red;
+  Eigen::Vector3d eq;
+  const double w_sq = pow<2>(qe.w()) + pow<2>(qe.z());
+  if (IsClose(w_sq, 0.0)) {
+    eq = {qe.x(), qe.y(), 0.0};
+
+  } else {
+    const auto w = sqrt(w_sq);
+    const auto iw = 1.0 / w;
+    const auto qe0_by_w = iw * qe.w();
+    const auto qe3_by_w = iw * qe.z();
+
+    const auto yaw_e_angle =
+        qe.w() < 0.0 ? atan2(-qe.z(), -qe.w()) : atan2(qe.z(), qe.w());
+    eq = {qe0_by_w * qe.x() - qe3_by_w * qe.y(),
+          qe0_by_w * qe.y() + qe3_by_w * qe.x(),
+          sin(params_->yaw_weight * yaw_e_angle)};
+  }
 
   // calculate angular rates setpoint
-  Eigen::Vector3d rate_setpoint = eq.cwiseProduct(params_->kp_angle);
+  Eigen::Vector3d ang_vel_target = eq.cwiseProduct(params_->kp_angle);
 
-  // Feed forward the yaw setpoint rate.  yawspeed_setpoint is the feed
-  // forward commanded rotation around the world z-axis, but we need to apply
-  // it in the body frame (because _rates_sp is expressed in the body frame).
-  // Therefore we infer the world z-axis (expressed in the body frame) by
-  // taking the last column of R.transposed (== q.inverse) and multiply it by
-  // the yaw setpoint rate (yawspeed_setpoint).  This yields a vector
-  // representing the commanded rotatation around the world z-axis expressed
-  // in the body frame such that it can be added to the rates setpoint.
+  // Feed forward the yaw setpoint rate.
+  // yawspeed_setpoint is the feed forward commanded rotation around the world
+  // z-axis, but we need to apply it in the body frame (because _rates_sp is
+  // expressed in the body frame). Therefore we infer the world z-axis
+  // (expressed in the body frame) by taking the last column of R.transposed (==
+  // q.inversed) and multiply it by the yaw setpoint rate (yawspeed_setpoint).
+  // This yields a vector representing the commanded rotatation around the world
+  // z-axis expressed in the body frame such that it can be added to the rates
+  // setpoint.
   if (std::isfinite(yawspeed_setpoint)) {
-    rate_setpoint += q.inverse().toRotationMatrix().col(2) * yawspeed_setpoint;
+    ang_vel_target += q.inverse().toRotationMatrix().col(2) * yawspeed_setpoint;
   }
 
   // limit rates
-  if ((params_->ang_vel_max.array() > 0.0).all()) {
-    rate_setpoint = rate_setpoint.cwiseMax(-params_->ang_vel_max)
-                        .cwiseMin(params_->ang_vel_max);
-  }
+  ang_vel_target = apm::BodyRateLimiting(ang_vel_target, params_->ang_vel_max);
 
-  return {Setpoint{{}, VehicleInput{0.0, rate_setpoint}},
+  return {Setpoint{{}, VehicleInput{0.0, ang_vel_target}},
           ControllerErrc::kSuccess};
 }
 
