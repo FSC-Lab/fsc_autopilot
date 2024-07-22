@@ -78,10 +78,15 @@ class APMAttitudeController : public ControllerBase {
   using Parameters = APMAttitudeControllerParams;
   APMAttitudeController() = default;
 
+  struct SetpointAndError {
+    Eigen::Vector3d setpoint;
+    Eigen::Vector3d error;
+  };
+
   ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     [[maybe_unused]] ContextBase* error) override;
 
-  Eigen::Vector3d attitudeControllerRunQuat(
+  SetpointAndError attitudeControllerRunQuat(
       const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates,
       double dt);
 

@@ -22,11 +22,11 @@
 
 #include <utility>
 
+#include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
 #include "fsc_autopilot/attitude_control/nonlinear_geometric_controller.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
-#include "fsc_autopilot/ude/ude_factory.hpp"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
 #include "fsc_autopilot_ros/TrackingError.h"
 #include "fsc_autopilot_ros/msg_conversion.hpp"
@@ -66,8 +66,8 @@ TrackingControlClient::TrackingControlClient() {
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       "/mavros/setpoint_raw/attitude", 1);
 
-  setpoint_attitude_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
-      "position_controller/setpoint_attitude_error", 1);
+  attitude_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
+      "attitude_controller/output_data", 1);
 
   tracking_error_pub_ = nh_.advertise<fsc_autopilot_ros::TrackingError>(
       "position_controller/output_data", 1);
@@ -171,7 +171,7 @@ void TrackingControlClient::innerLoop(const ros::TimerEvent& event) {
     return;
   }
 
-  fsc::NonlinearGeometricControllerError att_ctrl_err;
+  fsc::AttitudeControlError att_ctrl_err;
   const auto& [att_ctrl_out, inner_success] =
       att_ctrl_.run(state_, inner_ref_, dt, &att_ctrl_err);
 
@@ -180,6 +180,11 @@ void TrackingControlClient::innerLoop(const ros::TimerEvent& event) {
     cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
     tf2::toMsg(att_ctrl_out.input.thrust_rates().body_rates, cmd_.body_rate);
     setpoint_pub_.publish(cmd_);
+
+    geometry_msgs::Vector3Stamped attitude_error_msg;
+    attitude_error_msg.header.stamp = event.current_real;
+    tf2::toMsg(att_ctrl_err.attitude_error, attitude_error_msg.vector);
+    attitude_error_pub_.publish(attitude_error_msg);
   }
 }
 

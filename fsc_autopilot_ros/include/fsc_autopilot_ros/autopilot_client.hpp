@@ -89,7 +89,7 @@ class TrackingControlClient {
   ros::Time state_last_recv_time_;
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
-  ros::Publisher setpoint_attitude_error_pub_;
+  ros::Publisher attitude_error_pub_;
   ros::Publisher tracking_error_pub_;
   dynamic_reconfigure::Server<fsc_autopilot_ros::TrackingControlConfig>
       cfg_srv_;

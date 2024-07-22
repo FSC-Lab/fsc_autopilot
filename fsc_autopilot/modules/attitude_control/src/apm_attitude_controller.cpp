@@ -21,6 +21,7 @@
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 
 #include "Eigen/Dense"
+#include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
 #include "fsc_autopilot/attitude_control/control.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
@@ -36,7 +37,7 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
   if (dt <= 0) {
     return {getFallBackSetpoint(), ControllerErrc::kTimestepError};
   }
-  // // Convert from centidegrees on public interface to radians
+
   const auto slew_yaw_max = ang_vel_max_.z();
   const auto heading_rate =
       std::clamp(refs.yaw_rate, -slew_yaw_max, slew_yaw_max);
@@ -75,8 +76,14 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
   }
 
   // Call quaternion attitude controller
-  auto ang_vel_body = attitudeControllerRunQuat(state.pose.orientation,
-                                                state.twist.angular, dt);
+  auto [ang_vel_body, attitude_error] = attitudeControllerRunQuat(
+      state.pose.orientation, state.twist.angular, dt);
+
+  AttitudeControlError* err;
+  if ((error != nullptr) && error->name() == "attitude_control_error") {
+    err = static_cast<decltype(err)>(error);
+  }
+  err->attitude_error = attitude_error;
 
   return {Setpoint{{}, VehicleInput{0.0, ang_vel_body}},
           ControllerErrc::kSuccess};
@@ -85,9 +92,9 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
 Eigen::Vector3d updateAngVelTargetFromAttError(
     const Eigen::Vector3d& attitude_error_rot_vec_rad);
 
-Eigen::Vector3d APMAttitudeController::attitudeControllerRunQuat(
+auto APMAttitudeController::attitudeControllerRunQuat(
     const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates,
-    double dt) {
+    double dt) -> SetpointAndError {
   // This represents a quaternion rotation in NED frame to the body
 
   // This vector represents the angular error to rotate the thrust vector
@@ -135,7 +142,7 @@ Eigen::Vector3d APMAttitudeController::attitudeControllerRunQuat(
     attitude_target_ *= fsc::AngleAxisToQuaternion(ang_vel_target_ * dt);
   }
 
-  return ang_vel_body;
+  return {ang_vel_body, attitude_error};
 }
 
 Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(

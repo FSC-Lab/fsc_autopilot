@@ -20,6 +20,7 @@
 
 #include "fsc_autopilot/attitude_control/nonlinear_geometric_controller.hpp"
 
+#include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
@@ -35,9 +36,8 @@ ControlResult NonlinearGeometricController::run(
   const auto rotmat = state.pose.orientation.toRotationMatrix();
   const auto rotmat_sp = refs.state.pose.orientation.toRotationMatrix();
 
-  NonlinearGeometricControllerError* err;
-  if ((error != nullptr) &&
-      error->name() == "nonlinear_geometric_controller.error") {
+  AttitudeControlError* err;
+  if ((error != nullptr) && error->name() == "attitude_control_error") {
     err = static_cast<decltype(err)>(error);
   }
   // e_r = 1 / 2 * (Rd.T * R - R.T * Rd)

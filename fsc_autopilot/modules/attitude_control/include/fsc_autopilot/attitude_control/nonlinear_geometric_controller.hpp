@@ -28,21 +28,12 @@
 
 namespace fsc {
 
-struct NonlinearGeometricControllerError final : public ContextBase {
-  Eigen::Vector3d attitude_error;
-
-  [[nodiscard]] std::string name() const final {
-    return "nonlinear_geometric_controller.error";
-  }
-};
-
 struct NonlinearGeometricControllerParameters {
   double time_constant;
 };
 
 struct NonlinearGeometricController : public ControllerBase {
   using Parameters = NonlinearGeometricControllerParameters;
-  using Error = NonlinearGeometricControllerError;
 
   NonlinearGeometricController() = default;
 
