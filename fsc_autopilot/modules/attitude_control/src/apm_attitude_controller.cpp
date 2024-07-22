@@ -89,9 +89,6 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
           ControllerErrc::kSuccess};
 }
 
-Eigen::Vector3d updateAngVelTargetFromAttError(
-    const Eigen::Vector3d& attitude_error_rot_vec_rad);
-
 auto APMAttitudeController::attitudeControllerRunQuat(
     const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates,
     double dt) -> SetpointAndError {
