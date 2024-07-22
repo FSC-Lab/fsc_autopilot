@@ -25,12 +25,15 @@
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/math/math_extras.hpp"
+#include "fsc_autopilot/math/numbers.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
 
 #define ENSURES(cond) \
   if (!(cond)) {      \
     std::terminate(); \
   }
+
+#define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 
 namespace fsc {
 
@@ -88,10 +91,10 @@ T ComputeCorrectionRate(T error, T p, T second_ord_lim) {
   const T p_sq = p * p;
   const T linear_dist = second_ord_lim / p_sq;
   const T abs_error = abs(error);
+
   if (abs_error > linear_dist) {
     return copysign(
-        sqrt(T{2} * second_ord_lim * (abs_error - (linear_dist / T{2}))),
-        error);
+        sqrt(T{2} * second_ord_lim * (abs_error - linear_dist / T{2})), error);
   }
   return error * p;
 }
@@ -100,8 +103,10 @@ template <typename T>
 T Proportional(T error, T p, T dt) {
   ENSURES(dt > T{0});
   ENSURES(p > T{0});
-  const T correction_rate = error * p;
-  return std::clamp(correction_rate, -abs(error) / dt, abs(error) / dt);
+  using std::abs;
+
+  const T bound = abs(error) / dt;
+  return std::clamp(p * error, -bound, bound);
 }
 
 template <typename T>
@@ -129,6 +134,7 @@ T PiecewiseProportionalSqrt(T error, T p, T second_ord_lim, T dt) {
 template <typename T>
 T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
   using std::abs;
+  using std::copysign;
   if (D_max > T{0} && IsClose(p, T{0})) {
     return (output * output) / (T{2} * D_max);
   }
@@ -151,8 +157,8 @@ T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
 
   const T linear_dist = D_max / pow<2>(p);
   const T stopping_dist =
-      (linear_dist * T{0.5}) + pow<2>(output) / (T{2.0} * D_max);
-  return output > T{0} ? stopping_dist : -stopping_dist;
+      linear_dist / T{2} + pow<2>(output) / (T{2.0} * D_max);
+  return copysign(stopping_dist, output);
 }
 
 // Shapes the velocity request based on a rate time constant. The angular
@@ -216,69 +222,85 @@ struct ThrustCorrectionResults {
 template <typename Derived1, typename Derived2,
           typename Scalar = typename Derived1::Scalar>
 [[nodiscard]] ThrustCorrectionResults<Scalar> ThrustVectorRotationAngles(
-    const Eigen::QuaternionBase<Derived1>& orientation_target,
-    const Eigen::QuaternionBase<Derived2>& orientation_body) {
+    const Eigen::QuaternionBase<Derived1>& attitude_target,
+    const Eigen::QuaternionBase<Derived2>& attitude_body) {
   using Quaternion = Eigen::Quaternion<Scalar>;
   using Vector3 = Eigen::Matrix<Scalar, 3, 1>;
   using std::acos;
   using std::asin;
-  using std::sin;
+  using std::atan2;
   using std::sqrt;
 
-  // rotation of the body frame relative to the target body frame
-  const Quaternion attitude_rel =
-      orientation_body.inverse() * orientation_target;
+  const Quaternion att_target_to_body =
+      attitude_body.inverse() * attitude_target;
 
-  // Desired thrusting direction (Z-axis) of target desired body frame expressed
-  // in the body frame
-  const Vector3 target_thrusting_direction = attitude_rel * Vector3::UnitZ();
+  const Scalar qe_x = att_target_to_body.x();
+  const Scalar qe_y = att_target_to_body.y();
+  const Scalar qe_z = att_target_to_body.z();
+  const Scalar qe_w = att_target_to_body.w();
+  const Scalar qt_w_sq = pow<2>(qe_w) + pow<2>(qe_z);
+  Scalar heading_error_angle;
 
-  // Angle between current thrusting direction and the desired thrusting
-  // direction.
-  // This IS acos(target_thrusting_direction.dot([0, 0, 1]))
-  const auto cos_thrust_error_angle = target_thrusting_direction.z();
-
+  Quaternion thrust_vector_correction;
   Scalar thrust_error_angle;
-  Quaternion thrust_correction;
-  Quaternion heading_correction;
-  Vector3 attitude_error;
-  if (IsClose(cos_thrust_error_angle, Scalar(1))) {
-    // target_thrusting_direction is almost aligned with current body z-axis
-    // no thrust_correction needed
-    thrust_error_angle = Scalar{0};
-    attitude_error.template head<2>().setZero();
-    thrust_correction.setIdentity();
 
-    // yaw is the sole source of difference in attitude
-    heading_correction = attitude_rel;
+  if (IsClose(qt_w_sq, Scalar{0})) {
+    // When w_sq = cos(thrust_error_angle / 2) == 0, thrust_error_angle = 180
+    // degrees, aka thrust_vec_body and thrust_vec_target are directly opposite.
+    // Just rotating by att_target_to_body corrects the thrust
+    thrust_error_angle = numbers::pi_v<Scalar>;
+    thrust_vector_correction = {Scalar{0}, qe_x, qe_y, Scalar{0}};
+    heading_error_angle = Scalar{0};
   } else {
-    Vector3 rotation_axis;
-    if (IsClose(cos_thrust_error_angle, Scalar(-1))) {
-      // target_thrusting_direction is almost opposite to current body z-axis
-      thrust_error_angle = numbers::pi_v<Scalar>;
-      rotation_axis = Vector3::UnitZ();
-      heading_correction = attitude_rel;
-    } else {
-      thrust_error_angle = acos(cos_thrust_error_angle);
-      const auto normalizer = sin(thrust_error_angle);
-      // A rotational axis perpendicular to both the current and target
-      // thrusting direction. This IS target_thrusting_direction.cross([0, 0,
-      // 1]) normalized
-      rotation_axis << -target_thrusting_direction.y() / normalizer,
-          target_thrusting_direction.x() / normalizer, Scalar{0};
-    }
-    attitude_error.template head<2>() =
-        thrust_error_angle * rotation_axis.template head<2>();
-    // Construct a quaternion that will just tilt the body frame to achieve the
-    // desired thrusting direction
-    thrust_correction = Eigen::AngleAxis{thrust_error_angle, rotation_axis};
-    // Compute the remaining rotation required to achieve given yaw, after the
-    // desired thrusting direction has been achieved
-    heading_correction = thrust_correction.inverse() * attitude_rel;
+    const Scalar qt_w = sqrt(qt_w_sq);
+    const Scalar i_qt_w = Scalar{1} / qt_w;
+    const Scalar qe_w_by_qt_w = i_qt_w * qe_w;
+    const Scalar qe_z_by_qt_w = i_qt_w * qe_z;
+
+    thrust_vector_correction = {qt_w, qe_w_by_qt_w * qe_x - qe_z_by_qt_w * qe_y,
+                                qe_w_by_qt_w * qe_y + qe_z_by_qt_w * qe_x,
+                                Scalar{0}};
+    heading_error_angle = Scalar{2} * (qe_w < Scalar{0} ? atan2(-qe_z, -qe_w)
+                                                        : atan2(qe_z, qe_w));
+    thrust_error_angle = acos(Scalar{2} * qt_w_sq - Scalar{1});
   }
 
-  attitude_error.z() = Scalar{2} * asin(heading_correction.z());
-  return {thrust_correction, attitude_error, thrust_error_angle};
+  // calculate the angle error in x and y.
+  Vector3 attitude_error = fsc::QuaternionToAngleAxis(thrust_vector_correction);
+  attitude_error.z() = heading_error_angle;
+
+  return {thrust_vector_correction, attitude_error, thrust_error_angle};
+}
+
+template <typename T>
+T YawErrorLimiting(T yaw_error, T kp_yaw, T kp_yaw_rate, T max_yaw_accel) {
+  using std::abs;
+  using std::min;
+
+  if (IsClose(kp_yaw_rate, T{0})) {
+    return yaw_error;
+  }
+
+  if (IsClose(kp_yaw, T{0})) {
+    return yaw_error;
+  }
+
+  constexpr auto kMinYawAccel = deg2rad(T{10});   // rad/s^2
+  constexpr auto kMaxYawAccel = deg2rad(T{120});  // rad/s^2
+
+  // Limit Yaw Error to the maximum that would saturate the output when yaw
+  // rate is zero.
+  const T heading_accel_max =
+      std::clamp(max_yaw_accel / T{2}, kMinYawAccel, kMaxYawAccel);
+
+  // Thrust angle error above which yaw corrections are limited
+  constexpr auto kMaxErrorAngle = deg2rad(T{45});
+  const T heading_error_max =
+      min(apm::InvPiecewiseProportionalSqrt(T{1} / kp_yaw_rate, kp_yaw,
+                                            heading_accel_max),
+          kMaxErrorAngle);
+
+  return std::clamp(wrapToPi(yaw_error), -heading_error_max, heading_error_max);
 }
 
 template <typename Derived1, typename Derived2,
@@ -287,38 +309,13 @@ ThrustCorrectionResults<Scalar> ThrustHeadingRotationAngles(
     Eigen::QuaternionBase<Derived1>& attitude_target,
     const Eigen::QuaternionBase<Derived2>& attitude_body, Scalar kp_yaw,
     Scalar kp_yaw_rate, Scalar max_yaw_accel) {
-  using std::abs;
-  using std::min;
   using Vector3 = Eigen::Matrix<Scalar, 3, 1>;
-
-  // Thrust angle error above which yaw corrections are limited
-  constexpr auto kMaxErrorAngle = deg2rad(Scalar{45});
-  // minimum body-frame acceleration limit for the stability controller (for yaw
-  // axis)
-  constexpr auto kMinYawAccel = deg2rad(Scalar{10});  // rad/s^2
-  // maximum body-frame acceleration limit for the stability controller (for yaw
-  // axis)
-  constexpr auto kMaxYawAccel = deg2rad(Scalar{120});  // rad/s^2
 
   auto res = ThrustVectorRotationAngles(attitude_target, attitude_body);
 
-  if (IsClose(kp_yaw_rate, Scalar{0})) {
-    return res;
-  }
-  // Limit Yaw Error to the maximum that would saturate the output when yaw rate
-  // is zero.
-  const Scalar heading_accel_max =
-      std::clamp(max_yaw_accel / Scalar{2}, kMinYawAccel, kMaxYawAccel);
-  const Scalar heading_error_max =
-      min(apm::InvPiecewiseProportionalSqrt(Scalar{1} / kp_yaw_rate, kp_yaw,
-                                            heading_accel_max),
-          kMaxErrorAngle);
-  if (IsClose(kp_yaw, Scalar{0}) ||
-      abs(res.attitude_error.z()) <= heading_error_max) {
-    return res;
-  }
-  res.attitude_error.z() = std::clamp(wrapTo2Pi(res.attitude_error.z()),
-                                      -heading_error_max, heading_error_max);
+  res.attitude_error.z() = YawErrorLimiting(res.attitude_error.z(), kp_yaw,
+                                            kp_yaw_rate, max_yaw_accel);
+
   attitude_target = attitude_body * res.thrust_correction *
                     Eigen::AngleAxis{res.attitude_error.z(), Vector3::UnitZ()};
   return res;
