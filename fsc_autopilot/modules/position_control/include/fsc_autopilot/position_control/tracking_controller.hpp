@@ -110,6 +110,8 @@ class TrackingController final : public ControllerBase {
 
   bool setParams(const ParameterBase& params, LoggerBase* logger) override;
 
+  void toggleIntegration(bool value) override;
+
   [[nodiscard]] std::string name() const final { return "tracking_controller"; }
 
  private:

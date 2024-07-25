@@ -105,8 +105,6 @@ struct UDEParameters : public ParameterBase {
   static constexpr double kVehicleMassSentinel{-1.0};
   double vehicle_mass{kVehicleMassSentinel};
 
-  bool ude_active{true};
-
   static constexpr double kDefaultUDEBounds{5};
   Eigen::Vector3d ude_lb{Eigen::Vector3d::Constant(-kDefaultUDEBounds)};
   Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
@@ -151,6 +149,10 @@ class UDEBase {
       Eigen::Ref<Eigen::VectorXd> estimate) const;
 
   [[nodiscard]] virtual std::string type() const = 0;
+
+  [[nodiscard]] bool ude_active() const { return ude_active_; }
+
+  bool& ude_active() { return ude_active_; }
 
  protected:
   virtual Eigen::Vector3d computeIntegrand(const VehicleState& state,

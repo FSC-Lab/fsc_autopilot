@@ -127,9 +127,9 @@ void TrackingControlClient::outerLoop(const ros::TimerEvent& event) {
   }
 
   // check drone status
-  tc_params_.ude_params.ude_active = (mavrosState_.connected != 0U) &&
-                                     (mavrosState_.armed != 0U) &&
-                                     (mavrosState_.mode == "OFFBOARD");
+  tracking_ctrl_.toggleIntegration((mavrosState_.connected != 0U) &&
+                                   (mavrosState_.armed != 0U) &&
+                                   (mavrosState_.mode == "OFFBOARD"));
 
   fsc::TrackingControllerError pos_ctrl_err;
   // outerloop control

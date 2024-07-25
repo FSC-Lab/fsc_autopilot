@@ -46,6 +46,9 @@ UDEFactory::UDEUniquePtr UDEFactory::Create(const std::string& name,
   }
 
   if (auto it = registry_.find(name); it != registry_.end()) {
+    if (logger) {
+      logger->log(Severity::kInfo) << "Creating `" << name << "` UDE";
+    }
     return it->second();
   }
 

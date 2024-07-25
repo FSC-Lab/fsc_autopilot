@@ -73,6 +73,7 @@ Eigen::Vector3d BodyVelocityBasedUDE::computeIntegrand(
   const Eigen::Vector3d vehicle_weight = vehicle_mass_ * body_gravity;
 
   if (err) {
+    err->dynamical_term = dynamical_term;
     err->actuation_term = expected_thrust;
   }
 
@@ -86,7 +87,6 @@ Eigen::Vector3d BodyVelocityBasedUDE::computeDamping(const VehicleState& state,
   const Eigen::Vector3d ude_damping = ude_gain_ * vehicle_mass_ * velocity_body;
   if (err) {
     err->damping_term = ude_damping;
-    err->dynamical_term.setConstant(-1.0);
   }
   return ude_damping;
 }

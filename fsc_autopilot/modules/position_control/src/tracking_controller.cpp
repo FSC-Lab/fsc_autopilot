@@ -171,6 +171,12 @@ bool TrackingController::setParams(const ParameterBase& params,
   return true;
 }
 
+void TrackingController::toggleIntegration(bool value) {
+  if (ude_) {
+    ude_->ude_active() = value;
+  }
+}
+
 std::string TrackingControllerParameters::toString() const {
   const Eigen::IOFormat f{
       Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};

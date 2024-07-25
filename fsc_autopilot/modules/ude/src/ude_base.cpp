@@ -63,8 +63,6 @@ bool UDEBase::setParams(const UDEParameters& params) {
   if (!params.valid()) {
     return false;
   }
-  ude_active_ = params.ude_active;
-
   vehicle_mass_ = params.vehicle_mass;
   ude_height_threshold_ = params.ude_height_threshold;
 

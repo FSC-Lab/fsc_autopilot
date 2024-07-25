@@ -126,6 +126,8 @@ class ControllerBase {
     return false;
   }
 
+  virtual void toggleIntegration(bool value) {}
+
   [[nodiscard]] virtual std::string name() const = 0;
 };
 }  // namespace fsc
