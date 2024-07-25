@@ -83,7 +83,10 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
   if ((error != nullptr) && error->name() == "attitude_control_error") {
     err = static_cast<decltype(err)>(error);
   }
-  err->attitude_error = attitude_error;
+
+  if (err) {
+    err->attitude_error = attitude_error;
+  }
 
   return {Setpoint{{}, VehicleInput{0.0, ang_vel_body}},
           ControllerErrc::kSuccess};
@@ -104,34 +107,33 @@ auto APMAttitudeController::attitudeControllerRunQuat(
   // Compute the angular velocity corrections in the body frame from the
   // attitude error
   // ensure angular velocity does not go over configured limits
-  Eigen::Vector3d ang_vel_body =
+  Eigen::Vector3d ang_vel_fb =
       updateAngVelTargetFromAttError(attitude_error, dt);
-  ang_vel_body = apm::BodyRateLimiting(ang_vel_body, ang_vel_max_);
+  ang_vel_fb = apm::BodyRateLimiting(ang_vel_fb, ang_vel_max_);
 
   // rotation from the target frame to the body frame
   const Eigen::Quaterniond rotation_target_to_body =
       orientation.inverse() * attitude_target_;
 
   // target angle velocity vector in the body frame
-  const Eigen::Vector3d ang_vel_body_feedforward =
-      rotation_target_to_body * ang_vel_target_;
+  const Eigen::Vector3d ang_vel_ff = rotation_target_to_body * ang_vel_target_;
 
   constexpr double kThrustErrorAngleThresh = deg2rad(30.0);
 
   // Correct the thrust vector and smoothly add feedforward and yaw input
   feedforward_scalar_ = 1.0;
+  Eigen::Vector3d ang_vel_body;
   if (thrust_error_angle > kThrustErrorAngleThresh * 2.0) {
-    ang_vel_body.z() = body_rates.z();
+    ang_vel_body << ang_vel_fb.head<2>(), body_rates.z();
   } else if (thrust_error_angle > kThrustErrorAngleThresh) {
     feedforward_scalar_ = 1.0 - (thrust_error_angle - kThrustErrorAngleThresh) /
                                     kThrustErrorAngleThresh;
-    ang_vel_body.x() += ang_vel_body_feedforward.x() * feedforward_scalar_;
-    ang_vel_body.y() += ang_vel_body_feedforward.y() * feedforward_scalar_;
-    ang_vel_body.z() += ang_vel_body_feedforward.z();
-    ang_vel_body.z() = body_rates.z() * (1.0 - feedforward_scalar_) +
-                       ang_vel_body.z() * feedforward_scalar_;
+    ang_vel_body << ang_vel_fb.head<2>() +
+                        ang_vel_ff.head<2>() * feedforward_scalar_,
+        body_rates.z() * (1.0 - feedforward_scalar_) +
+            (ang_vel_fb.z() + ang_vel_ff.z()) * feedforward_scalar_;
   } else {
-    ang_vel_body += ang_vel_body_feedforward;
+    ang_vel_fb = ang_vel_fb + ang_vel_ff;
   }
 
   if (rate_bf_ff_enabled_) {
@@ -139,7 +141,7 @@ auto APMAttitudeController::attitudeControllerRunQuat(
     attitude_target_ *= fsc::AngleAxisToQuaternion(ang_vel_target_ * dt);
   }
 
-  return {ang_vel_body, attitude_error};
+  return {ang_vel_fb, attitude_error};
 }
 
 Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(
