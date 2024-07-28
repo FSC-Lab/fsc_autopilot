@@ -2,13 +2,38 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build",
+      "label": "build-ros1",
       "type": "shell",
       "command": "catkin",
       "args": [
         "build",
         "fsc_autopilot",
         "fsc_autopilot_ros",
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DPYTHON_EXECUTABLE=/usr/bin/python3"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/../.."
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "build-ros2",
+      "type": "shell",
+      "command": "colcon",
+      "args": [
+        "build",
+        "--build-base",
+        "build2",
+        "--packages-up-to",
+        "fsc_autopilot_ros2",
+        "--cmake-args",
         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         "-DCMAKE_BUILD_TYPE=Debug",

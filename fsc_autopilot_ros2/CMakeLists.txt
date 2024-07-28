@@ -2,28 +2,22 @@ cmake_minimum_required(VERSION 3.20.0)
 project(fsc_autopilot_ros2)
 
 find_package(fsc_autopilot REQUIRED)
-find_package(
-  catkin REQUIRED
-  COMPONENTS ros2cpp
-             tf2_eigen
-             geometry_msgs
-             std_msgs
-             std_srvs
-             message_generation
-             dynamic_reconfigure)
+find_package(rclcpp REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(mavros_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
-generate_dynamic_reconfigure_options(cfg/TrackingControl.cfg)
-
-add_message_files(DIRECTORY msg FILES TrackingReference.msg TrackingError.msg
-                  UDEState.msg)
-
-generate_messages(DEPENDENCIES std_msgs geometry_msgs)
-
-catkin_package(CATKIN_DEPENDS std_msgs geometry_msgs message_runtime)
+rosidl_generate_interfaces(${PROJECT_NAME} msg/TrackingReference.msg
+                           msg/TrackingError.msg msg/UDEState.msg)
 
 add_library(${PROJECT_NAME} src/ros2_support.cpp src/autopilot_client.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC include
                                                   ${catkin_INCLUDE_DIRS})
+ament_target_dependencies(${PROJECT_NAME} PUBLIC rclcpp tf2_eigen geometry_msgs
+                          mavros_msgs)
 target_link_libraries(
   ${PROJECT_NAME}
   PUBLIC ${catkin_LIBRARIES} fsc_autopilot::core
