@@ -23,12 +23,11 @@
 #include <utility>
 
 #include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
-#include "fsc_autopilot/attitude_control/nonlinear_geometric_controller.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
+#include "fsc_autopilot_msgs/TrackingError.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
-#include "fsc_autopilot_ros/TrackingError.h"
 #include "fsc_autopilot_ros/msg_conversion.hpp"
 #include "geometry_msgs/Vector3Stamped.h"
 #include "mavros_msgs/AttitudeTarget.h"
@@ -69,7 +68,7 @@ TrackingControlClient::TrackingControlClient() {
   attitude_error_pub_ = nh_.advertise<geometry_msgs::Vector3Stamped>(
       "attitude_controller/output_data", 1);
 
-  tracking_error_pub_ = nh_.advertise<fsc_autopilot_ros::TrackingError>(
+  tracking_error_pub_ = nh_.advertise<fsc_autopilot_msgs::TrackingError>(
       "position_controller/output_data", 1);
 
   cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
@@ -104,7 +103,7 @@ void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
 }
 
 void TrackingControlClient::setpointCb(
-    const fsc_autopilot_ros::TrackingReferenceConstPtr& msg) {
+    const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg) {
   tf2::fromMsg(msg->pose.position, outer_ref_.state.pose.position);
   tf2::fromMsg(msg->pose.orientation, outer_ref_.state.pose.orientation);
   tf2::fromMsg(msg->twist.linear, outer_ref_.state.twist.linear);
@@ -143,7 +142,7 @@ void TrackingControlClient::outerLoop(const ros::TimerEvent& event) {
 
   const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
 
-  fsc_autopilot_ros::TrackingError tracking_error_msg;
+  fsc_autopilot_msgs::TrackingError tracking_error_msg;
   tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
              tracking_error_msg);
   tracking_error_pub_.publish(tracking_error_msg);

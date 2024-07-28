@@ -30,8 +30,8 @@
 #include "fsc_autopilot/math/polynomial.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
+#include "fsc_autopilot_msgs/TrackingReference.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
-#include "fsc_autopilot_ros/TrackingReference.h"
 #include "fsc_autopilot_ros/ros_support.hpp"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/State.h"
@@ -55,7 +55,7 @@ class TrackingControlClient {
 
   void odomCb(const nav_msgs::OdometryConstPtr& msg);
   void imuCb(const sensor_msgs::ImuConstPtr& msg);
-  void setpointCb(const fsc_autopilot_ros::TrackingReferenceConstPtr& msg);
+  void setpointCb(const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg);
   void mavrosStateCb(const mavros_msgs::State& msg);
 
   void dynamicReconfigureCb(
