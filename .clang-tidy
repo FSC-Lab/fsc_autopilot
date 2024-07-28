@@ -67,6 +67,7 @@ Checks: >
   -misc-const-correctness,
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
+  -modernize-avoid-bind,
   -modernize-avoid-c-arrays,
   -modernize-use-trailing-return-type,
   -readability-convert-member-functions-to-static,
@@ -89,6 +90,7 @@ Checks: >
 #   - Recursion IS permitted
 # * - misc-non-private-member-variables-in-classes
 #   - "Data Classes" are permitted and signalled by declaration as a struct
+# * - modernize-avoid-bind
 # * - modernize-avoid-c-arrays
 #   - Size deduction of C arrays is useful. This rule can be superseded once to_array
 #     from C++20 enters use

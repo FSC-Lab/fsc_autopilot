@@ -23,16 +23,17 @@
 
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
-#include "fsc_autopilot_ros2/TrackingError.h"
-#include "fsc_autopilot_ros2/UDEState.h"
-#include "tf2_eigen/tf2_eigen.h"
+#include "fsc_autopilot_msgs/msg/tracking_error.hpp"
+#include "fsc_autopilot_msgs/msg/ude_state.hpp"
+#include "tf2_eigen/tf2_eigen.hpp"
+#include "tf2_ros/buffer_interface.h"
 namespace tf2 {
 
-inline fsc_autopilot_ros2::UDEState& toMsg(const fsc::UDEState& in,
-                                          fsc_autopilot_ros2::UDEState& out) {
+inline fsc_autopilot_msgs::msg::UDEState& toMsg(
+    const fsc::UDEState& in, fsc_autopilot_msgs::msg::UDEState& out) {
   out.type = in.type_str;
-  out.is_flying = static_cast<std::uint8_t>(in.is_flying);
-  out.is_active = static_cast<std::uint8_t>(in.is_active);
+  out.is_flying = (static_cast<std::uint8_t>(in.is_flying) != 0U);
+  out.is_active = (static_cast<std::uint8_t>(in.is_active) != 0U);
   toMsg(in.damping_term, out.damping_term);
   toMsg(in.dynamical_term, out.dynamical_term);
   toMsg(in.actuation_term, out.actuation_term);
@@ -41,10 +42,10 @@ inline fsc_autopilot_ros2::UDEState& toMsg(const fsc::UDEState& in,
   return out;
 }
 
-inline fsc_autopilot_ros2::TrackingError& toMsg(
+inline fsc_autopilot_msgs::msg::TrackingError& toMsg(
     const Stamped<fsc::TrackingControllerError>& in,
-    fsc_autopilot_ros2::TrackingError& out) {
-  out.header.stamp = in.stamp_;
+    fsc_autopilot_msgs::msg::TrackingError& out) {
+  out.header.stamp = tf2_ros::toMsg(in.stamp_);
   out.scalar_thrust_setpoint = in.scalar_thrust_sp;
   out.thrust_per_rotor = in.thrust_per_rotor;
   toMsg(in.position_error, out.position_error);

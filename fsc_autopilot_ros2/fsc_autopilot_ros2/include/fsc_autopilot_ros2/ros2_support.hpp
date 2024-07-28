@@ -26,27 +26,30 @@
 
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
-#include "ros2/node_handle.h"
+#include "rclcpp/logger.hpp"
+#include "rclcpp/node.hpp"
 
 namespace nodelib {
 class RosLogger : public fsc::LoggerBase {
  public:
-  using RosSeverity = ros2::console::levels::Level;
+  using fsc::LoggerBase::log;
+  using RosSeverity = rclcpp::Logger::Level;
 
-  explicit RosLogger(std::string name);
+  explicit RosLogger(const rclcpp::Logger& logger);
+
+  explicit RosLogger(const rclcpp::Node& node);
 
   void log(fsc::Severity severity, const char* msg) noexcept override;
 
-  [[nodiscard]] std::string name() const override { return name_; }
+  [[nodiscard]] std::string name() const override { return logger_.get_name(); }
 
  private:
-  std::string name_;
+  rclcpp::Logger logger_;
 };
 
 class RosParamLoader : public fsc::ParameterLoaderBase {
  public:
-  explicit RosParamLoader(const ros2::NodeHandle& pnh);
-  explicit RosParamLoader(const std::string& pnh);
+  explicit RosParamLoader(rclcpp::Node::SharedPtr node);
 
   [[nodiscard]] std::shared_ptr<fsc::ParameterLoaderBase> getChildLoader(
       const std::string& ns) const override;
@@ -60,7 +63,7 @@ class RosParamLoader : public fsc::ParameterLoaderBase {
   bool getParam(const std::string& key, std::string& value) const override;
 
  private:
-  ros2::NodeHandle pnh_;
+  rclcpp::Node::SharedPtr node_;
 };
 
 }  // namespace nodelib

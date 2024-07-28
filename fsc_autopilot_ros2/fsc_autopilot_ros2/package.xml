@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package>
+<package format="3">
   <name>fsc_autopilot_ros2</name>
   <version>0.0.0</version>
   <description>Tracking Control</description>
@@ -7,9 +7,7 @@
 
   <license>MIT</license>
 
-  <build_depend>dynamic_reconfigure</build_depend>
-  <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>ros2cpp</build_depend>
+  <build_depend>rclcpp</build_depend>
   <build_depend>std_msgs</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
@@ -17,15 +15,15 @@
   <build_depend>mavros</build_depend>
   <build_depend>mavros_msgs</build_depend>
   <build_depend>fsc_autopilot</build_depend>
-  <run_depend>dynamic_reconfigure</run_depend>
-  <run_depend>ros2cpp</run_depend>
-  <run_depend>std_msgs</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>tf2_eigen</run_depend>
-  <run_depend>mavros</run_depend>
-  <run_depend>mavros_msgs</run_depend>
-  <run_depend>fsc_autopilot</run_depend>
+  <depend>fsc_autopilot_msgs</depend>
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>tf2_eigen</exec_depend>
+  <exec_depend>mavros</exec_depend>
+  <exec_depend>mavros_msgs</exec_depend>
+  <exec_depend>fsc_autopilot</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

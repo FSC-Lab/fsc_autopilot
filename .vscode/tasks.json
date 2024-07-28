@@ -19,8 +19,7 @@
       },
       "problemMatcher": [],
       "group": {
-        "kind": "build",
-        "isDefault": true
+        "kind": "build"
       }
     },
     {
@@ -29,15 +28,15 @@
       "command": "colcon",
       "args": [
         "build",
-        "--build-base",
-        "build2",
         "--packages-up-to",
         "fsc_autopilot_ros2",
+        "--event-handler",
+        "console_cohesion+",
         "--cmake-args",
+        "-GNinja",
         "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
-        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         "-DCMAKE_BUILD_TYPE=Debug",
-        "-DPYTHON_EXECUTABLE=/usr/bin/python3"
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
       ],
       "options": {
         "cwd": "${workspaceFolder}/../.."
