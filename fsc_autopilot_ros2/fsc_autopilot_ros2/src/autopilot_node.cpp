@@ -18,13 +18,15 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include <memory>
+
 #include "fsc_autopilot_ros2/autopilot_client.hpp"
-#include "ros2/ros2.h"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char** argv) {
-  ros2::init(argc, argv, "fsc_autopilot_ros2_node");
+  rclcpp::init(argc, argv);
 
-  nodelib::TrackingControlClient client;
+  auto client = std::make_shared<nodelib::TrackingControlClient>();
 
-  ros2::spin();
+  rclcpp::spin(client);
 }

@@ -18,31 +18,31 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
-#define FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
+#ifndef INCLUDE_FSC_AUTOPILOT_ROS2_AUTOPILOT_CLIENT_HPP_
+#define INCLUDE_FSC_AUTOPILOT_ROS2_AUTOPILOT_CLIENT_HPP_
 
 #include <memory>
+#include <rclcpp/timer.hpp>
 #include <string>
 #include <unordered_map>
 
-#include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 #include "fsc_autopilot/math/polynomial.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
-#include "fsc_autopilot_ros2/TrackingControlConfig.h"
-#include "fsc_autopilot_ros2/TrackingReference.h"
+#include "fsc_autopilot_msgs/msg/tracking_error.hpp"
+#include "fsc_autopilot_msgs/msg/tracking_reference.hpp"
 #include "fsc_autopilot_ros2/ros2_support.hpp"
-#include "mavros2_msgs/AttitudeTarget.h"
-#include "mavros2_msgs/State.h"
-#include "nav_msgs/Odometry.h"
-#include "ros2/forwards.h"
-#include "ros2/node_handle.h"
-#include "sensor_msgs/Imu.h"
+#include "geometry_msgs/msg/vector3_stamped.hpp"
+#include "mavros_msgs/msg/attitude_target.hpp"
+#include "mavros_msgs/msg/state.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "sensor_msgs/msg/imu.h"
+#include "sensor_msgs/msg/imu.hpp"
 
 namespace nodelib {
 
-class TrackingControlClient {
+class TrackingControlClient : public rclcpp::Node {
  public:
   using AttitudeController = fsc::APMAttitudeController;
   using TrackingController = fsc::TrackingController;
@@ -53,27 +53,23 @@ class TrackingControlClient {
  private:
   using MotorCurveType = math::Polynomial<double>;
 
-  void odomCb(const nav_msgs::OdometryConstPtr& msg);
-  void imuCb(const sensor_msgs::ImuConstPtr& msg);
-  void setpointCb(const fsc_autopilot_ros2::TrackingReferenceConstPtr& msg);
-  void mavros2StateCb(const mavros2_msgs::State& msg);
+  void odomCb(const nav_msgs::msg::Odometry::ConstSharedPtr& msg);
+  void imuCb(const sensor_msgs::msg::Imu::ConstSharedPtr& msg);
+  void setpointCb(
+      const fsc_autopilot_msgs::msg::TrackingReference::ConstSharedPtr& msg);
+  void mavrosStateCb(const mavros_msgs::msg::State& msg);
 
-  void dynamicReconfigureCb(
-      const fsc_autopilot_ros2::TrackingControlConfig& config,
-      std::uint32_t level);
+  void outerLoop();
 
-  void outerLoop(const ros2::TimerEvent& event);
+  void innerLoop();
 
-  void innerLoop(const ros2::TimerEvent& event);
-
-  void watchdog(const ros2::TimerEvent& event);
+  void watchdog();
 
   bool loadParams();
   void setupRosTopics();
 
   bool initialized_{false};
   bool check_reconfiguration_{true};
-  ros2::NodeHandle nh_;
   TrackingController tracking_ctrl_;
   AttitudeController att_ctrl_;
 
@@ -84,31 +80,33 @@ class TrackingControlClient {
 
   fsc::APMAttitudeControllerParams ac_params_;
   fsc::TrackingControllerParameters tc_params_;
-  ros2::Time odom_last_recv_time_;
-  ros2::Time imu_last_recv_time_;
-  ros2::Time state_last_recv_time_;
-  std::unordered_map<std::string, ros2::Subscriber> subs_;
-  ros2::Publisher setpoint_pub_;
-  ros2::Publisher attitude_error_pub_;
-  ros2::Publisher tracking_error_pub_;
-  dynamic_reconfigure::Server<fsc_autopilot_ros2::TrackingControlConfig>
-      cfg_srv_;
+  rclcpp::Time odom_last_recv_time_;
+  rclcpp::Time imu_last_recv_time_;
+  rclcpp::Time state_last_recv_time_;
+  std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> subs_;
+  rclcpp::Publisher<mavros_msgs::msg::AttitudeTarget>::SharedPtr setpoint_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr
+      attitude_error_pub_;
+  rclcpp::Publisher<fsc_autopilot_msgs::msg::TrackingError>::SharedPtr
+      tracking_error_pub_;
 
-  mavros2_msgs::State mavros2State_;
+  mavros_msgs::msg::State mavrosState_;
 
-  mavros2_msgs::AttitudeTarget cmd_;
+  mavros_msgs::msg::AttitudeTarget cmd_;
 
   MotorCurveType motor_curve_;
 
-  ros2::Timer outer_loop_;
-  ros2::Timer inner_loop_;
-  ros2::Timer watchdog_;
+  rclcpp::Time outer_loop_event_time_;
+  rclcpp::TimerBase::SharedPtr outer_loop_;
+  rclcpp::Time inner_loop_event_time_;
+  rclcpp::TimerBase::SharedPtr inner_loop_;
+  rclcpp::TimerBase::SharedPtr watchdog_;
   bool enable_inner_controller_{
       false};  // flag indicating wether inner atttiude controller is on
 
-  RosLogger logger_{"fsc_autopilot_ros2"};
+  RosLogger logger_{*this};
 };
 
 }  // namespace nodelib
 
-#endif  // FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
+#endif  // INCLUDE_FSC_AUTOPILOT_ROS2_AUTOPILOT_CLIENT_HPP_
