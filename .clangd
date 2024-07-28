@@ -8,3 +8,9 @@ If:
   PathMatch: fsc_autopilot_ros/.*
 CompileFlags:
   CompilationDatabase: ../../build/fsc_autopilot_ros
+
+---
+If:
+  PathMatch: fsc_autopilot_ros2/.*
+CompileFlags:
+  CompilationDatabase: ../../build/fsc_autopilot_ros2
