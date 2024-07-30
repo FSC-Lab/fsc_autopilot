@@ -25,6 +25,8 @@
 
 #include "Eigen/Dense"
 
+namespace fsc {
+
 struct ThrustRates {
   double thrust{0.0};
   Eigen::Vector3d body_rates{Eigen::Vector3d::Zero()};
@@ -77,5 +79,7 @@ class VehicleInput {
  private:
   std::variant<ThrustRates, ThrustAttitude> command_;
 };
+
+}  // namespace fsc
 
 #endif  // FSC_AUTOPILOT_CORE_VEHICLE_INPUT_HPP_

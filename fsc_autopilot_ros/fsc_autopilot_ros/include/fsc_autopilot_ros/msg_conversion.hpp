@@ -18,8 +18,8 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef TRACKING_CONTROL_MSG_CONVERSION_HPP_
-#define TRACKING_CONTROL_MSG_CONVERSION_HPP_
+#ifndef FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
+#define FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
 
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
@@ -57,4 +57,4 @@ inline fsc_autopilot_msgs::TrackingError& toMsg(
 
 }  // namespace tf2
 
-#endif  // TRACKING_CONTROL_MSG_CONVERSION_HPP_
+#endif  // FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
