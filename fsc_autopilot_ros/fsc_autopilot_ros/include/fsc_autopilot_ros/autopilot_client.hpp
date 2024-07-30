@@ -51,6 +51,8 @@ class AutopilotClient {
   AutopilotClient();
 
  private:
+  void setupPubSub(const std::string& uav_prefix);
+
   void odomCb(const nav_msgs::OdometryConstPtr& msg);
   void imuCb(const sensor_msgs::ImuConstPtr& msg);
   void setpointCb(const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg);

@@ -74,30 +74,9 @@ AutopilotClient::AutopilotClient() {
   const ros::Rate outer_rate = pnh.param("position_controller/rate", 30);
   const ros::Rate inner_rate = pnh.param("attitude_controller/rate", 250);
 
-  const auto mavros_ns = pnh.param("mavros_ns", "/mavros"s);
+  const auto uav_prefix = pnh.param("uav_prefix", ""s);
 
-  subs_.emplace("odom"s,
-                nh_.subscribe("/state_estimator/local_position/odom/UAV0", 1,
-                              &AutopilotClient::odomCb, this));
-
-  subs_.emplace("accel"s, nh_.subscribe("/mavros/imu/data", 1,
-                                        &AutopilotClient::imuCb, this));
-
-  subs_.emplace("target"s, nh_.subscribe("position_controller/target", 1,
-                                         &AutopilotClient::setpointCb, this));
-
-  subs_.emplace("state"s, nh_.subscribe("/mavros/state", 1,
-                                        &AutopilotClient::mavrosStateCb, this));
-
-  setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
-      "/mavros/setpoint_raw/attitude", 1);
-
-  attitude_error_pub_ =
-      nh_.advertise<fsc_autopilot_msgs::AttitudeControllerState>(
-          "attitude_controller/output_data", 1);
-
-  tracking_error_pub_ = nh_.advertise<fsc_autopilot_msgs::TrackingError>(
-      "position_controller/output_data", 1);
+  setupPubSub(uav_prefix);
 
   cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
     dynamicReconfigureCb(std::forward<decltype(PH1)>(PH1),
@@ -110,6 +89,33 @@ AutopilotClient::AutopilotClient() {
   watchdog_ = nh_.createTimer(outer_rate, &AutopilotClient::watchdog, this);
 
   initialized_ = true;
+}
+
+void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
+  subs_.emplace(
+      "odom"s,
+      nh_.subscribe(uav_prefix + "/state_estimator/local_position/odom", 1,
+                    &AutopilotClient::odomCb, this));
+
+  subs_.emplace("accel"s, nh_.subscribe(uav_prefix + "/mavros/imu/data", 1,
+                                        &AutopilotClient::imuCb, this));
+
+  subs_.emplace("target"s,
+                nh_.subscribe(uav_prefix + "/position_controller/target", 1,
+                              &AutopilotClient::setpointCb, this));
+
+  subs_.emplace("state"s, nh_.subscribe(uav_prefix + "/mavros/state", 1,
+                                        &AutopilotClient::mavrosStateCb, this));
+
+  setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
+      uav_prefix + "/mavros/setpoint_raw/attitude", 1);
+
+  attitude_error_pub_ =
+      nh_.advertise<fsc_autopilot_msgs::AttitudeControllerState>(
+          uav_prefix + "/attitude_controller/output_data", 1);
+
+  tracking_error_pub_ = nh_.advertise<fsc_autopilot_msgs::TrackingError>(
+      uav_prefix + "/position_controller/output_data", 1);
 }
 
 void AutopilotClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
