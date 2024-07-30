@@ -24,7 +24,7 @@
 int main(int argc, char** argv) {
   ros::init(argc, argv, "fsc_autopilot_ros_node");
 
-  nodelib::TrackingControlClient client;
+  nodelib::AutopilotClient client;
 
   ros::spin();
 }

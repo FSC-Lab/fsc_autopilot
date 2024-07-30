@@ -42,13 +42,13 @@
 
 namespace nodelib {
 
-class TrackingControlClient {
+class AutopilotClient {
  public:
   using AttitudeController = fsc::APMAttitudeController;
   using TrackingController = fsc::TrackingController;
 
   using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
-  TrackingControlClient();
+  AutopilotClient();
 
  private:
   using MotorCurveType = math::Polynomial<double>;

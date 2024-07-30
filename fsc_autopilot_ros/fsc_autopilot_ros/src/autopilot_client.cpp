@@ -37,7 +37,7 @@
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
 
-TrackingControlClient::TrackingControlClient() {
+AutopilotClient::AutopilotClient() {
   ros::NodeHandle pnh("~");
   if (!loadParams()) {
     throw ros::InvalidParameterException("Got invalid parameters");
@@ -49,18 +49,16 @@ TrackingControlClient::TrackingControlClient() {
 
   subs_.emplace("odom"s,
                 nh_.subscribe("/state_estimator/local_position/odom/UAV0", 1,
-                              &TrackingControlClient::odomCb, this));
+                              &AutopilotClient::odomCb, this));
 
   subs_.emplace("accel"s, nh_.subscribe("/mavros/imu/data", 1,
-                                        &TrackingControlClient::imuCb, this));
+                                        &AutopilotClient::imuCb, this));
 
-  subs_.emplace("target"s,
-                nh_.subscribe("position_controller/target", 1,
-                              &TrackingControlClient::setpointCb, this));
+  subs_.emplace("target"s, nh_.subscribe("position_controller/target", 1,
+                                         &AutopilotClient::setpointCb, this));
 
-  subs_.emplace("state"s,
-                nh_.subscribe("/mavros/state", 1,
-                              &TrackingControlClient::mavrosStateCb, this));
+  subs_.emplace("state"s, nh_.subscribe("/mavros/state", 1,
+                                        &AutopilotClient::mavrosStateCb, this));
 
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       "/mavros/setpoint_raw/attitude", 1);
@@ -76,18 +74,15 @@ TrackingControlClient::TrackingControlClient() {
                          std::forward<decltype(PH2)>(PH2));
   });
 
-  outer_loop_ =
-      nh_.createTimer(outer_rate, &TrackingControlClient::outerLoop, this);
-  inner_loop_ =
-      nh_.createTimer(inner_rate, &TrackingControlClient::innerLoop, this);
+  outer_loop_ = nh_.createTimer(outer_rate, &AutopilotClient::outerLoop, this);
+  inner_loop_ = nh_.createTimer(inner_rate, &AutopilotClient::innerLoop, this);
 
-  watchdog_ =
-      nh_.createTimer(outer_rate, &TrackingControlClient::watchdog, this);
+  watchdog_ = nh_.createTimer(outer_rate, &AutopilotClient::watchdog, this);
 
   initialized_ = true;
 }
 
-void TrackingControlClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
+void AutopilotClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
   // the estimation only provides position measurement
   odom_last_recv_time_ = msg->header.stamp;
   tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
@@ -96,13 +91,13 @@ void TrackingControlClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
   tf2::fromMsg(msg->twist.twist.angular, state_.twist.angular);
 }
 
-void TrackingControlClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
+void AutopilotClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
   imu_last_recv_time_ = msg->header.stamp;
   tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
   tf2::fromMsg(msg->orientation, state_.pose.orientation);
 }
 
-void TrackingControlClient::setpointCb(
+void AutopilotClient::setpointCb(
     const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg) {
   tf2::fromMsg(msg->pose.position, outer_ref_.state.pose.position);
   tf2::fromMsg(msg->pose.orientation, outer_ref_.state.pose.orientation);
@@ -113,12 +108,12 @@ void TrackingControlClient::setpointCb(
   outer_ref_.yaw = fsc::deg2rad(msg->yaw);
 }
 
-void TrackingControlClient::mavrosStateCb(const mavros_msgs::State& msg) {
+void AutopilotClient::mavrosStateCb(const mavros_msgs::State& msg) {
   state_last_recv_time_ = msg.header.stamp;
   mavrosState_ = msg;
 }
 
-void TrackingControlClient::outerLoop(const ros::TimerEvent& event) {
+void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   // calculate time step
   const auto dt = (event.current_real - event.last_real).toSec();
   if (dt <= 0.0 || dt > 1.0) {
@@ -164,7 +159,7 @@ void TrackingControlClient::outerLoop(const ros::TimerEvent& event) {
   // if the thrust is an acc command, then the thrust curve must change as well
 }
 
-void TrackingControlClient::innerLoop(const ros::TimerEvent& event) {
+void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
   const auto dt = (event.current_real - event.last_real).toSec();
   if (dt <= 0.0 || dt > 1.0) {
     return;
@@ -187,7 +182,7 @@ void TrackingControlClient::innerLoop(const ros::TimerEvent& event) {
   }
 }
 
-void TrackingControlClient::watchdog(const ros::TimerEvent& /*event*/) {
+void AutopilotClient::watchdog(const ros::TimerEvent& /*event*/) {
   auto now = ros::Time::now();
   std::map<std::string, ros::Duration> elapsed_since_last_recv = {
       {"Odometry", now - odom_last_recv_time_},
@@ -204,7 +199,7 @@ void TrackingControlClient::watchdog(const ros::TimerEvent& /*event*/) {
   }
 }
 
-bool TrackingControlClient::loadParams() {
+bool AutopilotClient::loadParams() {
   // Position controller parameters
   if (!tc_params_.load(RosParamLoader{"~position_controller"}, &logger_)) {
     ROS_FATAL("Failed to load TrackingController parameters");
@@ -250,7 +245,7 @@ bool TrackingControlClient::loadParams() {
   return true;
 }
 
-void TrackingControlClient::dynamicReconfigureCb(
+void AutopilotClient::dynamicReconfigureCb(
     const fsc_autopilot_ros::TrackingControlConfig& config,
     [[maybe_unused]] std::uint32_t level) {
   constexpr double kMaxParamStep = 1.0;
