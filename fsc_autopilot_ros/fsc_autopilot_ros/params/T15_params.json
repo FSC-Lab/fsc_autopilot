@@ -1,16 +1,18 @@
 {
+  "enable_inner_controller": false,
   "vehicle": {
+    "name": "T15",
     "motor_curve": [
-      0.12,
-      0.05
+      0.05,
+      0.12
     ],
     "num_rotors": 4
   },
-  "enable_inner_controller": false,
-  "check_reconfiguration": false,
   "position_controller": {
+    "type": "robust_controller",
     "min_thrust": 0.0,
     "max_thrust": 100.0,
+    "form": "nested",
     "k_pos": {
       "x": 1.5,
       "y": 1.5,
@@ -40,13 +42,13 @@
   },
   "attitude_controller": {
     "type": "apm",
-    "rate": 100,
+    "rate": 250,
     "enable_rate_feedforward": true,
-    "input_tc": 0.1,
-    "roll_p": 6.5,
-    "pitch_p": 6.5,
-    "yaw_p": 2,
+    "input_tc": 0.3,
+    "roll_p": 8.0,
+    "pitch_p": 8.0,
+    "yaw_p": 6.0,
     "yawrate_p": 0.1,
-    "yawrate_max": 6.283185307179586
+    "yawrate_max": 360
   }
 }

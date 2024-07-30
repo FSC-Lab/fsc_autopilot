@@ -18,45 +18,41 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include "fsc_autopilot/position_control/tracking_controller.hpp"
-
-#include <iostream>
-
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
+#include "fsc_autopilot/math/numbers.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
+#include "fsc_autopilot/position_control/position_controller_base.hpp"
+#include "fsc_autopilot/position_control/position_controller_factory.hpp"
+#include "fsc_autopilot/position_control/robust_controller.hpp"
 
 namespace fsc {
 
-ControlResult TrackingController::run(const VehicleState& state,
-                                      const Reference& refs, double dt,
-                                      ContextBase* error) {
-  using std::atan2;
-
-  if (!params_valid_) {
-    return {getFallBackSetpoint(), ControllerErrc::kInvalidParameters};
+PositionControlResult RobustController::run(
+    const VehicleState& state, const PositionControllerReference& refs,
+    double dt, ContextBase* error) {
+  // * Implement checks INDEPENDENTLY from ParameterBase::valid, with an eye
+  // * towards the minimum that doesn't break this controller
+  if (!thrust_bnds_.valid() || vehicle_mass_ < 0.0 ||
+      (k_pos_.array() < 0.0).any() || (k_vel_.array() < 0.0).any()) {
+    return {{}, ControllerErrc::kInvalidParameters};
   }
 
-  const auto& [curr_position, curr_orientation] = state.pose;
+  const auto& curr_position = state.pose.position;
   const auto& curr_velocity = state.twist.linear;
-  const auto& curr_acceleration = state.accel.linear;
-  const auto& [ref_position, ref_orientation] = refs.state.pose;
-  const auto& ref_velocity = refs.state.twist.linear;
-  const auto& ref_yaw = refs.yaw;
+  const auto& [ref_position, ref_velocity, ref_accel, ref_thrust, ref_yaw] =
+      refs;
 
-  TrackingControllerError* err = nullptr;
-  if ((error != nullptr) && error->name() == "tracking_controller.error") {
-    err = static_cast<decltype(err)>(error);
-  }
   const Eigen::Vector3d raw_position_error = curr_position - ref_position;
   const Eigen::Vector3d raw_velocity_error = curr_velocity - ref_velocity;
 
   Eigen::Vector3d position_error;
   Eigen::Vector3d velocity_error;
 
+  // Velocity and position errors are bounded
   if (apply_pos_err_saturation_) {
     position_error = SaturationSmoothing(raw_position_error, 1.0);
   } else {
@@ -69,20 +65,26 @@ ControlResult TrackingController::run(const VehicleState& state,
     velocity_error = raw_velocity_error;
   }
 
-  // SaturationSmoothing(raw_velocity_error, 1.0);
-
-  // bound the velocity and position error
-  // kv * (ev + kp * sat(ep))
-  // x and y direction
-  const Eigen::Vector3d feedback =
-      k_vel_.cwiseProduct(velocity_error + k_pos_.cwiseProduct(position_error));
+  Eigen::Vector3d pd_term;
+  for (int i = 0; i < 3; ++i) {
+    pd_term[i] = ProportionalDerivative(position_error[i], velocity_error[i],
+                                        k_pos_[i], k_vel_[i], dt, form_);
+  }
 
   // m * g * [0,0,1]
-  const Eigen::Vector3d vehicle_weight = -vehicle_mass_ * kGravity;
+  const Eigen::Vector3d vehicle_weight =
+      -vehicle_mass_ * Eigen::Vector3d::UnitZ() * numbers::std_gravity;
 
-  Eigen::Vector3d thrust_setpoint_raw =
-      -feedback - vehicle_weight + refs.thrust;
-  Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
+  // Our controller operates in the thrust world
+  Eigen::Vector3d feedforward = ref_thrust;
+
+  if (!ref_accel.isZero()) {  // Avoid the extra ops if possible
+    feedforward += ref_accel * numbers::std_gravity;
+  }
+
+  const Eigen::Vector3d thrust_setpoint_raw =
+      -pd_term - vehicle_weight + feedforward;
+  const Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
       thrust_setpoint_raw, thrust_bnds_, max_tilt_angle_);
 
   // attitude target
@@ -91,24 +93,31 @@ ControlResult TrackingController::run(const VehicleState& state,
 
   double thrust = thrust_setpoint.dot(attitude_sp * Eigen::Vector3d::UnitZ());
 
-  ControlResult result;
+  PositionControlResult result;
   result.ec = ControllerErrc::kSuccess;
-  result.setpoint.input = VehicleInput{thrust, Eigen::Quaterniond(attitude_sp)};
-  if (err) {
+  result.input = {thrust, Eigen::Quaterniond(attitude_sp)};
+  if (PositionControllerState* err = nullptr;
+      (error != nullptr) && error->name() == "position_controller_state") {
+    err = static_cast<decltype(err)>(error);
+    err->position_reference = ref_position;
+    err->velocity_reference = ref_velocity;
+
+    err->position = curr_position;
+    err->velocity = curr_velocity;
+    err->acceleration = state.accel.linear;
+
     err->position_error = raw_position_error;
     err->velocity_error = raw_velocity_error;
-    err->feedback = feedback;
-    err->thrust_setpoint = thrust_setpoint;
-    // msg output
-    err->scalar_thrust_sp = thrust;
+
+    err->output = thrust_setpoint;
   }
 
   return result;
 }
 
-bool TrackingController::setParams(const ParameterBase& params,
-                                   LoggerBase& logger) {
-  if (params.parameterFor() != "tracking_controller") {
+bool RobustController::setParams(const ParameterBase& params,
+                                 LoggerBase& logger) {
+  if (params.parameterFor() != "robust_controller") {
     logger.log(Severity::kError, "Mismatch in parameter and receiver");
 
     return true;
@@ -118,54 +127,53 @@ bool TrackingController::setParams(const ParameterBase& params,
     return false;
   }
 
-  const auto& p = static_cast<const TrackingControllerParameters&>(params);
+  const auto& p = static_cast<const RobustControllerParameters&>(params);
   apply_pos_err_saturation_ = p.apply_pos_err_saturation;
   apply_vel_err_saturation_ = p.apply_vel_err_saturation;
   vehicle_mass_ = p.vehicle_mass;
   max_tilt_angle_ = p.max_tilt_angle;
+  form_ = p.form;
   k_pos_ = p.k_pos;
   k_vel_ = p.k_vel;
   thrust_bnds_ = {p.min_thrust, p.max_thrust};
 
-  params_valid_ = true;
   return true;
 }
 
-std::shared_ptr<ParameterBase> TrackingController::getParams(
+std::shared_ptr<ParameterBase> RobustController::getParams(
     bool use_default) const {
   if (use_default) {
-    return std::make_shared<TrackingControllerParameters>();
+    return std::make_shared<RobustControllerParameters>();
   }
-  TrackingControllerParameters params;
+  RobustControllerParameters params;
 
   params.apply_pos_err_saturation = apply_pos_err_saturation_;
-  params.k_pos = k_pos_;
   params.apply_vel_err_saturation = apply_vel_err_saturation_;
+  params.form = form_;
+  params.k_pos = k_pos_;
   params.k_vel = k_vel_;
   params.min_thrust = thrust_bnds_.lower;
   params.max_thrust = thrust_bnds_.upper;
   params.max_tilt_angle = max_tilt_angle_;
   params.vehicle_mass = vehicle_mass_;
 
-  return std::make_shared<TrackingControllerParameters>(std::move(params));
+  return std::make_shared<RobustControllerParameters>(std::move(params));
 }
 
-void TrackingController::toggleIntegration(bool value) {}
-
-std::string TrackingControllerParameters::toString() const {
+std::string RobustControllerParameters::toString() const {
   const Eigen::IOFormat f{
       Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
   std::ostringstream oss;
 
   oss << "Quadrotor Mass: " << vehicle_mass << "\n"
       << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
-      << "Tracking Controller parameters:\nk_pos: "
-      << k_pos.transpose().format(f)  //
+      << "robust Controller parameters:\nform: " << to_string(form)
+      << "\nk_pos: " << k_pos.transpose().format(f)  //
       << "\nk_vel: " << k_vel.transpose().format(f);
 
   return oss.str();
 }
-bool TrackingControllerParameters::valid(LoggerBase& logger) const {
+bool RobustControllerParameters::valid(LoggerBase& logger) const {
   if (min_thrust >= max_thrust) {
     logger.log(Severity::kError,
                "`min_thrust` must be strictly less than `max_thrust`");
@@ -176,20 +184,45 @@ bool TrackingControllerParameters::valid(LoggerBase& logger) const {
     logger.log(Severity::kError, "`vehicle_mass` must be positive");
     return false;
   }
+
+  if ((k_pos.array() < 0.0).any()) {
+    logger.log(Severity::kError, "`k_pos` must be all positive");
+    return false;
+  }
+  if ((k_vel.array() < 0.0).any()) {
+    logger.log(Severity::kError, "`k_pos` must be all positive");
+    return false;
+  }
+
   return true;
 }
 
-bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
-                                        LoggerBase& logger) {
+bool RobustControllerParameters::load(const ParameterLoaderBase& loader,
+                                      LoggerBase& logger) {
+  using namespace std::string_literals;  // NOLINT
   std::ignore =
       loader.getParam("apply_pos_err_saturation", apply_pos_err_saturation);
+  std::ignore =
+      loader.getParam("apply_vel_err_saturation", apply_vel_err_saturation);
+
+  const auto form_str = loader.param("form", "nested"s);
+  if (form_str == "ideal") {
+    form = PIDForm::kIdeal;
+  } else if (form_str == "nested") {
+    form = PIDForm::kNested;
+  } else if (form_str == "parallel") {
+    form = PIDForm::kParallel;
+  } else {
+    logger.log(Severity::kError)
+        << "Invalid PD controller form `" << form_str << "`";
+    return false;
+  }
+
   k_pos <<  // Force a line break
       loader.param("k_pos/x", kDefaultKpXY),
       loader.param("k_pos/y", kDefaultKpXY),
       loader.param("k_pos/z", kDefaultKpZ);
 
-  std::ignore =
-      loader.getParam("apply_vel_err_saturation", apply_vel_err_saturation);
   k_vel <<  // Force a line break
       loader.param("k_vel/x", kDefaultKvXY),
       loader.param("k_vel/y", kDefaultKvXY),
@@ -208,5 +241,7 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
 
   return true;
 }
+
+REGISTER_POSITION_CONTROLLER(RobustController, "robust_controller");
 
 }  // namespace fsc

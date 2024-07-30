@@ -23,7 +23,7 @@ AttitudeControlResult PX4AttitudeController::run(
   Eigen::Quaterniond qe_red;
   Eigen::Vector3d eq;
   double yaw_e_angle;
-  const double w_sq = pow<2>(qe.w()) + pow<2>(qe.z());
+  const double w_sq = pown<2>(qe.w()) + pown<2>(qe.z());
   if (IsClose(w_sq, 0.0)) {
     qe_red = {0.0, qe.x(), qe.y(), 0.0};
     yaw_e_angle = 0.0;

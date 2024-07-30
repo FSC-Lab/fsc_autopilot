@@ -22,11 +22,53 @@
 #define FSC_AUTOPILOT_POSITION_CONTROL_CONTROL_HPP_
 
 #include <limits>
+#include <string>
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/math/math_extras.hpp"
+#include "fsc_autopilot/utils/asserts.hpp"
 
 namespace fsc {
+
+enum class PIDForm { kIdeal, kNested, kParallel };
+
+inline std::string to_string(PIDForm form) {
+  switch (form) {
+    case PIDForm::kIdeal:
+      return "ideal";
+    case PIDForm::kNested:
+      return "nested";
+    case PIDForm::kParallel:
+      return "parallel";
+  }
+  FSC_ASSUME(false);
+}
+
+template <typename T>
+T ProportionalDerivative(T error, T error_dot, T kp, T kd, T dt,
+                         PIDForm form = PIDForm::kIdeal) {
+  using std::abs;
+  T res{0};
+  switch (form) {
+    case PIDForm::kIdeal:
+      // Kp acts on the sum of all terms, and Kd can be interpreted as some
+      // inverse time constant
+      res = kp * (error + kd * error_dot);
+      break;
+    case PIDForm::kNested:
+      // "Second-order" feedback, where kp * error is on the same order as
+      // error_dot, and Kd acts on all "second order" terms
+      res = kd * (error_dot + kp * error);
+      break;
+    case PIDForm::kParallel:
+      // Traditional PD with separate gains
+      res = kp * error * kd * error_dot;
+      break;
+  }
+  const T bound = abs(error) / dt;
+  return std::clamp(res, -bound, bound);
+}
+
 template <typename Derived, typename Scalar = typename Derived::Scalar>
 Eigen::Matrix<Scalar, 3, 3> thrustVectorToRotation(
     const Eigen::MatrixBase<Derived>& acc_sp, Scalar yaw) {
@@ -49,6 +91,8 @@ template <typename Scalar>
 struct ThrustBounds {
   Scalar lower{0};
   Scalar upper{std::numeric_limits<Scalar>::max()};
+
+  [[nodiscard]] bool valid() const { return upper > lower; }
 };
 
 template <typename Derived, typename Scalar = typename Derived::Scalar>
@@ -79,7 +123,7 @@ Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
   // back maximally allowed lateral thrusteration subject
   // to either thrusteration limits or tilt limits
   const auto max_lateral_thrust =
-      min(sqrt(pow<2>(max_z_thrust) - pow<2>(z_sp)), lat_acc_at_full_tilt);
+      min(sqrt(pown<2>(max_z_thrust) - pown<2>(z_sp)), lat_acc_at_full_tilt);
 
   using Vector2 = Eigen::Matrix<Scalar, 2, 1>;
   using Vector3 = Eigen::Matrix<Scalar, 3, 1>;
@@ -90,7 +134,7 @@ Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
 
   // Scale back desired lateral thrusteration if it exceeds allowed maximum
   const auto lateral_thrust_sqnorm = lateral_thrust.squaredNorm();
-  if (lateral_thrust_sqnorm > pow<2>(max_lateral_thrust)) {
+  if (lateral_thrust_sqnorm > pown<2>(max_lateral_thrust)) {
     const auto lateral_thrust_scale =
         max_lateral_thrust / sqrt(lateral_thrust_sqnorm);
     shaped_thrust_sp.template head<2>() = lateral_thrust_scale * lateral_thrust;

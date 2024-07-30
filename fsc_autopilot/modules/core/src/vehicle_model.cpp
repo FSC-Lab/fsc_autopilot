@@ -24,16 +24,22 @@
 #include <set>
 #include <vector>
 
+#include "fsc_autopilot/core/logger_base.hpp"
+
 namespace fsc {
 
 bool VehicleModelParameters::load(const ParameterLoaderBase& loader,
                                   LoggerBase& logger) {
+  if (!loader.getParam("name", vehicle_name)) {
+    logger.log(Severity::kError, "Failed to get required_parameter: `name`");
+  }
   std::vector<double> motor_curve_coeffs_params;
   if (!loader.getParam("motor_curve", motor_curve_coeffs_params)) {
     logger.log(Severity::kError,
                "Failed to get required parameter: `motor_curve`");
     return false;
   }
+
   motor_curve_coeffs = Eigen::VectorXd::Map(
       motor_curve_coeffs_params.data(),
       static_cast<Eigen::Index>(motor_curve_coeffs_params.size()));
@@ -47,6 +53,12 @@ bool VehicleModelParameters::load(const ParameterLoaderBase& loader,
 }
 
 bool VehicleModelParameters::valid(LoggerBase& logger) const {
+  if (vehicle_name.empty()) {
+    logger.log(Severity::kError,
+               "Vehicle must be identified by a valid, non-empty name");
+    return false;
+  }
+
   std::set<int> rotor_set{3, 4, 6, 8};
   if (rotor_set.count(num_rotors) == 0) {
     logger.log(Severity::kError, "Number of rotors must in the set {3,4,6,8}");
@@ -83,6 +95,7 @@ VehicleInput VehicleModel::transformInputs(const VehicleInput& input) const {
 
 VehicleModelParameters VehicleModel::getParams() const {
   VehicleModelParameters params;
+  params.vehicle_name = vehicle_name;
   params.num_rotors = num_rotors;
   params.motor_curve_coeffs = motor_curve.coeffs();
   return params;
@@ -93,6 +106,7 @@ bool VehicleModel::setParams(const VehicleModelParameters& params,
   if (!params.valid(logger)) {
     return false;
   }
+  vehicle_name = params.vehicle_name;
   num_rotors = params.num_rotors;
   motor_curve = MotorCurveType(params.motor_curve_coeffs);
   return true;

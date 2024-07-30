@@ -8,8 +8,8 @@ add_message_files(
   DIRECTORY
   msg
   FILES
-  TrackingReference.msg
-  TrackingError.msg
+  PositionControllerReference.msg
+  PositionControllerState.msg
   AttitudeControllerState.msg
   UDEState.msg)
 

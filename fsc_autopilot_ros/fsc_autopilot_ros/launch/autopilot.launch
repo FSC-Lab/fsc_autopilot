@@ -1,9 +1,17 @@
+<?xml version="1.0"?>
 <launch>
   <!-- Tracking Control Node -->
   <arg name="launch_prefix" default=""/>
-  <arg name="builtin_param_file" default="gazebo_iris_params.json"/>
+  <arg name="uav_prefix" default=""/>
+  <arg name="feedback_topic" default="$(arg uav_prefix)/mavros/local_position/odom"/>
+
+  <!-- No default param file. Users must consciously load the correct params -->
+  <arg name="builtin_param_file"/>
   <arg name="param_file" default="$(find fsc_autopilot_ros)/params/$(arg builtin_param_file)"/>
+
+  <remap to="$(arg feedback_topic)" from="$(arg uav_prefix)/fsc_autopilot/position_controller/feedback" if="$(eval bool(arg('feedback_topic')))"/>
   <node pkg="fsc_autopilot_ros" type="autopilot_node" name="fsc_autopilot_ros" output="screen" launch-prefix="$(arg launch_prefix)">
     <rosparam command="load" file="$(arg param_file)" />
+    <param name="uav_prefix" value="$(arg uav_prefix)" />
   </node>
 </launch>

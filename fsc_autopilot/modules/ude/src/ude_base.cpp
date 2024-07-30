@@ -44,6 +44,7 @@ UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
   } else if (int_flag && is_flying) {
     // disturbance estimator
     ude_integral_ += ude_gain_ * computeIntegrand(state, input, err) * dt;
+    ude_integral_ = ude_integral_.cwiseMax(ude_lb_).cwiseMin(ude_ub_);
   }
 
   ude_value_ = ude_integral_ + computeDamping(state, err);

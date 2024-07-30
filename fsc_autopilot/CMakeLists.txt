@@ -1,9 +1,15 @@
 cmake_minimum_required(VERSION 3.20.0)
-project(fsc_autopilot VERSION 0.3.0)
+project(fsc_autopilot VERSION 0.4.0)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(MAIN_PROJECT_NAME ${PROJECT_NAME})
 add_subdirectory(modules)
+
+include(CTest)
+option(BUILD_TESTING "Toggles building unit tests" ON)
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()
 
 set(PROJECT_INCLUDE_DIRS
     modules/attitude_control/include/ modules/core/include/

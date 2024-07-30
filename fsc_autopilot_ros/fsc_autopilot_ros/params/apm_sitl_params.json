@@ -1,10 +1,10 @@
 {
   "enable_inner_controller": true,
   "vehicle": {
-    "name": "sitl_iris",
+    "name": "sitl_apm",
     "motor_curve": [
-      0.105,
-      0.36
+      0.06795,
+      0.0
     ],
     "num_rotors": 4
   },
@@ -14,33 +14,39 @@
     "max_thrust": 100.0,
     "form": "nested",
     "k_pos": {
-      "x": 0.75,
-      "y": 0.75,
+      "x": 1.5,
+      "y": 1.5,
       "z": 1.0
     },
     "k_vel": {
       "x": 5.0,
       "y": 5.0,
-      "z": 6.0
+      "z": 8.0
     },
-    "vehicle_mass": 1.535,
+    "vehicle_mass": 3,
     "rate": 100
   },
   "ude": {
     "type": "body_accel_based",
-    "gain": 4.0,
+    "gain": 6.0,
     "height_threshold": 0.2,
     "is_velocity_based": true,
-    "vehicle_mass": 1.535
+    "vehicle_mass": 3,
+    "lbx": -10.0,
+    "lby": -10.0,
+    "lbz": -10.0,
+    "ubx": 10.0,
+    "uby": 10.0,
+    "ubz": 10.0
   },
   "attitude_controller": {
     "type": "apm",
-    "rate": 150,
+    "rate": 250,
     "enable_rate_feedforward": true,
-    "input_tc": 0.05,
-    "roll_p": 11.0,
-    "pitch_p": 11.0,
-    "yaw_p": 8.0,
+    "input_tc": 0.1,
+    "roll_p": 8.0,
+    "pitch_p": 8.0,
+    "yaw_p": 6.0,
     "yawrate_p": 0.2,
     "rollrate_max": 360,
     "pitchrate_max": 360,

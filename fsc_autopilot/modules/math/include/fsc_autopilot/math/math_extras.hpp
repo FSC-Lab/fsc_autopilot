@@ -23,7 +23,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <type_traits>
 
 #include "fsc_autopilot/math/numbers.hpp"
@@ -45,6 +44,11 @@ struct Tolerances {
  *
  * https://stackoverflow.com/questions/4915462/how-should-i-do-floating-point-comparison
  *
+ * This implementation is equivalent to python's math.isclose, per
+ * docs.python.org
+ *
+ * `the result will be: abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)`
+ *
  * Note that calling IsClose(value, 0) is NOT substantially slower than a
  * hypothetical IsZero() function implementing value < absolute_tolerance
  *
@@ -65,7 +69,7 @@ constexpr bool IsClose(const T& a, const T& b,
   }
 
   const T diff = abs(a - b);
-  const T norm = min(abs(a) + abs(b), std::numeric_limits<T>::max());
+  const T norm = max(abs(a), abs(b));
   return diff < max(tols.absolute, tols.relative * norm);
 }
 
@@ -94,7 +98,7 @@ bool IsSameSign(const T& x, const T& y) {
  * @return T modulus after division
  */
 template <typename T>
-constexpr T Mod(const T& x, const T& y,
+constexpr T mod(const T& x, const T& y,
                 const Tolerances<T>& tols = Tolerances<T>()) {
   static_assert(std::is_floating_point_v<T>, "EXPECTED_FLOATING_POINT_NUMBERS");
   using std::floor;
@@ -163,7 +167,7 @@ constexpr T wrapTo2Pi(T angle) {
  * @return constexpr T Angle in [-180, 180]
  */
 template <typename T>
-constexpr T WrapTo180(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
+constexpr T wrapTo180(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
   using std::fmod;
   const T res = fmod(angle + T(180), T(360), tols);
   return res <= T(0) ? res + T(180) : res - T(180);
@@ -178,7 +182,7 @@ constexpr T WrapTo180(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
  * @return constexpr T Angle in [0, 360]
  */
 template <typename T>
-constexpr T WrapTo360(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
+constexpr T wrapTo360(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
   using std::fmod;
   T res = fmod(angle, T(360), tols);
   return res < T{0} ? res + T{360} : res;
@@ -206,16 +210,24 @@ constexpr T rad2deg(T rad) noexcept {
   return T(180) / numbers::pi_v<T> * rad;
 }
 
+/**
+ * @brief Power function with compile-time integral power
+ *
+ * @details The name 'pown' is chosen to echo IEEE-754-18's extended power
+ * functions
+ *
+ * @tparam IntPow Integral power value
+ * @param value The power to be raised to power
+ * @return constexpr Scalar `value` raised to `IntPow`-th power
+ */
 template <int IntPow, typename Scalar>
-constexpr Scalar pow(Scalar value) {
-  static_assert(IntPow >= 0, "Negative powers are not supported");
-
+constexpr Scalar pown(Scalar value) {
   if constexpr (IntPow == 0) {
     return Scalar(1);
   } else if constexpr (IntPow == 1) {
     return value;
   } else {
-    return pow<IntPow - 1>(value) * value;
+    return pown<IntPow - 1>(value) * value;
   }
 }
 

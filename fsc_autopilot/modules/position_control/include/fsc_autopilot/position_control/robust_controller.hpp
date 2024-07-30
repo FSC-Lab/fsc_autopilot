@@ -25,52 +25,31 @@
 #include <string>
 
 #include "Eigen/Dense"
-#include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
+#include "fsc_autopilot/position_control/position_controller_base.hpp"
 
 namespace fsc {
-struct TrackingControllerError : public ContextBase {
-  [[nodiscard]] std::string name() const final {
-    return "tracking_controller.error";
-  }
-
-  bool int_flag{false};
-
-  Eigen::Vector3d position_error{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d velocity_error{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d feedback{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d thrust_setpoint{Eigen::Vector3d::Zero()};
-  double scalar_thrust_sp{0.0};  // thrust setpoint
-  double thrust_per_rotor{0.0};  // thrust per rotor
-};
-
-struct TrackingControllerParameters : public ParameterBase {
+struct RobustControllerParameters : public ParameterBase {
   using ParameterBase::load;
+  static constexpr double kDefaultMaxThrust{20};     // In Newtons
+  static constexpr double kDefaultMaxTiltAngle{45};  // In Degrees
+  static constexpr double kDefaultKpXY{1.5};
+  static constexpr double kDefaultKpZ{1.0};
+  static constexpr double kDefaultKvXY{5};
+  static constexpr double kDefaultKvZ{3};
 
   bool apply_pos_err_saturation{true};
-  static constexpr double kDefaultKpXY{1.0};
-  static constexpr double kDefaultKpZ{10.0};
-  Eigen::Vector3d k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};
-
   bool apply_vel_err_saturation{false};
-  static constexpr double kDefaultKvXY{1.5};
-  static constexpr double kDefaultKvZ{3.3};
-  Eigen::Vector3d k_vel{kDefaultKvXY, kDefaultKvXY, kDefaultKvZ};
   double min_thrust{0};
-
-  static constexpr double kDefaultMaxThrust{20};
   double max_thrust{kDefaultMaxThrust};
-
-  static constexpr double kDefaultMaxTiltAngle{45};
   double max_tilt_angle{kDefaultMaxTiltAngle};
-
-  static constexpr double kVehicleMassSentinel{-1.0};
-  double vehicle_mass{kVehicleMassSentinel};
-
-  std::string ude_type;
+  double vehicle_mass{-1.0};
+  PIDForm form;
+  Eigen::Vector3d k_pos{kDefaultKpXY, kDefaultKpXY, kDefaultKpZ};
+  Eigen::Vector3d k_vel{kDefaultKvXY, kDefaultKvXY, kDefaultKvZ};
 
   [[nodiscard]] bool valid(LoggerBase& logger) const override;
 
@@ -80,42 +59,41 @@ struct TrackingControllerParameters : public ParameterBase {
   [[nodiscard]] std::string toString() const override;
 
   [[nodiscard]] std::string parameterFor() const override {
-    return "tracking_controller";
+    return "robust_controller";
   }
 };
 
-class TrackingController final : public ControllerBase {
+class RobustController final : public PositionControllerBase {
  public:
-  using ParametersSharedPtr = std::shared_ptr<TrackingControllerParameters>;
-  using ParametersConstSharedPtr =
-      std::shared_ptr<const TrackingControllerParameters>;
+  using Parameters = RobustControllerParameters;
 
-  inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
+  RobustController() = default;
 
-  TrackingController() = default;
-
-  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
-                    ContextBase* error) override;
+  PositionControlResult run(const VehicleState& state,
+                            const PositionControllerReference& refs, double dt,
+                            ContextBase* error) override;
 
   bool setParams(const ParameterBase& params, LoggerBase& logger) override;
 
   [[nodiscard]] std::shared_ptr<ParameterBase> getParams(
       bool use_default) const override;
 
-  void toggleIntegration(bool value) override;
-
-  [[nodiscard]] std::string name() const final { return "tracking_controller"; }
+  [[nodiscard]] std::string name() const final { return "robust_controller"; }
 
  private:
-  double scalar_thrust_setpoint_{0.0};
-  bool params_valid_;
-
   bool apply_pos_err_saturation_{true};
   bool apply_vel_err_saturation_{false};
-  double vehicle_mass_;
-  double max_tilt_angle_;
-  Eigen::Vector3d k_pos_;
-  Eigen::Vector3d k_vel_;
+
+  // This is a 'safe' default; If users forgot to set this parameter, then the
+  // default mass 1kg will be unrealistically small, and their drones simply
+  // can't take off
+  double vehicle_mass_{1.0};
+  double max_tilt_angle_{0.0};
+  PIDForm form_{PIDForm::kIdeal};
+  Eigen::Vector3d k_pos_{Parameters::kDefaultKpXY, Parameters::kDefaultKpXY,
+                         Parameters::kDefaultKpZ};
+  Eigen::Vector3d k_vel_{Parameters::kDefaultKvXY, Parameters::kDefaultKvXY,
+                         Parameters::kDefaultKpZ};
   ThrustBounds<double> thrust_bnds_;
 };
 }  // namespace fsc
