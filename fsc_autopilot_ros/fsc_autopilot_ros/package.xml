@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>fsc_autopilot_ros</name>
-  <version>0.0.0</version>
+  <version>0.3.0</version>
   <description>Tracking Control</description>
   <maintainer email="hellston20a@gmail.com">Hs293Go</maintainer>
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20.0)
-project(fsc_autopilot_ros)
+project(fsc_autopilot_ros VERSION 0.3.0)
 
 find_package(fsc_autopilot REQUIRED)
 find_package(
