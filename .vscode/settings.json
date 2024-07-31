@@ -1,4 +1,6 @@
 {
     "cmake.configureOnEdit": false,
-    "C/C++ Include Guard.Path Depth": 2
+    "C/C++ Include Guard.Path Depth": 2,
+    "C_Cpp.formatting": "clangFormat",
+    "cmake.configureOnOpen": false
 }
