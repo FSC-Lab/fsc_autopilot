@@ -97,9 +97,9 @@ bool UDEParameters::load(const ParameterLoaderBase& loader,
       loader.param("lby", ude_lb.y()),        //
       loader.param("lbz", ude_lb.z());
 
-  ude_ub << loader.param("lbx", ude_ub.x()),  //
-      loader.param("lby", ude_ub.y()),        //
-      loader.param("lbz", ude_ub.z());
+  ude_ub << loader.param("ubx", ude_ub.x()),  //
+      loader.param("uby", ude_ub.y()),        //
+      loader.param("ubz", ude_ub.z());
 
   std::ignore = loader.getParam("height_threshold", ude_height_threshold);
   std::ignore = loader.getParam("gain", ude_gain);
@@ -108,6 +108,11 @@ bool UDEParameters::load(const ParameterLoaderBase& loader,
       logger->log(Severity::kError, "Failed to load parameter `vehicle_mass`");
     }
 
+    return false;
+  }
+
+  if (!valid()) {
+    logger->log(Severity::kError) << "Invalid parameters!\n" << toString();
     return false;
   }
   return true;
