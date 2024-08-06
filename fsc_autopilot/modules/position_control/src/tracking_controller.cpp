@@ -208,6 +208,10 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
       loader.param("k_vel/y", kDefaultKvXY),
       loader.param("k_vel/z", kDefaultKvZ);
 
+  int num_of_rotors_param;
+  std::ignore = loader.getParam("num_of_rotors", num_of_rotors_param);
+  num_of_rotors = num_of_rotors_param;
+
   if (!loader.getParam("vehicle_mass", vehicle_mass)) {
     if (logger) {
       logger->log(Severity::kError, "Failed to load parameter `vehicle_mass`");

@@ -1,0 +1,48 @@
+{
+  "motor_curve": [
+    0.12,
+    0.05
+  ],
+  "enable_inner_controller": false,
+  "check_reconfiguration": false,
+  "position_controller": {
+    "min_thrust": 0.0,
+    "max_thrust": 100.0,
+    "k_pos": {
+      "x": 1.5,
+      "y": 1.5,
+      "z": 1.0
+    },
+    "k_vel": {
+      "x": 5.0,
+      "y": 5.0,
+      "z": 3.0
+    },
+    "vehicle_mass": 1.7,
+    "num_of_rotors": 4,
+    "rate": 100,
+    "de": {
+      "type": "velocity_based",
+      "gain": 5.0,
+      "height_threshold": 0.2,
+      "is_velocity_based": true,
+      "vehicle_mass": 1.7,
+      "lbx": -30.0,
+      "lby": -30.0,
+      "lbz": -30.0,
+      "ubx": 30.0,
+      "uby": 30.0,
+      "ubz": 30.0
+    }
+  },
+  "attitude_controller": {
+    "rate": 100,
+    "enable_rate_feedforward": true,
+    "input_tc": 0.1,
+    "roll_p": 6.5,
+    "pitch_p": 6.5,
+    "yaw_p": 2,
+    "yawrate_p": 0.1,
+    "yawrate_max": 6.283185307179586
+  }
+}
