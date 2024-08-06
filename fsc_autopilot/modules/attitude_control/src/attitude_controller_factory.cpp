@@ -18,51 +18,54 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include "fsc_autopilot/ude/ude_factory.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 
 #include "fsc_autopilot/core/logger_base.hpp"
 
 namespace fsc {
-bool UDEFactory::Register(std::string name, Creator creator) {
+bool AttitudeControllerFactory::Register(std::string name, Creator creator) {
   auto [_, success] =
       registry_.try_emplace(std::move(name), std::move(creator));
   return success;
 }
 
-UDEFactory::ProductUniquePtr UDEFactory::Create(const std::string& name,
-                                                LoggerBase* logger) {
+AttitudeControllerFactory::ProductUniquePtr AttitudeControllerFactory::Create(
+    const std::string& name, LoggerBase* logger) {
   if (registry_.empty()) {
     if (logger) {
-      logger->log(Severity::kError, "No UDE have been registered");
+      logger->log(Severity::kError,
+                  "No AttitudeController have been registered");
       return {};
     }
   }
 
   if (name.empty()) {
     if (logger) {
-      logger->log(Severity::kError) << "UDE name is empty";
+      logger->log(Severity::kError) << "AttitudeController name is empty";
       return {};
     }
   }
 
   if (auto it = registry_.find(name); it != registry_.end()) {
     if (logger) {
-      logger->log(Severity::kInfo) << "Creating `" << name << "` UDE";
+      logger->log(Severity::kInfo)
+          << "Creating `" << name << "` AttitudeController";
     }
     return it->second();
   }
 
   if (logger) {
     std::vector<std::string> ude_types(registry_.size());
-    fsc::UDEFactory::GetRegistryKeys(ude_types.begin());
+    fsc::AttitudeControllerFactory::GetRegistryKeys(ude_types.begin());
     std::ostringstream oss;
     oss << ude_types.front();
     for (auto it = std::next(ude_types.begin()); it != ude_types.end(); ++it) {
       oss << ", " << *it;
     }
-    logger->log(Severity::kError)
-        << "Failed to create [" << name
-        << "]: Not a UDE. Available UDE types are: " << oss.str();
+    logger->log(Severity::kError) << "Failed to create [" << name
+                                  << "]: Not a AttitudeController. Available "
+                                     "AttitudeController types are: "
+                                  << oss.str();
   }
   return {};
 }

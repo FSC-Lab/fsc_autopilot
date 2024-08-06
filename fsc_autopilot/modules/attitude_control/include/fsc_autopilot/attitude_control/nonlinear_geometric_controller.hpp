@@ -24,7 +24,7 @@
 #include <string>
 
 #include "Eigen/Dense"
-#include "fsc_autopilot/core/controller_base.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 
 namespace fsc {
 
@@ -32,15 +32,17 @@ struct NonlinearGeometricControllerParameters {
   double time_constant;
 };
 
-struct NonlinearGeometricController : public ControllerBase {
+class NonlinearGeometricController : public AttitudeControllerBase {
+ public:
   using Parameters = NonlinearGeometricControllerParameters;
 
   NonlinearGeometricController() = default;
 
   explicit NonlinearGeometricController(Parameters params);
 
-  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
-                    ContextBase* error) override;
+  AttitudeControlResult run(const VehicleState& state,
+                            const AttitudeReference& refs, double dt,
+                            ContextBase* error) override;
 
   [[nodiscard]] const Parameters& params() const { return params_; }
 

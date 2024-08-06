@@ -27,6 +27,7 @@
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 
@@ -123,6 +124,11 @@ class ControllerBase {
   }
 
   virtual bool setParams(const fsc::ParameterBase& params, LoggerBase* logger) {
+    return false;
+  }
+
+  virtual bool loadParams(const fsc::ParameterLoaderBase& loader,
+                          LoggerBase* logger) {
     return false;
   }
 

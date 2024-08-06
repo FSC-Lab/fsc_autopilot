@@ -22,6 +22,7 @@
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/attitude_control/control.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
@@ -31,20 +32,21 @@
 
 namespace fsc {
 
-ControlResult APMAttitudeController::run(const VehicleState& state,
-                                         const Reference& refs, double dt,
-                                         [[maybe_unused]] ContextBase* error) {
+AttitudeControlResult APMAttitudeController::run(
+    const VehicleState& state, const AttitudeReference& refs, double dt,
+    [[maybe_unused]] ContextBase* error) {
   if (dt <= 0) {
-    return {getFallBackSetpoint(), ControllerErrc::kTimestepError};
+    return {VehicleInput{ThrustRates{0.0, Eigen::Vector3d::Zero()}},
+            ControllerErrc::kTimestepError};
   }
 
+  const auto [orientation_ref, heading_angle, heading_rate_raw] = refs;
   const auto slew_yaw_max = ang_vel_max_.z();
   const auto heading_rate =
-      std::clamp(refs.yaw_rate, -slew_yaw_max, slew_yaw_max);
-  const auto heading_angle = refs.yaw;
+      std::clamp(heading_rate_raw, -slew_yaw_max, slew_yaw_max);
 
   // convert thrust vector and heading to a quaternion attitude
-  const Eigen::Quaterniond desired_attitude_quat = refs.state.pose.orientation;
+  const Eigen::Quaterniond desired_attitude_quat = refs.orientation;
 
   if (rate_bf_ff_enabled_) {
     // calculate the angle error in x and y.
@@ -79,7 +81,7 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
   auto [ang_vel_body, attitude_error] = attitudeControllerRunQuat(
       state.pose.orientation, state.twist.angular, dt);
 
-  AttitudeControlError* err;
+  AttitudeControlError* err = nullptr;
   if ((error != nullptr) && error->name() == "attitude_control_error") {
     err = static_cast<decltype(err)>(error);
   }
@@ -88,8 +90,7 @@ ControlResult APMAttitudeController::run(const VehicleState& state,
     err->attitude_error = attitude_error;
   }
 
-  return {Setpoint{{}, VehicleInput{0.0, ang_vel_body}},
-          ControllerErrc::kSuccess};
+  return {VehicleInput{0.0, ang_vel_body}, ControllerErrc::kSuccess};
 }
 
 auto APMAttitudeController::attitudeControllerRunQuat(
@@ -262,4 +263,5 @@ std::string APMAttitudeControllerParams::toString() const {
   return oss.str();
 }
 
+REGISTER_ATTITUDE_CONTROLLER(APMAttitudeController, "apm");
 }  // namespace fsc

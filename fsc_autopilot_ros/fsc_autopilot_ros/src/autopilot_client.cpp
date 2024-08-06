@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
@@ -39,6 +40,10 @@ using namespace std::string_literals;  // NOLINT
 
 AutopilotClient::AutopilotClient() {
   ros::NodeHandle pnh("~");
+  auto attitude_controller_type =
+      pnh.param("attitude_controller_type", "simple"s);
+  att_ctrl_ = fsc::AttitudeControllerFactory::Create(attitude_controller_type,
+                                                     &logger_);
   if (!loadParams()) {
     throw ros::InvalidParameterException("Got invalid parameters");
   }
@@ -145,7 +150,7 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
       std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
   // define output messages
   if (enable_inner_controller_) {
-    inner_ref_.state.pose.orientation = orientation_sp;
+    inner_ref_.orientation = orientation_sp;
   } else {
     cmd_.header.stamp = event.current_real;
     cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
@@ -167,12 +172,12 @@ void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
 
   fsc::AttitudeControlError att_ctrl_err;
   const auto& [att_ctrl_out, inner_success] =
-      att_ctrl_.run(state_, inner_ref_, dt, &att_ctrl_err);
+      att_ctrl_->run(state_, inner_ref_, dt, &att_ctrl_err);
 
   if (enable_inner_controller_) {
     cmd_.header.stamp = event.current_real;
     cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
-    tf2::toMsg(att_ctrl_out.input.thrust_rates().body_rates, cmd_.body_rate);
+    tf2::toMsg(att_ctrl_out.thrust_rates().body_rates, cmd_.body_rate);
     setpoint_pub_.publish(cmd_);
 
     geometry_msgs::Vector3Stamped attitude_error_msg;
@@ -216,7 +221,7 @@ bool AutopilotClient::loadParams() {
     ROS_FATAL("Failed to load attitude controller parameters");
     return false;
   }
-  if (!att_ctrl_.setParams(ac_params_, &logger_)) {
+  if (!att_ctrl_->setParams(ac_params_, &logger_)) {
     ROS_FATAL("Failed to set attitude controller parameters");
     return false;
   }
@@ -284,7 +289,7 @@ void AutopilotClient::dynamicReconfigureCb(
 
   const Eigen::Vector3d kp_angle_prev =
       std::exchange(ac_params_.kp_angle, kp_angle_new);
-  att_ctrl_.setParams(ac_params_, &logger_);
+  att_ctrl_->setParams(ac_params_, &logger_);
 
   const auto& position_tracking = tracker.position_tracking;
   const auto apply_pos_err_saturation_prev =

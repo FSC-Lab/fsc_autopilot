@@ -18,25 +18,23 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef FSC_AUTOPILOT_UDE_UDE_FACTORY_HPP_
-#define FSC_AUTOPILOT_UDE_UDE_FACTORY_HPP_
+#ifndef FSC_AUTOPILOT_ATTITUDE_CONTROL_ATTITUDE_CONTROLLER_FACTORY_HPP_
+#define FSC_AUTOPILOT_ATTITUDE_CONTROL_ATTITUDE_CONTROLLER_FACTORY_HPP_
 
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <utility>
 
+#include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/core/factory_support.hpp"
-#include "fsc_autopilot/core/logger_base.hpp"
-#include "fsc_autopilot/ude/ude_base.hpp"
 
 namespace fsc {
-class UDEFactory {
+class AttitudeControllerFactory {
  public:
-  using ProductUniquePtr = std::unique_ptr<UDEBase>;
+  using ProductUniquePtr = std::unique_ptr<AttitudeControllerBase>;
   using Creator = std::function<ProductUniquePtr()>;
 
-  UDEFactory() = delete;
+  AttitudeControllerFactory() = delete;
 
   static bool Register(std::string name, Creator creator);
 
@@ -56,11 +54,11 @@ class UDEFactory {
 };
 
 template <typename T>
-using UDERegistrar = Registrar<T, UDEFactory>;
+using AttitudeControllerRegistrar = Registrar<T, AttitudeControllerFactory>;
 
-#define REGISTER_UDE(UDE, name) \
-  static const UDERegistrar<UDE> kUdeRegistrarFor##UDE((name))
+#define REGISTER_ATTITUDE_CONTROLLER(AC, name) \
+  static const AttitudeControllerRegistrar<AC> kUdeRegistrarFor##AC((name))
 
 }  // namespace fsc
 
-#endif  // FSC_AUTOPILOT_UDE_UDE_FACTORY_HPP_
+#endif  // FSC_AUTOPILOT_ATTITUDE_CONTROL_ATTITUDE_CONTROLLER_FACTORY_HPP_

@@ -21,11 +21,10 @@
 #ifndef FSC_AUTOPILOT_ATTITUDE_CONTROL_APM_ATTITUDE_CONTROLLER_HPP_
 #define FSC_AUTOPILOT_ATTITUDE_CONTROL_APM_ATTITUDE_CONTROLLER_HPP_
 
-#include <memory>
 #include <string>
 
 #include "Eigen/Dense"
-#include "fsc_autopilot/core/controller_base.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
@@ -73,7 +72,7 @@ struct APMAttitudeControllerParams final : public ParameterBase {
 
 // Thrust angle error above which yaw corrections are limited
 
-class APMAttitudeController : public ControllerBase {
+class APMAttitudeController : public AttitudeControllerBase {
  public:
   using Parameters = APMAttitudeControllerParams;
   APMAttitudeController() = default;
@@ -83,8 +82,9 @@ class APMAttitudeController : public ControllerBase {
     Eigen::Vector3d error;
   };
 
-  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
-                    [[maybe_unused]] ContextBase* error) override;
+  AttitudeControlResult run(const VehicleState& state,
+                            const AttitudeReference& refs, double dt,
+                            [[maybe_unused]] ContextBase* error) override;
 
   SetpointAndError attitudeControllerRunQuat(
       const Eigen::Quaterniond& orientation, const Eigen::Vector3d& body_rates,

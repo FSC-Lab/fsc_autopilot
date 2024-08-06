@@ -21,6 +21,8 @@
 #include "fsc_autopilot/attitude_control/nonlinear_geometric_controller.hpp"
 
 #include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
+#include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
@@ -30,11 +32,11 @@ namespace fsc {
 NonlinearGeometricController::NonlinearGeometricController(Parameters params)
     : params_(params) {}
 
-ControlResult NonlinearGeometricController::run(
-    const VehicleState& state, const Reference& refs, double dt,
+AttitudeControlResult NonlinearGeometricController::run(
+    const VehicleState& state, const AttitudeReference& refs, double dt,
     [[maybe_unused]] ContextBase* error) {
   const auto rotmat = state.pose.orientation.toRotationMatrix();
-  const auto rotmat_sp = refs.state.pose.orientation.toRotationMatrix();
+  const auto rotmat_sp = refs.orientation.toRotationMatrix();
 
   AttitudeControlError* err;
   if ((error != nullptr) && error->name() == "attitude_control_error") {
@@ -49,8 +51,8 @@ ControlResult NonlinearGeometricController::run(
       -2.0 / params_.time_constant * err->attitude_error;
 
   ControlResult result;
-  result.ec = ControllerErrc::kSuccess;
-  result.setpoint.input = VehicleInput{-1.0, body_rate_sp};
-  return result;
+  return {VehicleInput{-1.0, body_rate_sp}, ControllerErrc::kSuccess};
 }
+
+REGISTER_ATTITUDE_CONTROLLER(NonlinearGeometricController, "simple");
 }  // namespace fsc

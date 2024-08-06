@@ -3,6 +3,7 @@
     0.36,
     0.082
   ],
+  "attitude_controller_type": "simple",
   "enable_inner_controller": true,
   "check_reconfiguration": false,
   "position_controller": {
@@ -35,7 +36,7 @@
     "input_tc": 1.5,
     "roll_p": 6.5,
     "pitch_p": 6.5,
-    "yaw_p": 2,
+    "yaw_p": 7.0,
     "yawrate_p": 0,
     "yawrate_max": 10.471975511965976
   }

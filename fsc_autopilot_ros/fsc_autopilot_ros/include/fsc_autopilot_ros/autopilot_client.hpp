@@ -27,9 +27,9 @@
 
 #include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
+#include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/math/polynomial.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
-#include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot_msgs/TrackingReference.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
 #include "fsc_autopilot_ros/ros_support.hpp"
@@ -44,7 +44,6 @@ namespace nodelib {
 
 class AutopilotClient {
  public:
-  using AttitudeController = fsc::APMAttitudeController;
   using TrackingController = fsc::TrackingController;
 
   using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
@@ -75,12 +74,12 @@ class AutopilotClient {
   bool check_reconfiguration_{true};
   ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;
-  AttitudeController att_ctrl_;
+  std::unique_ptr<fsc::AttitudeControllerBase> att_ctrl_;
 
   fsc::VehicleState state_;
 
   fsc::Reference outer_ref_;
-  fsc::Reference inner_ref_;
+  fsc::AttitudeReference inner_ref_;
 
   fsc::APMAttitudeControllerParams ac_params_;
   fsc::TrackingControllerParameters tc_params_;
