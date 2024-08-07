@@ -9,9 +9,9 @@
 namespace fsc {
 
 struct AttitudeReference {
-  Eigen::Quaterniond orientation;
-  double yaw;
-  double yaw_rate;
+  Eigen::Quaterniond orientation{Eigen::Quaterniond::Identity()};
+  double yaw{0.0};
+  double yaw_rate{0.0};
 };
 
 struct AttitudeControlResult {
