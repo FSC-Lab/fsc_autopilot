@@ -93,14 +93,13 @@ void AutopilotClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
   // the estimation only provides position measurement
   odom_last_recv_time_ = msg->header.stamp;
   tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
-  tf2::fromMsg(msg->pose.pose.orientation, state_.pose.orientation);
   tf2::fromMsg(msg->twist.twist.linear, state_.twist.linear);
-  tf2::fromMsg(msg->twist.twist.angular, state_.twist.angular);
 }
 
 void AutopilotClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
   imu_last_recv_time_ = msg->header.stamp;
   tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
+  tf2::fromMsg(msg->angular_velocity, state_.twist.angular);
   tf2::fromMsg(msg->orientation, state_.pose.orientation);
 }
 
