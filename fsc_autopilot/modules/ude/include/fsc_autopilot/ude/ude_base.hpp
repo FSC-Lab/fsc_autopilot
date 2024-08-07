@@ -96,29 +96,37 @@ enum class UDEType {
 struct UDEParameters : public ParameterBase {
   using ParameterBase::load;
 
-  static constexpr double kDefaultDEGain{1.0};
-  double ude_gain{kDefaultDEGain};
+  [[nodiscard]] bool valid(LoggerBase& logger) const override {
+    if ((ude_lb.array() >= ude_ub.array()).any()) {
+      logger.log(Severity::kError,
+                 "`ude_lb` must all be strictly less than `ude_lb`");
+      return false;
+    }
 
-  static constexpr double kDefaultDEHeightThreshold{0.1};
-  double ude_height_threshold{kDefaultDEHeightThreshold};
-
-  static constexpr double kVehicleMassSentinel{-1.0};
-  double vehicle_mass{kVehicleMassSentinel};
-
-  static constexpr double kDefaultUDEBounds{5};
-  Eigen::Vector3d ude_lb{Eigen::Vector3d::Constant(-kDefaultUDEBounds)};
-  Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
-
-  [[nodiscard]] bool valid() const override {
-    return (ude_lb.array() < ude_ub.array()).all() && vehicle_mass > 0.0;
+    if (vehicle_mass < 0.0) {
+      logger.log(Severity::kError, "`vehicle_mass` must be positive");
+      return false;
+    }
+    return true;
   }
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
-                          LoggerBase* logger) override;
+                          LoggerBase& logger) override;
 
   [[nodiscard]] std::string toString() const override;
 
   [[nodiscard]] std::string parameterFor() const override { return "ude"; }
+
+  static constexpr double kDefaultDEGain{1.0};
+  static constexpr double kDefaultDEHeightThreshold{0.1};
+  static constexpr double kVehicleMassSentinel{-1.0};
+  static constexpr double kDefaultUDEBounds{5};
+
+  double ude_gain{kDefaultDEGain};
+  double ude_height_threshold{kDefaultDEHeightThreshold};
+  double vehicle_mass{kVehicleMassSentinel};
+  Eigen::Vector3d ude_lb{Eigen::Vector3d::Constant(-kDefaultUDEBounds)};
+  Eigen::Vector3d ude_ub{Eigen::Vector3d::Constant(kDefaultUDEBounds)};
 };
 
 struct UDEState final : public ContextBase {
@@ -143,7 +151,20 @@ class UDEBase {
   UDEErrc update(const VehicleState& state, const VehicleInput& input,
                  double dt, ContextBase* error);
 
-  bool setParams(const UDEParameters& params);
+  bool setParams(const UDEParameters& params, LoggerBase& logger);
+
+  [[nodiscard]] UDEParameters getParams(bool use_default) const {
+    if (use_default) {
+      return {};
+    }
+    UDEParameters params;
+    params.ude_gain = ude_gain_;
+    params.ude_height_threshold = ude_height_threshold_;
+    params.vehicle_mass = vehicle_mass_;
+    params.ude_lb = ude_lb_;
+    params.ude_ub = ude_ub_;
+    return params;
+  }
 
   [[nodiscard]] virtual bool getEstimate(
       Eigen::Ref<Eigen::VectorXd> estimate) const;

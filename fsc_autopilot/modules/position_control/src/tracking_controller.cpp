@@ -20,9 +20,12 @@
 
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 
+#include <iostream>
+
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
 #include "fsc_autopilot/ude/ude_factory.hpp"
@@ -132,16 +135,14 @@ ControlResult TrackingController::run(const VehicleState& state,
 }
 
 bool TrackingController::setParams(const ParameterBase& params,
-                                   LoggerBase* logger) {
+                                   LoggerBase& logger) {
   if (params.parameterFor() != "tracking_controller") {
-    LOG_OPTIONAL(logger, Severity::kError,
-                 "Mismatch in parameter and receiver");
+    logger.log(Severity::kError, "Mismatch in parameter and receiver");
 
     return true;
   }
 
-  if (!params.valid()) {
-    LOG_OPTIONAL(logger, Severity::kError, "Parameters are invalid");
+  if (!params.valid(logger)) {
     return false;
   }
 
@@ -162,13 +163,36 @@ bool TrackingController::setParams(const ParameterBase& params,
     }
     ude_ = std::move(ude);
   }
-  if (!ude_->setParams(p.ude_params)) {
-    LOG_OPTIONAL(logger, Severity::kError, "Failed to set UDE parameters");
+  if (!ude_->setParams(p.ude_params, logger)) {
+    logger.log(Severity::kError, "Failed to set UDE parameters");
     return false;
   }
 
   params_valid_ = true;
   return true;
+}
+
+std::shared_ptr<ParameterBase> TrackingController::getParams(
+    bool use_default) const {
+  if (use_default) {
+    return std::make_shared<TrackingControllerParameters>();
+  }
+  TrackingControllerParameters params;
+
+  params.apply_pos_err_saturation = apply_pos_err_saturation_;
+  params.k_pos = k_pos_;
+  params.apply_vel_err_saturation = apply_vel_err_saturation_;
+  params.k_vel = k_vel_;
+  params.min_thrust = thrust_bnds_.lower;
+  params.max_thrust = thrust_bnds_.upper;
+  params.max_tilt_angle = max_tilt_angle_;
+  params.vehicle_mass = vehicle_mass_;
+  params.num_of_rotors = num_rotors_;
+  if (ude_) {
+    params.ude_params = ude_->getParams(false);
+  }
+
+  return std::make_shared<TrackingControllerParameters>(std::move(params));
 }
 
 void TrackingController::toggleIntegration(bool value) {
@@ -191,9 +215,22 @@ std::string TrackingControllerParameters::toString() const {
 
   return oss.str();
 }
+bool TrackingControllerParameters::valid(LoggerBase& logger) const {
+  if (min_thrust >= max_thrust) {
+    logger.log(Severity::kError,
+               "`min_thrust` must be strictly less than `max_thrust`");
+    return false;
+  }
+
+  if (vehicle_mass < 0.0) {
+    logger.log(Severity::kError, "`vehicle_mass` must be positive");
+    return false;
+  }
+  return true;
+}
 
 bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
-                                        LoggerBase* logger) {
+                                        LoggerBase& logger) {
   std::ignore =
       loader.getParam("apply_pos_err_saturation", apply_pos_err_saturation);
   k_pos <<  // Force a line break
@@ -213,9 +250,7 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
   num_of_rotors = num_of_rotors_param;
 
   if (!loader.getParam("vehicle_mass", vehicle_mass)) {
-    if (logger) {
-      logger->log(Severity::kError, "Failed to load parameter `vehicle_mass`");
-    }
+    logger.log(Severity::kError, "Failed to load parameter `vehicle_mass`");
     return false;
   }
 

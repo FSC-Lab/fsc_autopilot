@@ -20,17 +20,18 @@
 
 #include "fsc_autopilot/attitude_control/nonlinear_geometric_controller.hpp"
 
+#include <memory>
+#include <utility>
+
 #include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
 #include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
 
 namespace fsc {
-
-NonlinearGeometricController::NonlinearGeometricController(Parameters params)
-    : params_(params) {}
 
 AttitudeControlResult NonlinearGeometricController::run(
     const VehicleState& state, const AttitudeReference& refs, double dt,
@@ -48,11 +49,61 @@ AttitudeControlResult NonlinearGeometricController::run(
                         2;
 
   const Eigen::Vector3d body_rate_sp =
-      -2.0 / params_.time_constant * err->attitude_error;
+      -2.0 / time_constant_ * err->attitude_error;
 
   ControlResult result;
   return {VehicleInput{-1.0, body_rate_sp}, ControllerErrc::kSuccess};
 }
 
+bool NonlinearGeometricController::setParams(const ParameterBase& params,
+                                             LoggerBase& logger) {
+  if (params.parameterFor() != "simple_attitude_controller") {
+    logger.log(Severity::kError, "Mismatch in parameter and receiver");
+    return false;
+  }
+  time_constant_ =
+      static_cast<const NonlinearGeometricControllerParameters&>(params)
+          .time_constant;
+  return true;
+}
+
+std::shared_ptr<ParameterBase> NonlinearGeometricController::getParams(
+    bool use_default) const {
+  if (use_default) {
+    return std::make_shared<NonlinearGeometricControllerParameters>();
+  }
+
+  NonlinearGeometricControllerParameters params;
+  params.time_constant = time_constant_;
+  return std::make_shared<NonlinearGeometricControllerParameters>(
+      std::move(params));
+}
+
+bool NonlinearGeometricControllerParameters::valid(LoggerBase& logger) const {
+  if (time_constant < 0.0) {
+    logger.log(Severity::kError, "`time_constant` must be positive");
+    return false;
+  }
+  return true;
+}
+
+std::string NonlinearGeometricControllerParameters::toString() const {
+  std::ostringstream oss;
+  oss << "Simple Attitude Controller parameters:\ntime_constant: "
+      << time_constant;
+  return oss.str();
+}
+
+std::string NonlinearGeometricControllerParameters::parameterFor() const {
+  return "simple_attitude_controller";
+}
+
+bool NonlinearGeometricControllerParameters::load(
+    const ParameterLoaderBase& loader, LoggerBase& logger) {
+  std::ignore = loader.getParam("time_constant", time_constant);
+  return true;
+}
+
 REGISTER_ATTITUDE_CONTROLLER(NonlinearGeometricController, "simple");
+
 }  // namespace fsc

@@ -21,15 +21,27 @@
 #ifndef FSC_AUTOPILOT_ATTITUDE_CONTROL_NONLINEAR_GEOMETRIC_CONTROLLER_HPP_
 #define FSC_AUTOPILOT_ATTITUDE_CONTROL_NONLINEAR_GEOMETRIC_CONTROLLER_HPP_
 
+#include <memory>
 #include <string>
 
 #include "Eigen/Dense"
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
+#include "fsc_autopilot/core/logger_base.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 
 namespace fsc {
 
-struct NonlinearGeometricControllerParameters {
-  double time_constant;
+struct NonlinearGeometricControllerParameters : public ParameterBase {
+  double time_constant{1.0};
+
+  [[nodiscard]] bool valid(LoggerBase& logger) const override;
+
+  [[nodiscard]] std::string toString() const override;
+
+  [[nodiscard]] std::string parameterFor() const override;
+
+  [[nodiscard]] bool load(const ParameterLoaderBase& loader,
+                          LoggerBase& logger) override;
 };
 
 class NonlinearGeometricController : public AttitudeControllerBase {
@@ -38,22 +50,21 @@ class NonlinearGeometricController : public AttitudeControllerBase {
 
   NonlinearGeometricController() = default;
 
-  explicit NonlinearGeometricController(Parameters params);
-
   AttitudeControlResult run(const VehicleState& state,
                             const AttitudeReference& refs, double dt,
                             ContextBase* error) override;
 
-  [[nodiscard]] const Parameters& params() const { return params_; }
-
-  Parameters& params() { return params_; }
-
   [[nodiscard]] std::string name() const final {
-    return "nonlinear_geometric_controller";
+    return "simple_attitude_controller";
   }
 
+  bool setParams(const ParameterBase& params, LoggerBase& logger) override;
+
+  [[nodiscard]] std::shared_ptr<ParameterBase> getParams(
+      bool use_default) const override;
+
  private:
-  Parameters params_;
+  double time_constant_{1.0};
 };
 }  // namespace fsc
 

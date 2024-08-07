@@ -21,6 +21,7 @@
 #ifndef FSC_AUTOPILOT_CORE_CONTROLLER_BASE_HPP_
 #define FSC_AUTOPILOT_CORE_CONTROLLER_BASE_HPP_
 
+#include <memory>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -123,13 +124,14 @@ class ControllerBase {
     return {VehicleState{}, VehicleInput{0.0, Eigen::Quaterniond::Identity()}};
   }
 
-  virtual bool setParams(const fsc::ParameterBase& params, LoggerBase* logger) {
+  virtual bool setParams(const ParameterBase& params, LoggerBase& logger) {
+    logger.log(Severity::kInternalError,
+               "Extending class left `setParams` unspecialized");
     return false;
   }
 
-  virtual bool loadParams(const fsc::ParameterLoaderBase& loader,
-                          LoggerBase* logger) {
-    return false;
+  [[nodiscard]] virtual std::shared_ptr<ParameterBase> getParams(bool use_default) const {
+    return nullptr;
   }
 
   virtual void toggleIntegration(bool value) {}

@@ -30,40 +30,32 @@ bool UDEFactory::Register(std::string name, Creator creator) {
 }
 
 UDEFactory::ProductUniquePtr UDEFactory::Create(const std::string& name,
-                                                LoggerBase* logger) {
+                                                LoggerBase& logger) {
   if (registry_.empty()) {
-    if (logger) {
-      logger->log(Severity::kError, "No UDE have been registered");
-      return {};
-    }
+    logger.log(Severity::kError, "No UDE have been registered");
+    return {};
   }
 
   if (name.empty()) {
-    if (logger) {
-      logger->log(Severity::kError) << "UDE name is empty";
-      return {};
-    }
+    logger.log(Severity::kError) << "UDE name is empty";
+    return {};
   }
 
   if (auto it = registry_.find(name); it != registry_.end()) {
-    if (logger) {
-      logger->log(Severity::kInfo) << "Creating `" << name << "` UDE";
-    }
+    logger.log(Severity::kInfo) << "Creating `" << name << "` UDE";
     return it->second();
   }
 
-  if (logger) {
-    std::vector<std::string> ude_types(registry_.size());
-    fsc::UDEFactory::GetRegistryKeys(ude_types.begin());
-    std::ostringstream oss;
-    oss << ude_types.front();
-    for (auto it = std::next(ude_types.begin()); it != ude_types.end(); ++it) {
-      oss << ", " << *it;
-    }
-    logger->log(Severity::kError)
-        << "Failed to create [" << name
-        << "]: Not a UDE. Available UDE types are: " << oss.str();
+  std::vector<std::string> ude_types(registry_.size());
+  fsc::UDEFactory::GetRegistryKeys(ude_types.begin());
+  std::ostringstream oss;
+  oss << ude_types.front();
+  for (auto it = std::next(ude_types.begin()); it != ude_types.end(); ++it) {
+    oss << ", " << *it;
   }
+  logger.log(Severity::kError)
+      << "Failed to create [" << name
+      << "]: Not a UDE. Available UDE types are: " << oss.str();
   return {};
 }
 }  // namespace fsc

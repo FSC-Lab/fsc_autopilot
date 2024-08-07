@@ -21,6 +21,7 @@
 #ifndef FSC_AUTOPILOT_ATTITUDE_CONTROL_APM_ATTITUDE_CONTROLLER_HPP_
 #define FSC_AUTOPILOT_ATTITUDE_CONTROL_APM_ATTITUDE_CONTROLLER_HPP_
 
+#include <memory>
 #include <string>
 
 #include "Eigen/Dense"
@@ -34,32 +35,9 @@ namespace fsc {
 struct APMAttitudeControllerParams final : public ParameterBase {
   using ParameterBase::load;
 
-  static constexpr double kDefaultAngleP = 4.5;
-  static constexpr double kMaxRollPitchAccelDefaultCdss =
-      110000.0;  // default maximum acceleration for roll/pitch axis in
-                 // centidegrees/sec/sec
-  static constexpr double kMaxYawAccelDefaultCdss =
-      27000.0;  // default maximum acceleration for yaw axis in
-                // centidegrees/sec/sec
-  bool rate_bf_ff_enabled{true};
-  bool use_sqrt_controller{true};
-  double input_tc{1.0};
-  Eigen::Vector3d kp_angle{Eigen::Vector3d::Constant(kDefaultAngleP)};
-  Eigen::Vector3d ang_accel_max{deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
-                                deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
-                                deg2rad(kMaxYawAccelDefaultCdss / 100.0)};
-  Eigen::Vector3d ang_vel_max{Eigen::Vector3d::Zero()};
-
-  static constexpr double kDefaultYawRateP = 0.180;
-  double kp_yawrate{kDefaultYawRateP};
-
   [[nodiscard]] double slew_yaw_max() const { return ang_vel_max.z(); }
 
-  [[nodiscard]] bool valid() const override {
-    return input_tc > 0 && (kp_angle.array() >= 0.0).all() &&
-           (ang_accel_max.array() >= 0.0).all() &&
-           (ang_vel_max.array() >= 0.0).all();
-  }
+  [[nodiscard]] bool valid(LoggerBase& logger) const override;
 
   [[nodiscard]] std::string parameterFor() const override {
     return "apm_attitude_controller";
@@ -67,7 +45,28 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   [[nodiscard]] std::string toString() const override;
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
-                          LoggerBase* logger) override;
+                          LoggerBase& logger) override;
+
+  static constexpr double kDefaultAngleP = 4.5;
+
+  // default maximum acceleration for roll/pitch axis in centidegrees/sec/sec
+  static constexpr double kMaxRollPitchAccelDefaultCdss = 110000.0;
+
+  // default maximum acceleration for yaw axis in centidegrees/sec/sec
+  static constexpr double kMaxYawAccelDefaultCdss = 27000.0;
+
+  static constexpr double kDefaultYawRateP = 0.180;
+
+  bool rate_bf_ff_enabled{true};
+  bool use_sqrt_controller{true};
+  double input_tc{1.0};
+  double kp_yawrate{kDefaultYawRateP};
+
+  Eigen::Vector3d kp_angle{Eigen::Vector3d::Constant(kDefaultAngleP)};
+  Eigen::Vector3d ang_accel_max{deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
+                                deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
+                                deg2rad(kMaxYawAccelDefaultCdss / 100.0)};
+  Eigen::Vector3d ang_vel_max{Eigen::Vector3d::Zero()};
 };
 
 // Thrust angle error above which yaw corrections are limited
@@ -94,7 +93,10 @@ class APMAttitudeController : public AttitudeControllerBase {
     return "apm_attitude_controller";
   }
 
-  bool setParams(const ParameterBase& params, LoggerBase* logger) override;
+  bool setParams(const ParameterBase& params, LoggerBase& logger) override;
+
+  [[nodiscard]] std::shared_ptr<ParameterBase> getParams(
+      bool use_default) const override;
 
  private:
   [[nodiscard]] Eigen::Vector3d updateAngVelTargetFromAttError(

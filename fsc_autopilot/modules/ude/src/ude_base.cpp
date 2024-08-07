@@ -21,6 +21,7 @@
 #include "fsc_autopilot/ude/ude_base.hpp"
 
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 
 namespace fsc {
@@ -59,8 +60,8 @@ UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
   return UDEErrc::kSuccess;
 }
 
-bool UDEBase::setParams(const UDEParameters& params) {
-  if (!params.valid()) {
+bool UDEBase::setParams(const UDEParameters& params, LoggerBase& logger) {
+  if (!params.valid(logger)) {
     return false;
   }
   vehicle_mass_ = params.vehicle_mass;
@@ -92,7 +93,7 @@ std::string UDEParameters::toString() const {
 }
 
 bool UDEParameters::load(const ParameterLoaderBase& loader,
-                         LoggerBase* logger) {
+                         LoggerBase& logger) {
   ude_lb << loader.param("lbx", ude_lb.x()),  //
       loader.param("lby", ude_lb.y()),        //
       loader.param("lbz", ude_lb.z());
@@ -104,15 +105,13 @@ bool UDEParameters::load(const ParameterLoaderBase& loader,
   std::ignore = loader.getParam("height_threshold", ude_height_threshold);
   std::ignore = loader.getParam("gain", ude_gain);
   if (!loader.getParam("vehicle_mass", vehicle_mass)) {
-    if (logger) {
-      logger->log(Severity::kError, "Failed to load parameter `vehicle_mass`");
-    }
+    logger.log(Severity::kError, "Failed to load parameter `vehicle_mass`");
 
     return false;
   }
 
-  if (!valid()) {
-    logger->log(Severity::kError) << "Invalid parameters!\n" << toString();
+  if (!valid(logger)) {
+    logger.log(Severity::kError) << "Invalid parameters!\n" << toString();
     return false;
   }
   return true;

@@ -61,7 +61,7 @@ class ParameterBase {
  public:
   virtual ~ParameterBase() = default;
 
-  [[nodiscard]] virtual bool valid() const = 0;
+  [[nodiscard]] virtual bool valid(LoggerBase& logger) const = 0;
 
   [[nodiscard]] virtual std::string parameterFor() const = 0;
 
@@ -69,9 +69,15 @@ class ParameterBase {
     return parameterFor() + ".parameters";
   }
 
-  bool load(const ParameterLoaderBase& loader) { return load(loader, nullptr); }
-
-  virtual bool load(const ParameterLoaderBase& loader, LoggerBase* logger) = 0;
+  /**
+   * @brief Loads parameters via a
+   *
+   * @param loader a parameter loader object
+   * @param logger
+   * @return true
+   * @return false
+   */
+  virtual bool load(const ParameterLoaderBase& loader, LoggerBase& logger) = 0;
 
   [[nodiscard]] virtual std::string toString() const = 0;
 };

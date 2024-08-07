@@ -81,8 +81,6 @@ class AutopilotClient {
   fsc::Reference outer_ref_;
   fsc::AttitudeReference inner_ref_;
 
-  fsc::APMAttitudeControllerParams ac_params_;
-  fsc::TrackingControllerParameters tc_params_;
   ros::Time odom_last_recv_time_;
   ros::Time imu_last_recv_time_;
   ros::Time state_last_recv_time_;

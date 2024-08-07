@@ -27,6 +27,8 @@
 #include "Eigen/Dense"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/logger_base.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 
@@ -75,12 +77,10 @@ struct TrackingControllerParameters : public ParameterBase {
   std::string ude_type;
   UDEParameters ude_params;
 
-  [[nodiscard]] bool valid() const override {
-    return min_thrust < max_thrust && vehicle_mass > 0.0;
-  }
+  [[nodiscard]] bool valid(LoggerBase& logger) const override;
 
   [[nodiscard]] bool load(const ParameterLoaderBase& loader,
-                          LoggerBase* logger) override;
+                          LoggerBase& logger) override;
 
   [[nodiscard]] std::string toString() const override;
 
@@ -108,7 +108,10 @@ class TrackingController final : public ControllerBase {
   ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     ContextBase* error) override;
 
-  bool setParams(const ParameterBase& params, LoggerBase* logger) override;
+  bool setParams(const ParameterBase& params, LoggerBase& logger) override;
+
+  [[nodiscard]] std::shared_ptr<ParameterBase> getParams(
+      bool use_default) const override;
 
   void toggleIntegration(bool value) override;
 
@@ -118,9 +121,9 @@ class TrackingController final : public ControllerBase {
   double scalar_thrust_setpoint_{0.0};
   bool params_valid_;
 
-  std::uint32_t num_rotors_;
-  bool apply_pos_err_saturation_;
-  bool apply_vel_err_saturation_;
+  std::uint32_t num_rotors_{4};
+  bool apply_pos_err_saturation_{true};
+  bool apply_vel_err_saturation_{false};
   double vehicle_mass_;
   double max_tilt_angle_;
   Eigen::Vector3d k_pos_;

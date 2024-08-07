@@ -27,6 +27,7 @@
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
 
@@ -200,15 +201,13 @@ Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(
 }
 
 bool APMAttitudeController::setParams(const ParameterBase& params,
-                                      LoggerBase* logger) {
+                                      LoggerBase& logger) {
   if (params.parameterFor() != "apm_attitude_controller") {
-    LOG_OPTIONAL(logger, Severity::kError,
-                 "Mismatch in parameter and receiver");
+    logger.log(Severity::kError, "Mismatch in parameter and receiver");
     return false;
   }
 
-  if (!params.valid()) {
-    LOG_OPTIONAL(logger, Severity::kError, "Parameters are invalid");
+  if (!params.valid(logger)) {
     return false;
   }
 
@@ -225,13 +224,25 @@ bool APMAttitudeController::setParams(const ParameterBase& params,
   return true;
 }
 
-bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
-                                       LoggerBase* logger) {
-  std::ignore = loader.getParam("input_tc", input_tc);
-  if (input_tc < 0.0) {
-    logger->log(Severity::kError, "`input_tc` must not be negative");
-    return true;
+std::shared_ptr<ParameterBase> APMAttitudeController::getParams(
+    bool use_default) const {
+  if (use_default) {
+    return std::make_shared<APMAttitudeControllerParams>();
   }
+  APMAttitudeControllerParams params;
+  params.rate_bf_ff_enabled = rate_bf_ff_enabled_;
+  params.use_sqrt_controller = use_sqrt_controller_;
+  params.input_tc = input_tc_;
+  params.kp_yawrate = kp_yawrate_;
+  params.kp_angle = kp_angle_;
+  params.ang_accel_max = ang_accel_max_;
+  params.ang_vel_max = ang_vel_max_;
+  return std::make_shared<APMAttitudeControllerParams>(std::move(params));
+}
+
+bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
+                                       LoggerBase& logger) {
+  std::ignore = loader.getParam("input_tc", input_tc);
   std::ignore = loader.getParam("use_sqrt_controller", use_sqrt_controller);
   std::ignore = loader.getParam("enable_rate_feedforward", rate_bf_ff_enabled);
   std::ignore = loader.getParam("roll_p", kp_angle.x());
@@ -244,6 +255,30 @@ bool APMAttitudeControllerParams::load(const ParameterLoaderBase& loader,
   std::ignore = loader.getParam("roll_accel_max", ang_accel_max.x());
   std::ignore = loader.getParam("pitch_accel_max", ang_accel_max.y());
   std::ignore = loader.getParam("yaw_accel_max", ang_accel_max.z());
+  return true;
+}
+
+bool APMAttitudeControllerParams::valid(LoggerBase& logger) const {
+  auto error = logger.log(Severity::kError);
+  if (input_tc <= 0) {
+    error << "Expected `input_tc` to be greater than 0";
+    return false;
+  }
+
+  if ((kp_angle.array() < 0.0).any()) {
+    error << "Expected `kp_angle` to be all positive";
+    return false;
+  }
+
+  if ((ang_accel_max.array() < 0.0).any()) {
+    error << "Expected `ang_accel_max` to be all positive";
+    return false;
+  }
+
+  if ((ang_vel_max.array() < 0.0).any()) {
+    error << "Expected `ang_vel_max` to be all positive";
+    return false;
+  }
   return true;
 }
 

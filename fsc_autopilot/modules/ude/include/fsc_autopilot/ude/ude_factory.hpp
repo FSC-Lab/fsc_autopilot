@@ -40,8 +40,7 @@ class UDEFactory {
 
   static bool Register(std::string name, Creator creator);
 
-  static ProductUniquePtr Create(const std::string& name,
-                                 LoggerBase* logger = nullptr);
+  static ProductUniquePtr Create(const std::string& name, LoggerBase& logger);
 
   template <typename OutputIter>
   static void GetRegistryKeys(OutputIter first) {
