@@ -4,8 +4,14 @@ project(fsc_autopilot_msgs)
 find_package(catkin REQUIRED COMPONENTS message_generation std_msgs
                                         geometry_msgs)
 
-add_message_files(DIRECTORY msg FILES TrackingReference.msg TrackingError.msg
-                  UDEState.msg)
+add_message_files(
+  DIRECTORY
+  msg
+  FILES
+  TrackingReference.msg
+  TrackingError.msg
+  AttitudeControllerState.msg
+  UDEState.msg)
 
 generate_messages(DEPENDENCIES std_msgs geometry_msgs)
 

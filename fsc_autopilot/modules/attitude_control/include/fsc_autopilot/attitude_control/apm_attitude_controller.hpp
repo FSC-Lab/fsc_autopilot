@@ -78,7 +78,8 @@ class APMAttitudeController : public AttitudeControllerBase {
 
   struct SetpointAndError {
     Eigen::Vector3d setpoint;
-    Eigen::Vector3d error;
+    Eigen::Vector3d angle_error;
+    Eigen::Quaterniond attitude_error;
   };
 
   AttitudeControlResult run(const VehicleState& state,

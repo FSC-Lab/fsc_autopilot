@@ -1,8 +1,5 @@
 #include "fsc_autopilot/attitude_control/px4_attitude_controller.hpp"
 
-#include <iostream>
-#include <limits>
-
 #include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/attitude_control/control.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
@@ -25,9 +22,11 @@ AttitudeControlResult PX4AttitudeController::run(
 
   Eigen::Quaterniond qe_red;
   Eigen::Vector3d eq;
+  double yaw_e_angle;
   const double w_sq = pow<2>(qe.w()) + pow<2>(qe.z());
   if (IsClose(w_sq, 0.0)) {
-    eq = {qe.x(), qe.y(), 0.0};
+    qe_red = {0.0, qe.x(), qe.y(), 0.0};
+    yaw_e_angle = 0.0;
 
   } else {
     const auto w = sqrt(w_sq);
@@ -35,15 +34,16 @@ AttitudeControlResult PX4AttitudeController::run(
     const auto qe0_by_w = iw * qe.w();
     const auto qe3_by_w = iw * qe.z();
 
-    const auto yaw_e_angle =
-        qe.w() < 0.0 ? atan2(-qe.z(), -qe.w()) : atan2(qe.z(), qe.w());
-    eq = {qe0_by_w * qe.x() - qe3_by_w * qe.y(),
-          qe0_by_w * qe.y() + qe3_by_w * qe.x(),
-          sin(yaw_weight_ * yaw_e_angle)};
+    yaw_e_angle =
+        2.0 * (qe.w() < 0.0 ? atan2(-qe.z(), -qe.w()) : atan2(qe.z(), qe.w()));
+    qe_red = {w, qe0_by_w * qe.x() - qe3_by_w * qe.y(),
+              qe0_by_w * qe.y() + qe3_by_w * qe.x(), 0.0};
   }
 
   // calculate angular rates setpoint
-  Eigen::Vector3d ang_vel_target = eq.cwiseProduct(kp_angle_);
+  const Eigen::Vector3d angle_error =
+      QuaternionToAngleAxis(qe_red) + yaw_e_angle * Eigen::Vector3d::UnitZ();
+  Eigen::Vector3d ang_vel_target = kp_angle_.cwiseProduct(angle_error);
 
   // Feed forward the yaw setpoint rate.
   // yawspeed_setpoint is the feed forward commanded rotation around the world
@@ -54,12 +54,26 @@ AttitudeControlResult PX4AttitudeController::run(
   // This yields a vector representing the commanded rotatation around the world
   // z-axis expressed in the body frame such that it can be added to the rates
   // setpoint.
-  if (std::isfinite(yawspeed_setpoint)) {
-    ang_vel_target += q.inverse().toRotationMatrix().col(2) * yawspeed_setpoint;
+  Eigen::Vector3d rate_feedforward = Eigen::Vector3d::Zero();
+  if (std::isfinite(yawspeed_setpoint) && !IsClose(yawspeed_setpoint, 0.0)) {
+    rate_feedforward =
+        q.inverse().toRotationMatrix().col(2) * yawspeed_setpoint;
+    ang_vel_target += rate_feedforward;
   }
 
   // limit rates
   ang_vel_target = apm::BodyRateLimiting(ang_vel_target, ang_vel_max_);
+  AttitudeControllerState* err;
+  if ((error != nullptr) && error->name() == "attitude_controller_state") {
+    err = static_cast<decltype(err)>(error);
+
+    err->reference = qd;
+    err->feedback = q;
+    err->attitude_error = qe;
+    err->error = angle_error;
+    err->rate_feedforward = rate_feedforward;
+    err->output = ang_vel_target;
+  }
 
   return {VehicleInput{0.0, ang_vel_target}, ControllerErrc::kSuccess};
 }
@@ -111,9 +125,9 @@ std::string PX4AttitudeControllerParams::toString() const {
   const Eigen::IOFormat f{
       Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
 
-  oss << "APM Attitude Controller parameters:"                    //
+  oss << "PX4 Attitude Controller parameters:"                    //
       << "\nkp_angle: " << kp_angle.transpose().format(f)         //
-      << "\nang_vel_lax: " << ang_vel_max.transpose().format(f);  //
+      << "\nang_vel_max: " << ang_vel_max.transpose().format(f);  //
   return oss.str();
 }
 

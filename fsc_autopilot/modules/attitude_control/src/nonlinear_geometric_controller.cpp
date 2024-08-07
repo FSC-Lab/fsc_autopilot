@@ -23,7 +23,6 @@
 #include <memory>
 #include <utility>
 
-#include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
 #include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
@@ -39,17 +38,16 @@ AttitudeControlResult NonlinearGeometricController::run(
   const auto rotmat = state.pose.orientation.toRotationMatrix();
   const auto rotmat_sp = refs.orientation.toRotationMatrix();
 
-  AttitudeControlError* err;
-  if ((error != nullptr) && error->name() == "attitude_control_error") {
+  AttitudeControllerState* err;
+  if ((error != nullptr) && error->name() == "attitude_controller_state") {
     err = static_cast<decltype(err)>(error);
   }
   // e_r = 1 / 2 * (Rd.T * R - R.T * Rd)
-  err->attitude_error = fsc::vee(rotmat_sp.transpose() * rotmat -
-                                 rotmat.transpose() * rotmat_sp) /
-                        2;
+  err->error = fsc::vee(rotmat_sp.transpose() * rotmat -
+                        rotmat.transpose() * rotmat_sp) /
+               2;
 
-  const Eigen::Vector3d body_rate_sp =
-      -2.0 / time_constant_ * err->attitude_error;
+  const Eigen::Vector3d body_rate_sp = -2.0 / time_constant_ * err->error;
 
   ControlResult result;
   return {VehicleInput{-1.0, body_rate_sp}, ControllerErrc::kSuccess};

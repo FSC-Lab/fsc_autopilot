@@ -21,12 +21,28 @@
 #ifndef FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
 #define FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
 
+#include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
+#include "fsc_autopilot_msgs/AttitudeControllerState.h"
 #include "fsc_autopilot_msgs/TrackingError.h"
 #include "fsc_autopilot_msgs/UDEState.h"
 #include "tf2_eigen/tf2_eigen.h"
+
 namespace tf2 {
+
+inline fsc_autopilot_msgs::AttitudeControllerState& toMsg(
+    const Stamped<fsc::AttitudeControllerState>& in,
+    fsc_autopilot_msgs::AttitudeControllerState& out) {
+  out.header.stamp = in.stamp_;
+  out.reference = tf2::toMsg(in.reference);
+  out.feedback = tf2::toMsg(in.feedback);
+  out.attitude_error = tf2::toMsg(in.attitude_error);
+  toMsg(in.error, out.error);
+  toMsg(in.rate_feedforward, out.rate_feedforward);
+  toMsg(in.output, out.output);
+  return out;
+}
 
 inline fsc_autopilot_msgs::UDEState& toMsg(const fsc::UDEState& in,
                                            fsc_autopilot_msgs::UDEState& out) {

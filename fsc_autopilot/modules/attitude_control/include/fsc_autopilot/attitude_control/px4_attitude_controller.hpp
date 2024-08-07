@@ -50,6 +50,10 @@ class PX4AttitudeController : public AttitudeControllerBase {
                                LoggerBase& logger) override;
 
  private:
+  void decomposeAttitudeError(const Eigen::Quaterniond& qe,
+                              Eigen::Quaterniond& qe_red,
+                              double& yaw_e_angle) const;
+
   Eigen::Vector3d kp_angle_;
   Eigen::Vector3d ang_vel_max_;
   double yaw_weight_;

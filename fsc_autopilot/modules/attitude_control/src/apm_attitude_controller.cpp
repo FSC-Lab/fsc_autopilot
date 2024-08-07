@@ -21,7 +21,6 @@
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 
 #include "Eigen/Dense"
-#include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
 #include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/attitude_control/control.hpp"
 #include "fsc_autopilot/core/controller_base.hpp"
@@ -79,16 +78,19 @@ AttitudeControlResult APMAttitudeController::run(
   }
 
   // Call quaternion attitude controller
-  auto [ang_vel_body, attitude_error] = attitudeControllerRunQuat(
-      state.pose.orientation, state.twist.angular, dt);
+  const auto& [ang_vel_body, angle_error, attitude_error] =
+      attitudeControllerRunQuat(state.pose.orientation, state.twist.angular,
+                                dt);
 
-  AttitudeControlError* err = nullptr;
-  if ((error != nullptr) && error->name() == "attitude_control_error") {
+  AttitudeControllerState* err = nullptr;
+  if ((error != nullptr) && error->name() == "attitude_controller_state") {
     err = static_cast<decltype(err)>(error);
-  }
-
-  if (err) {
+    err->reference = orientation_ref;
+    err->feedback = state.pose.orientation;
     err->attitude_error = attitude_error;
+    err->error = angle_error;
+    err->rate_feedforward = ang_vel_target_;
+    err->output = ang_vel_body;
   }
 
   return {VehicleInput{0.0, ang_vel_body}, ControllerErrc::kSuccess};
@@ -101,7 +103,7 @@ auto APMAttitudeController::attitudeControllerRunQuat(
 
   // This vector represents the angular error to rotate the thrust vector
   // using x and y and heading using z
-  const auto& [_, attitude_error, thrust_error_angle] =
+  const auto& [attitude_error, angle_error, thrust_error_angle] =
       apm::ThrustHeadingRotationAngles(attitude_target_, orientation,
                                        kp_angle_.z(), kp_yawrate_,
                                        ang_accel_max_.z());
@@ -109,8 +111,7 @@ auto APMAttitudeController::attitudeControllerRunQuat(
   // Compute the angular velocity corrections in the body frame from the
   // attitude error
   // ensure angular velocity does not go over configured limits
-  Eigen::Vector3d ang_vel_fb =
-      updateAngVelTargetFromAttError(attitude_error, dt);
+  Eigen::Vector3d ang_vel_fb = updateAngVelTargetFromAttError(angle_error, dt);
   ang_vel_fb = apm::BodyRateLimiting(ang_vel_fb, ang_vel_max_);
 
   // rotation from the target frame to the body frame
@@ -143,7 +144,7 @@ auto APMAttitudeController::attitudeControllerRunQuat(
     attitude_target_ *= fsc::AngleAxisToQuaternion(ang_vel_target_ * dt);
   }
 
-  return {ang_vel_fb, attitude_error};
+  return {ang_vel_fb, angle_error, attitude_error};
 }
 
 Eigen::Vector3d APMAttitudeController::updateAngVelTargetFromAttError(
@@ -220,7 +221,6 @@ bool APMAttitudeController::setParams(const ParameterBase& params,
   kp_angle_ = p.kp_angle;
   ang_accel_max_ = p.ang_accel_max;
   ang_vel_max_ = p.ang_vel_max;
-  parameters_valid_ = true;
   return true;
 }
 
