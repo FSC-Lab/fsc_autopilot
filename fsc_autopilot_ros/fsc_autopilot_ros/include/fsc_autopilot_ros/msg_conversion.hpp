@@ -29,18 +29,18 @@
 #include "fsc_autopilot_msgs/UDEState.h"
 #include "tf2_eigen/tf2_eigen.h"
 
-namespace tf2 {
+namespace fsc {
 
 inline fsc_autopilot_msgs::AttitudeControllerState& toMsg(
-    const Stamped<fsc::AttitudeControllerState>& in,
+    const tf2::Stamped<fsc::AttitudeControllerState>& in,
     fsc_autopilot_msgs::AttitudeControllerState& out) {
   out.header.stamp = in.stamp_;
   out.reference = tf2::toMsg(in.reference);
   out.feedback = tf2::toMsg(in.feedback);
   out.attitude_error = tf2::toMsg(in.attitude_error);
-  toMsg(in.error, out.error);
-  toMsg(in.rate_feedforward, out.rate_feedforward);
-  toMsg(in.output, out.output);
+  tf2::toMsg(in.error, out.error);
+  tf2::toMsg(in.rate_feedforward, out.rate_feedforward);
+  tf2::toMsg(in.output, out.output);
   return out;
 }
 
@@ -49,28 +49,28 @@ inline fsc_autopilot_msgs::UDEState& toMsg(const fsc::UDEState& in,
   out.type = in.type_str;
   out.is_flying = static_cast<std::uint8_t>(in.is_flying);
   out.is_active = static_cast<std::uint8_t>(in.is_active);
-  toMsg(in.damping_term, out.damping_term);
-  toMsg(in.dynamical_term, out.dynamical_term);
-  toMsg(in.actuation_term, out.actuation_term);
-  toMsg(in.integral, out.integral);
-  toMsg(in.disturbance_estimate, out.disturbance_estimate);
+  tf2::toMsg(in.damping_term, out.damping_term);
+  tf2::toMsg(in.dynamical_term, out.dynamical_term);
+  tf2::toMsg(in.actuation_term, out.actuation_term);
+  tf2::toMsg(in.integral, out.integral);
+  tf2::toMsg(in.disturbance_estimate, out.disturbance_estimate);
   return out;
 }
 
 inline fsc_autopilot_msgs::TrackingError& toMsg(
-    const Stamped<fsc::TrackingControllerError>& in,
+    const tf2::Stamped<fsc::TrackingControllerError>& in,
     fsc_autopilot_msgs::TrackingError& out) {
   out.header.stamp = in.stamp_;
   out.scalar_thrust_setpoint = in.scalar_thrust_sp;
   out.thrust_per_rotor = in.thrust_per_rotor;
-  toMsg(in.position_error, out.position_error);
-  toMsg(in.velocity_error, out.velocity_error);
-  toMsg(in.feedback, out.feedback);
-  toMsg(in.thrust_setpoint, out.thrust_setpoint);
+  tf2::toMsg(in.position_error, out.position_error);
+  tf2::toMsg(in.velocity_error, out.velocity_error);
+  tf2::toMsg(in.feedback, out.feedback);
+  tf2::toMsg(in.thrust_setpoint, out.thrust_setpoint);
   toMsg(in.ude_state, out.ude_state);
   return out;
 }
 
-}  // namespace tf2
+}  // namespace fsc
 
 #endif  // FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
