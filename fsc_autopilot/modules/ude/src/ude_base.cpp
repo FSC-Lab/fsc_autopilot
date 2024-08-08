@@ -20,6 +20,8 @@
 
 #include "fsc_autopilot/ude/ude_base.hpp"
 
+#include <iostream>
+
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 
@@ -31,10 +33,14 @@ UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
   if (error->name() == "ude.error") {
     err = static_cast<decltype(err)>(error);
   }
+
   // safety logic:
   // if int_flag && alti_threshold == true: enable integration
   // if int_flag == false : reset integration
   // if alti_threshold == false && int_flag == true: hold integration
+
+  // std::cout << "ude_active_ = " << ude_active_ << "\n";
+  // std::cout << "lqg_active_ = " << lqg_active_ << "\n";
 
   const bool int_flag = ude_active_;
   const bool is_flying = (state.pose.position.z() > ude_height_threshold_);
@@ -57,6 +63,57 @@ UDEErrc UDEBase::update(const VehicleState& state, const VehicleInput& input,
     err->disturbance_estimate = ude_value_;
   }
   return UDEErrc::kSuccess;
+}
+
+const Eigen::Matrix<double, 7, 1> UDEBase::updateKF(
+    const Eigen::Matrix<double, 7, 1> x,
+    const Eigen::Matrix<double, 4, 1>& control_input_u, double dt) {
+  // std::cout << "ude_active_ = " << ude_active_ << "\n";
+  // std::cout << "lqg_active_ = " << lqg_active_ << "\n";
+
+  // Kalman Filter matrices
+  Eigen::Matrix<double, 7, 7> A;
+  A << 0, 0, 0, 1, 0, 0, 0,  //
+      0, 0, 0, 0, 1, 0, 0,   //
+      0, 0, 0, 0, 0, 1, 0,   //
+      0, 0, 0, 0, 0, 0, 0,   //
+      0, 0, 0, 0, 0, 0, 0,   //
+      0, 0, 0, 0, 0, 0, 0,   //
+      0, 0, 0, 0, 0, 0, 0;   //
+
+  Eigen::Matrix<double, 7, 4> B;
+  double mass = 1.7;      // Set this to the appropriate mass of the vehicle
+  B << 0, 0, 0, 0,        //
+      0, 0, 0, 0,         //
+      0, 0, 0, 0,         //
+      -9.81, 0, 0, 0,     //
+      0, 9.81, 0, 0,      //
+      0, 0, 1 / mass, 0,  //
+      0, 0, 0, 1;         //
+
+  Eigen::Matrix<double, 7, 7> L;
+  L << -0.25, 0, 0, 0, 0, 0, 0,  //
+      0, -0.25, 0, 0, 0, 0, 0,   //
+      0, 0, -10, 0, 0, 0, 0,     //
+      0, 0, 0, -0.25, 0, 0, 0,   //
+      0, 0, 0, 0, -0.25, 0, 0,   //
+      0, 0, 0, 0, 0, -10, 0,     //
+      0, 0, 0, 0, 0, 0, -1;      //
+
+  Eigen::VectorXd x_hat_dot = A * x_hat + B * control_input_u + L * (x_hat - x);
+
+  const bool int_flag = lqg_active_;
+  if (!int_flag) {
+    x_hat = x;
+  } else {
+    // Kalman Filter
+    x_hat += x_hat_dot * dt;
+  }
+
+  // Optionally clamp x_hat within certain bounds if needed
+  // x_hat = x_hat.cwiseMax(lower_bound).cwiseMin(upper_bound);
+
+  return x_hat;
 }
 
 bool UDEBase::setParams(const UDEParameters& params) {

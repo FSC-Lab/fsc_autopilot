@@ -129,7 +129,17 @@ class ControllerBase {
   virtual void toggleIntegration(bool value) {}
 
   [[nodiscard]] virtual std::string name() const = 0;
+
+  // XSY EDIT
+  [[nodiscard]] bool lqg_active() const { return lqg_active_; }
+
+  bool& lqg_active() { return lqg_active_; }
+
+ protected:
+  Eigen::Matrix<double, 7, 1> x_hat;
+  bool lqg_active_;
 };
+
 }  // namespace fsc
 
 #endif  // FSC_AUTOPILOT_CORE_CONTROLLER_BASE_HPP_

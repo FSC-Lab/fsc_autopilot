@@ -143,6 +143,10 @@ class UDEBase {
   UDEErrc update(const VehicleState& state, const VehicleInput& input,
                  double dt, ContextBase* error);
 
+  const Eigen::Matrix<double, 7, 1> updateKF(
+      const Eigen::Matrix<double, 7, 1> x,
+      const Eigen::Matrix<double, 4, 1>& control_input_u, double dt);
+
   bool setParams(const UDEParameters& params);
 
   [[nodiscard]] virtual bool getEstimate(
@@ -154,6 +158,10 @@ class UDEBase {
 
   bool& ude_active() { return ude_active_; }
 
+  [[nodiscard]] bool lqg_active() const { return lqg_active_; }
+
+  bool& lqg_active() { return lqg_active_; }
+
  protected:
   virtual Eigen::Vector3d computeIntegrand(const VehicleState& state,
                                            const VehicleInput& input,
@@ -163,6 +171,7 @@ class UDEBase {
                                          UDEState* err) const = 0;
 
   bool ude_active_;
+  bool lqg_active_;
 
   double vehicle_mass_;
   double ude_height_threshold_;
@@ -172,6 +181,8 @@ class UDEBase {
 
   Eigen::Vector3d ude_integral_;
   Eigen::Vector3d ude_value_;
+
+  Eigen::Matrix<double, 7, 1> x_hat;
 };
 
 }  // namespace fsc

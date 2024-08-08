@@ -20,6 +20,8 @@
 
 #include "fsc_autopilot_ros/autopilot_client.hpp"
 
+#include <std_msgs/Int64.h>
+
 #include <utility>
 
 #include "fsc_autopilot/attitude_control/attitude_control_error.hpp"
@@ -59,6 +61,10 @@ AutopilotClient::AutopilotClient() {
 
   subs_.emplace("state"s, nh_.subscribe("/mavros/state", 1,
                                         &AutopilotClient::mavrosStateCb, this));
+
+  subs_.emplace("controller_option"s,
+                nh_.subscribe("position_controller/control_option", 1,
+                              &AutopilotClient::controllerOptionCb, this));
 
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       "/mavros/setpoint_raw/attitude", 1);
@@ -113,6 +119,11 @@ void AutopilotClient::mavrosStateCb(const mavros_msgs::State& msg) {
   mavrosState_ = msg;
 }
 
+void AutopilotClient::controllerOptionCb(const std_msgs::Int64::ConstPtr& msg) {
+  ROS_INFO("Controller option received: %ld", msg->data);
+  controllerOption = msg->data;
+}
+
 void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   // calculate time step
   const auto dt = (event.current_real - event.last_real).toSec();
@@ -121,42 +132,86 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   }
 
   // check drone status
-  tracking_ctrl_.toggleIntegration((mavrosState_.connected != 0U) &&
-                                   (mavrosState_.armed != 0U) &&
-                                   (mavrosState_.mode == "OFFBOARD"));
+  if (controllerOption == 1) {
+    tracking_ctrl_.toggleIntegration((mavrosState_.connected != 0U) &&
+                                     (mavrosState_.armed != 0U) &&
+                                     (mavrosState_.mode == "OFFBOARD"));
 
-  fsc::TrackingControllerError pos_ctrl_err;
-  // outerloop control
-  const auto& [pos_ctrl_out, outer_success] =
-      tracking_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
+    fsc::TrackingControllerError pos_ctrl_err;
+    // outerloop control
+    const auto& [pos_ctrl_out, outer_success] =
+        tracking_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
 
-  if (outer_success != fsc::ControllerErrc::kSuccess) {
-    ROS_ERROR("Outer controller failed!: %s", outer_success.message().c_str());
-    return;
-  }
+    // something wrong with outer_success
+    if (outer_success != fsc::ControllerErrc::kSuccess) {
+      ROS_ERROR("Outer controller failed!: %s",
+                outer_success.message().c_str());
+      return;
+    }
 
-  const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
+    const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
 
-  fsc_autopilot_msgs::TrackingError tracking_error_msg;
-  tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
-             tracking_error_msg);
-  tracking_error_pub_.publish(tracking_error_msg);
-  cmd_.thrust =
-      std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
-  // define output messages
-  if (enable_inner_controller_) {
-    inner_ref_.state.pose.orientation = orientation_sp;
+    fsc_autopilot_msgs::TrackingError tracking_error_msg;
+    tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
+               tracking_error_msg);
+    tracking_error_pub_.publish(tracking_error_msg);
+    cmd_.thrust =
+        std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
+    // define output messages
+    if (enable_inner_controller_) {
+      inner_ref_.state.pose.orientation = orientation_sp;
+    } else {
+      cmd_.header.stamp = event.current_real;
+      cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
+                       mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
+                       mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+      cmd_.orientation = tf2::toMsg(orientation_sp);
+
+      setpoint_pub_.publish(cmd_);
+    }
+    // convert thrust command to normalized thrust input
+    // if the thrust is an acc command, then the thrust curve must change as
+    // well
   } else {
-    cmd_.header.stamp = event.current_real;
-    cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
-                     mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
-                     mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
-    cmd_.orientation = tf2::toMsg(orientation_sp);
+    tracking_ctrl_original.toggleIntegration((mavrosState_.connected != 0U) &&
+                                             (mavrosState_.armed != 0U) &&
+                                             (mavrosState_.mode == "OFFBOARD"));
 
-    setpoint_pub_.publish(cmd_);
+    fsc::TrackingControllerError pos_ctrl_err;
+    // outerloop control
+    const auto& [pos_ctrl_out, outer_success] =
+        tracking_ctrl_original.run(state_, outer_ref_, dt, &pos_ctrl_err);
+
+    if (outer_success != fsc::ControllerErrc::kSuccess) {
+      ROS_ERROR("Outer controller failed!: %s",
+                outer_success.message().c_str());
+      return;
+    }
+
+    const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
+
+    fsc_autopilot_msgs::TrackingError tracking_error_msg;
+    tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
+               tracking_error_msg);
+    tracking_error_pub_.publish(tracking_error_msg);
+    cmd_.thrust =
+        std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
+    // define output messages
+    if (enable_inner_controller_) {
+      inner_ref_.state.pose.orientation = orientation_sp;
+    } else {
+      cmd_.header.stamp = event.current_real;
+      cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
+                       mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
+                       mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+      cmd_.orientation = tf2::toMsg(orientation_sp);
+
+      setpoint_pub_.publish(cmd_);
+    }
+    // convert thrust command to normalized thrust input
+    // if the thrust is an acc command, then the thrust curve must change as
+    // well
   }
-  // convert thrust command to normalized thrust input
-  // if the thrust is an acc command, then the thrust curve must change as well
 }
 
 void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
@@ -207,6 +262,11 @@ bool AutopilotClient::loadParams() {
   }
 
   if (!tracking_ctrl_.setParams(tc_params_, &logger_)) {
+    ROS_FATAL("Failed to set tracking controller parameters");
+    return false;
+  }
+
+  if (!tracking_ctrl_original.setParams(tc_params_, &logger_)) {
     ROS_FATAL("Failed to set tracking controller parameters");
     return false;
   }
@@ -334,6 +394,8 @@ void AutopilotClient::dynamicReconfigureCb(
   auto ude_gain_prev = std::exchange(tc_params_.ude_params.ude_gain, ude.gain);
 
   tracking_ctrl_.setParams(tc_params_, &logger_);
+
+  tracking_ctrl_original.setParams(tc_params_, &logger_);
 
   ROS_INFO_STREAM_THROTTLE(
       1.0,

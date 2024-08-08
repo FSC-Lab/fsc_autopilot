@@ -29,6 +29,9 @@
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 #include "fsc_autopilot/math/polynomial.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
+// #include "fsc_autopilot/position_control/tracking_controller_original.hpp"
+#include <std_msgs/Int64.h>
+
 #include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot_msgs/TrackingReference.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
@@ -46,6 +49,7 @@ class AutopilotClient {
  public:
   using AttitudeController = fsc::APMAttitudeController;
   using TrackingController = fsc::TrackingController;
+  using TrackingControllerOriginal = fsc::TrackingControllerOriginal;
 
   using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
   AutopilotClient();
@@ -57,6 +61,7 @@ class AutopilotClient {
   void imuCb(const sensor_msgs::ImuConstPtr& msg);
   void setpointCb(const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg);
   void mavrosStateCb(const mavros_msgs::State& msg);
+  void controllerOptionCb(const std_msgs::Int64::ConstPtr& msg);
 
   void dynamicReconfigureCb(
       const fsc_autopilot_ros::TrackingControlConfig& config,
@@ -75,6 +80,7 @@ class AutopilotClient {
   bool check_reconfiguration_{true};
   ros::NodeHandle nh_;
   TrackingController tracking_ctrl_;
+  TrackingControllerOriginal tracking_ctrl_original;
   AttitudeController att_ctrl_;
 
   fsc::VehicleState state_;
@@ -97,6 +103,8 @@ class AutopilotClient {
   mavros_msgs::State mavrosState_;
 
   mavros_msgs::AttitudeTarget cmd_;
+
+  long int controllerOption;
 
   MotorCurveType motor_curve_;
 

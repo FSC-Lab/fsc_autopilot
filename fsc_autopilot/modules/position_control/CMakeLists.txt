@@ -5,6 +5,12 @@ project(position_control)
 find_package(Eigen3 REQUIRED)
 
 add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller.cpp)
+# add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller_original.cpp)
+# add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME}
+#   src/tracking_controller.cpp
+#   src/tracking_controller_original.cpp
+# )
+
 target_include_directories(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -13,7 +19,8 @@ target_compile_features(${MAIN_PROJECT_NAME}_${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
   PUBLIC Eigen3::Eigen ${MAIN_PROJECT_NAME}::core ${MAIN_PROJECT_NAME}::math
-         $<LINK_LIBRARY:WHOLE_ARCHIVE,${MAIN_PROJECT_NAME}::ude>)
+         $<LINK_LIBRARY:WHOLE_ARCHIVE,${MAIN_PROJECT_NAME}::ude>
+         $<LINK_LIBRARY:WHOLE_ARCHIVE,${MAIN_PROJECT_NAME}::lqg>)
 
 add_library(${MAIN_PROJECT_NAME}::${PROJECT_NAME} ALIAS
             ${MAIN_PROJECT_NAME}_${PROJECT_NAME})
