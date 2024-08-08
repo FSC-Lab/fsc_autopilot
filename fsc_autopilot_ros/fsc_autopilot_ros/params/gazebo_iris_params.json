@@ -3,7 +3,7 @@
     0.36,
     0.082
   ],
-  "attitude_controller_type": "simple",
+  "attitude_controller_type": "apm",
   "enable_inner_controller": true,
   "check_reconfiguration": false,
   "position_controller": {
@@ -32,12 +32,17 @@
   },
   "attitude_controller": {
     "rate": 250,
-    "enable_rate_feedforward": false,
-    "input_tc": 1.5,
-    "roll_p": 6.5,
-    "pitch_p": 6.5,
-    "yaw_p": 7.0,
-    "yawrate_p": 0,
-    "yawrate_max": 10.471975511965976
+    "enable_rate_feedforward": true,
+    "input_tc": 0.1,
+    "roll_p": 8.0,
+    "pitch_p": 8.0,
+    "yaw_p": 6.0,
+    "yawrate_p": 0.2,
+    "rollrate_max": 360,
+    "pitchrate_max": 360,
+    "yawrate_max": 60,
+    "roll_accel_max": 1080,
+    "pitch_accel_max": 1080,
+    "yaw_accel_max": 360
   }
 }

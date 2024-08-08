@@ -26,6 +26,7 @@
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
+#include "fsc_autopilot/core/meta.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
@@ -219,8 +220,8 @@ bool APMAttitudeController::setParams(const ParameterBase& params,
   input_tc_ = p.input_tc;
   kp_yawrate_ = p.kp_yawrate;
   kp_angle_ = p.kp_angle;
-  ang_accel_max_ = p.ang_accel_max;
-  ang_vel_max_ = p.ang_vel_max;
+  ang_accel_max_ = p.ang_accel_max.unaryExpr(LIFT(deg2rad));
+  ang_vel_max_ = p.ang_vel_max.unaryExpr(LIFT(deg2rad));
   return true;
 }
 
@@ -235,8 +236,8 @@ std::shared_ptr<ParameterBase> APMAttitudeController::getParams(
   params.input_tc = input_tc_;
   params.kp_yawrate = kp_yawrate_;
   params.kp_angle = kp_angle_;
-  params.ang_accel_max = ang_accel_max_;
-  params.ang_vel_max = ang_vel_max_;
+  params.ang_accel_max = ang_accel_max_.unaryExpr(LIFT(rad2deg));
+  params.ang_vel_max = ang_vel_max_.unaryExpr(LIFT(rad2deg));
   return std::make_shared<APMAttitudeControllerParams>(std::move(params));
 }
 
