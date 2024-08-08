@@ -28,13 +28,6 @@
 #include "fsc_autopilot/math/numbers.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
 
-#define ENSURES(cond) \
-  if (!(cond)) {      \
-    std::terminate(); \
-  }
-
-#define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
-
 namespace fsc {
 
 template <typename ODerived, typename WDerived,
