@@ -28,7 +28,7 @@
 #include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 #include "fsc_autopilot/math/polynomial.hpp"
-#include "fsc_autopilot/position_control/tracking_controller.hpp"
+#include "fsc_autopilot/position_control/lqg_controller.hpp"
 // #include "fsc_autopilot/position_control/tracking_controller_original.hpp"
 #include <std_msgs/Int64.h>
 
@@ -48,8 +48,7 @@ namespace nodelib {
 class AutopilotClient {
  public:
   using AttitudeController = fsc::APMAttitudeController;
-  using TrackingController = fsc::TrackingController;
-  using TrackingControllerOriginal = fsc::TrackingControllerOriginal;
+  using TrackingController = fsc::LQGController;
 
   using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
   AutopilotClient();

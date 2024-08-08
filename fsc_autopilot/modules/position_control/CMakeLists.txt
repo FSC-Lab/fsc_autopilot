@@ -4,12 +4,12 @@ project(position_control)
 # TODO(Hs293Go): Support FetchContent
 find_package(Eigen3 REQUIRED)
 
-add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller.cpp)
-# add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller_original.cpp)
+add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller.cpp
+                                                 src/lqg_controller.cpp)
 # add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME}
-#   src/tracking_controller.cpp
-#   src/tracking_controller_original.cpp
-# )
+# src/tracking_controller_original.cpp)
+# add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller.cpp
+# src/tracking_controller_original.cpp )
 
 target_include_directories(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
