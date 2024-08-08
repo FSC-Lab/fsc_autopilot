@@ -121,6 +121,7 @@ void AutopilotClient::mavrosStateCb(const mavros_msgs::State& msg) {
 }
 
 void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
+  using tf2::toMsg;
   // calculate time step
   const auto dt = (event.current_real - event.last_real).toSec();
   if (dt <= 0.0 || dt > 1.0) {
@@ -145,8 +146,7 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
 
   fsc_autopilot_msgs::TrackingError tracking_error_msg;
-  tf2::toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
-             tracking_error_msg);
+  toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""), tracking_error_msg);
   tracking_error_pub_.publish(tracking_error_msg);
   cmd_.thrust =
       std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
@@ -167,6 +167,7 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
 }
 
 void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
+  using tf2::toMsg;
   const auto dt = (event.current_real - event.last_real).toSec();
   if (dt <= 0.0 || dt > 1.0) {
     return;
@@ -180,12 +181,12 @@ void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
   if (enable_inner_controller_) {
     cmd_.header.stamp = event.current_real;
     cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
-    tf2::toMsg(att_ctrl_out.thrust_rates().body_rates, cmd_.body_rate);
+    toMsg(att_ctrl_out.thrust_rates().body_rates, cmd_.body_rate);
     setpoint_pub_.publish(cmd_);
 
     fsc_autopilot_msgs::AttitudeControllerState attitude_error_msg;
-    tf2::toMsg(tf2::Stamped{att_ctrl_err, event.current_real, ""},
-               attitude_error_msg);
+    toMsg(tf2::Stamped{att_ctrl_err, event.current_real, ""},
+          attitude_error_msg);
     attitude_error_pub_.publish(attitude_error_msg);
   }
 }
