@@ -27,7 +27,6 @@
 #include "Eigen/Dense"
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
-#include "fsc_autopilot/lqg/lqg_base.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 
@@ -46,7 +45,6 @@ struct TrackingControllerError : public ContextBase {
   double scalar_thrust_sp{0.0};  // thrust setpoint
   double thrust_per_rotor{0.0};  // thrust per rotor
   UDEState ude_state;
-  LQGState lqg_state;
 };
 
 struct TrackingControllerParameters : public ParameterBase {
@@ -77,11 +75,6 @@ struct TrackingControllerParameters : public ParameterBase {
   std::string ude_type;
   UDEParameters ude_params;
 
-  std::string lqg_type;
-  LQGParameters lqg_params;
-
-  Eigen::Vector3d ekf_origin;
-
   [[nodiscard]] bool valid() const override {
     return min_thrust < max_thrust && vehicle_mass > 0.0;
   }
@@ -105,15 +98,12 @@ class TrackingController final : public ControllerBase {
   using UDEConstSharedPtr = std::shared_ptr<const UDEBase>;
   using UDESharedPtr = std::shared_ptr<UDEBase>;
 
-  using LQGConstSharedPtr = std::shared_ptr<const LQGBase>;
-  using LQGSharedPtr = std::shared_ptr<LQGBase>;
-
   inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
 
   TrackingController() = default;
   explicit TrackingController(ParametersSharedPtr params);
 
-  TrackingController(ParametersSharedPtr params, LQGSharedPtr lqg);
+  TrackingController(ParametersSharedPtr params, UDESharedPtr ude);
 
   ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     ContextBase* error) override;
@@ -137,57 +127,6 @@ class TrackingController final : public ControllerBase {
   Eigen::Vector3d k_vel_;
   ThrustBounds<double> thrust_bnds_;
   UDESharedPtr ude_;
-  UDESharedPtr kf_;
-  LQGSharedPtr lqg_;
-};
-
-class TrackingControllerOriginal final : public ControllerBase {
- public:
-  using ParametersSharedPtr = std::shared_ptr<TrackingControllerParameters>;
-  using ParametersConstSharedPtr =
-      std::shared_ptr<const TrackingControllerParameters>;
-
-  using UDEConstSharedPtr = std::shared_ptr<const UDEBase>;
-  using UDESharedPtr = std::shared_ptr<UDEBase>;
-
-  inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
-
-  TrackingControllerOriginal() = default;
-  explicit TrackingControllerOriginal(ParametersSharedPtr params);
-
-  TrackingControllerOriginal(ParametersSharedPtr params, UDESharedPtr ude);
-
-  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
-                    ContextBase* error) override;
-
-  bool setParams(const ParameterBase& params, LoggerBase* logger) override;
-
-  void toggleIntegration(bool value) override;
-
-  [[nodiscard]] std::string name() const final { return "tracking_controller"; }
-
-  // XSY EDIT
-  [[nodiscard]] bool lqg_active() const { return lqg_active_; }
-
-  bool& lqg_active() { return lqg_active_; }
-
- private:
-  double scalar_thrust_setpoint_{0.0};
-  bool params_valid_;
-
-  std::uint32_t num_rotors_;
-  bool apply_pos_err_saturation_;
-  bool apply_vel_err_saturation_;
-  double vehicle_mass_;
-  double max_tilt_angle_;
-  Eigen::Vector3d k_pos_;
-  Eigen::Vector3d k_vel_;
-  ThrustBounds<double> thrust_bnds_;
-  UDESharedPtr ude_;
-  Eigen::Matrix<double, 7, 1> x_hat;
-
- protected:
-  bool lqg_active_;
 };
 }  // namespace fsc
 
