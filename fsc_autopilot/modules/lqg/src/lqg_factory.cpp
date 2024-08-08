@@ -1,0 +1,69 @@
+// Copyright © 2024 FSC Lab
+//
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+// OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+// IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+// OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+#include "fsc_autopilot/lqg/lqg_factory.hpp"
+
+#include "fsc_autopilot/core/logger_base.hpp"
+
+namespace fsc {
+bool LQGFactory::Register(std::string name, LQGCreator creator) {
+  auto [_, success] =
+      registry_.try_emplace(std::move(name), std::move(creator));
+  return success;
+}
+
+LQGFactory::LQGUniquePtr LQGFactory::Create(const std::string& name,
+                                            LoggerBase* logger) {
+  if (registry_.empty()) {
+    if (logger) {
+      logger->log(Severity::kError, "No LQG have been registered");
+      return {};
+    }
+  }
+
+  if (name.empty()) {
+    if (logger) {
+      logger->log(Severity::kError) << "LQG name is empty";
+      return {};
+    }
+  }
+
+  if (auto it = registry_.find(name); it != registry_.end()) {
+    if (logger) {
+      logger->log(Severity::kInfo) << "Creating `" << name << "` LQG";
+    }
+    return it->second();
+  }
+
+  if (logger) {
+    std::vector<std::string> lqg_types(registry_.size());
+    fsc::LQGFactory::GetRegistryKeys(lqg_types.begin());
+    std::ostringstream oss;
+    oss << lqg_types.front();
+    for (auto it = std::next(lqg_types.begin()); it != lqg_types.end(); ++it) {
+      oss << ", " << *it;
+    }
+    logger->log(Severity::kError)
+        << "Failed to create [" << name
+        << "]: Not a LQG. Available LQG types are: " << oss.str();
+  }
+  return {};
+}
+}  // namespace fsc
