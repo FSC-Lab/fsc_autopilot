@@ -24,6 +24,7 @@
 #include <algorithm>
 
 #include "Eigen/Dense"
+#include "fsc_autopilot/core/asserts.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 #include "fsc_autopilot/math/numbers.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
@@ -66,6 +67,7 @@ Eigen::Matrix<Scalar, 3, 1> BodyRatesToEulerRate(
 // project
 namespace apm {
 
+namespace details {
 template <typename T>
 T ComputeCorrectionRate(T error, T second_ord_lim) {
   using std::abs;
@@ -78,6 +80,7 @@ T ComputeCorrectionRate(T error, T second_ord_lim) {
 
 template <typename T>
 T ComputeCorrectionRate(T error, T p, T second_ord_lim) {
+  Expects(second_ord_lim > T{0});
   using std::abs;
   using std::copysign;
   using std::sqrt;
@@ -91,21 +94,39 @@ T ComputeCorrectionRate(T error, T p, T second_ord_lim) {
   }
   return error * p;
 }
+}  // namespace details
 
+/**
+ * @brief Proportional control law
+ *
+ * @param error
+ * @param p The proportional gain. Must be non-negative
+ * @param dt The timestep, used to clamp the output such that it does not
+ * overshoot the error in just one timestep
+ */
 template <typename T>
 T Proportional(T error, T p, T dt) {
-  ENSURES(dt > T{0});
-  ENSURES(p > T{0});
+  Expects(p >= T{0} && dt > T{0});
   using std::abs;
 
   const T bound = abs(error) / dt;
   return std::clamp(p * error, -bound, bound);
 }
 
+/**
+ * @brief Proportional and square root control law
+ *
+ * @param error
+ * @param p The proportional gain. Set to zero to disable proportional mode
+ * @param second_ord_lim The threshold parameter used to switch the control law
+ * from proportional mode to sqrt mode. If a physical quantity, this should be
+ * one order (of derivative) higher than the error. Must be non-negative
+ * @param dt The timestep, used to clamp the output such that it does not
+ * overshoot the error in just one timestep
+ */
 template <typename T>
 T PiecewiseProportionalSqrt(T error, T p, T second_ord_lim, T dt) {
-  ENSURES(dt > T{0});
-  ENSURES(p >= T{0} && second_ord_lim > T{0});
+  Expects(dt > T{0});
   T correction_rate;
   using std::abs;
   using std::copysign;
@@ -114,16 +135,27 @@ T PiecewiseProportionalSqrt(T error, T p, T second_ord_lim, T dt) {
 
   if (p == T{0}) {
     // No P-control regime at all
-    correction_rate = ComputeCorrectionRate(error, second_ord_lim);
+    correction_rate = details::ComputeCorrectionRate(error, second_ord_lim);
   } else {
     // Both the P and second order limit have been defined.
-    correction_rate = ComputeCorrectionRate(error, p, second_ord_lim);
+    correction_rate = details::ComputeCorrectionRate(error, p, second_ord_lim);
   }
   // this ensures we do not get small oscillations by over shooting the error
   // correction in the last time step.
-  return std::clamp(correction_rate, -abs(error) / dt, abs(error) / dt);
+  const T bounds = abs(error) / dt;
+  return std::clamp(correction_rate, -bounds, bounds);
 }
 
+/**
+ * @brief Inverse of the p/sqrt controller. Computes the input required for the
+ * controller to give a certain output
+ *
+ * @param output The control output
+ * @param p The proportional gain. Set to 0 to compute the inverse of just the
+ * sqrt control law
+ * @param D_max The second order switchover limit. Set to 0 to compute the
+ * inverse of just the proportional control law
+ */
 template <typename T>
 T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
   using std::abs;
@@ -131,10 +163,10 @@ T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
   if (D_max > T{0} && IsClose(p, T{0})) {
     return (output * output) / (T{2} * D_max);
   }
-  if ((D_max < T{0} || IsClose(D_max, T{0})) && !IsClose(p, T{0})) {
+  if ((D_max <= T{0} || IsClose(D_max, T{0})) && !IsClose(p, T{0})) {
     return output / p;
   }
-  if ((D_max < T{0} || IsClose(D_max, T{0})) && IsClose(p, T{0})) {
+  if ((D_max <= T{0} || IsClose(D_max, T{0})) && IsClose(p, T{0})) {
     return 0.0;
   }
 
@@ -149,13 +181,23 @@ T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
   }
 
   const T linear_dist = D_max / pow<2>(p);
-  const T stopping_dist =
-      linear_dist / T{2} + pow<2>(output) / (T{2.0} * D_max);
+  const T stopping_dist = linear_dist / T{2} + pow<2>(output) / (T{2} * D_max);
   return copysign(stopping_dist, output);
 }
 
-// Shapes the velocity request based on a rate time constant. The angular
-// acceleration and deceleration is limited.
+/**
+ * @brief Shapes the velocity request based on a rate time constant. The angular
+ * acceleration and deceleration is limited.
+ *
+ * @param target_ang_vel Internal angular velocity target
+ * @param desired_ang_vel Actual desired angular velocity
+ * @param accel_max Maximum angular acceleration used to determine the allowed
+ * change in velocity within this timestep; Setting this to any non-positive
+ * value disables clamping angular velocity to within an allowed interval
+ * @param dt Size of this timestep
+ * @param input_tc Time constant of rate control; Set this to any non-positive
+ * value to disable scaling back desired angular velocity
+ */
 template <typename T>
 T InputShapingBodyRates(T target_ang_vel, T desired_ang_vel, T accel_max, T dt,
                         T input_tc) {
@@ -174,10 +216,53 @@ T InputShapingBodyRates(T target_ang_vel, T desired_ang_vel, T accel_max, T dt,
   return desired_ang_vel;
 }
 
+/**
+ * @brief Computes maximum possible velocity request under a given time constant
+ * of rate control, using a p/sqrt controller based on the angle error, then
+ * hands the result over to rate input shaping
+ *
+ * @param error_angle The angle error
+ * @param input_tc Time constant of rate control; Must be positive
+ * @param accel_max Maximum angular acceleration used to determine the allowed
+ * change in velocity within this timestep
+ * @param target_ang_vel Internal angular velocity target
+ * @param dt Size of this timestep
+ */
+template <typename T>
+T InputShapingAngle(T error_angle, T input_tc, T accel_max, T target_ang_vel,
+                    T dt) {
+  Expects(input_tc > T{0});
+  // Calculate the velocity as error approaches zero with acceleration limited
+  // by accel_max_radss
+  const T desired_ang_vel =
+      PiecewiseProportionalSqrt(error_angle, T{1} / input_tc, accel_max, dt);
+
+  // Acceleration is limited directly to smooth the beginning of the curve.
+  return InputShapingBodyRates(target_ang_vel, desired_ang_vel, accel_max, dt,
+                               T{0});
+}
+
+/**
+ * @brief Computes maximum possible velocity request under a given time constant
+ * of rate control, using a p/sqrt controller based on the angle error, then
+ * hands the result over to rate input shaping. This overload allows a
+ * feedforward angular velocity to be added to be the aforementioned velocity
+ * request.
+ *
+ * @param error_angle The angle error
+ * @param input_tc Time constant of rate control; Must be nonzero
+ * @param accel_max Maximum angular acceleration used to determine the allowed
+ * change in velocity within this timestep
+ * @param target_ang_vel Internal angular velocity target
+ * @param desired_ang_vel Feedforward desired angular velocity
+ * @param max_ang_vel Maximum angular velocity used to constrain the total
+ * velocity request; Set to any non-positive value to disable.
+ * @param dt Size of this timestep
+ */
 template <typename T>
 T InputShapingAngle(T error_angle, T input_tc, T accel_max, T target_ang_vel,
                     T desired_ang_vel, T max_ang_vel, T dt) {
-  ENSURES(input_tc > T{0});
+  Expects(input_tc > T{0});
   // Calculate the velocity as error approaches zero with acceleration limited
   // by accel_max_radss
   desired_ang_vel +=
@@ -185,20 +270,6 @@ T InputShapingAngle(T error_angle, T input_tc, T accel_max, T target_ang_vel,
   if (max_ang_vel > T{0}) {
     desired_ang_vel = std::clamp(desired_ang_vel, -max_ang_vel, max_ang_vel);
   }
-
-  // Acceleration is limited directly to smooth the beginning of the curve.
-  return InputShapingBodyRates(target_ang_vel, desired_ang_vel, accel_max, dt,
-                               T{0});
-}
-
-template <typename T>
-T InputShapingAngle(T error_angle, T input_tc, T accel_max, T target_ang_vel,
-                    T dt) {
-  ENSURES(input_tc > T{0});
-  // Calculate the velocity as error approaches zero with acceleration limited
-  // by accel_max_radss
-  const T desired_ang_vel =
-      PiecewiseProportionalSqrt(error_angle, T{1} / input_tc, accel_max, dt);
 
   // Acceleration is limited directly to smooth the beginning of the curve.
   return InputShapingBodyRates(target_ang_vel, desired_ang_vel, accel_max, dt,
@@ -314,6 +385,16 @@ ThrustCorrectionResults<Scalar> ThrustHeadingRotationAngles(
   return res;
 }
 
+/**
+ * @brief Limits angular velocities, scaling the x/y components of ang_vel
+ * down evenly to let then fall within the ellipse with semiaxes defined by the
+ * x/y components of ang_vel_max when both of the latter is nonzero.
+ * Otherwise, either x/y component of ang_vel whose corresponding maximum is
+ * nonzero is directly clamped to the maximum
+ *
+ * @param ang_vel Angular velocities
+ * @param ang_vel_max Maximum permitted angular velocities.
+ */
 template <typename Derived1, typename Derived2,
           typename Scalar = typename Derived1::Scalar>
 Eigen::Matrix<Scalar, 3, 1> BodyRateLimiting(
