@@ -121,7 +121,15 @@ void AutopilotClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
 
 void AutopilotClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
   imu_last_recv_time_ = msg->header.stamp;
-  tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
+  auto dt = msg->header.stamp - imu_last_recv_time_;
+  auto dt_s = dt.toSec();
+  if (dt_s > 0.0) {
+    Eigen::Vector3d output;
+    tf2::fromMsg(msg->linear_acceleration, output);
+    state_.accel.linear = imu_filter_.update(output, dt_s, 40.0);
+  } else {
+    tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
+  }
   tf2::fromMsg(msg->angular_velocity, state_.twist.angular);
   tf2::fromMsg(msg->orientation, state_.pose.orientation);
 }
