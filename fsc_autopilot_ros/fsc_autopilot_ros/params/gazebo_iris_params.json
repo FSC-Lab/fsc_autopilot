@@ -1,9 +1,11 @@
 {
-  "motor_curve": [
-    0.36,
-    0.082
-  ],
-  "attitude_controller_type": "apm",
+  "vehicle": {
+    "motor_curve": [
+      0.36,
+      0.082
+    ],
+    "num_rotors": 4
+  },
   "enable_inner_controller": true,
   "check_reconfiguration": false,
   "position_controller": {
@@ -20,17 +22,17 @@
       "z": 6.0
     },
     "vehicle_mass": 1.7,
-    "num_of_rotors": 4,
-    "rate": 100,
-    "de": {
-      "type": "velocity_based",
-      "gain": 4.0,
-      "height_threshold": 0.2,
-      "is_velocity_based": true,
-      "vehicle_mass": 1.7
-    }
+    "rate": 100
+  },
+  "ude": {
+    "type": "velocity_based",
+    "gain": 4.0,
+    "height_threshold": 0.2,
+    "is_velocity_based": true,
+    "vehicle_mass": 1.7
   },
   "attitude_controller": {
+    "type": "apm",
     "rate": 250,
     "enable_rate_feedforward": true,
     "input_tc": 0.1,
