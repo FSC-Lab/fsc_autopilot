@@ -57,9 +57,11 @@ Eigen::Vector3d VelocityBasedUDE::computeDamping(const VehicleState& state,
 Eigen::Vector3d BodyVelocityBasedUDE::computeIntegrand(
     const VehicleState& state, const VehicleInput& input, UDEState* err) const {
   const auto& [velocity, body_rate] = state.twist;
+  const Eigen::Vector3d velocity_body =
+      state.pose.orientation.inverse() * state.twist.linear;
   // omega x vb
   const Eigen::Vector3d dynamical_term =
-      body_rate.cross(velocity) * vehicle_mass_;
+      body_rate.cross(velocity_body) * vehicle_mass_;
 
   // The expected thrust/acc
   // f = [0, 0, 1] * thrust

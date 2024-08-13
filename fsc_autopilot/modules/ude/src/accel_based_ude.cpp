@@ -60,13 +60,15 @@ Eigen::Vector3d BodyAccelBasedUDE::computeIntegrand(const VehicleState& state,
                                                     const VehicleInput& input,
                                                     UDEState* err) const {
   const auto& [velocity, body_rate] = state.twist;
+  const Eigen::Vector3d velocity_body =
+      state.pose.orientation.inverse() * state.twist.linear;
   // gravity in body frame
   const Eigen::Vector3d body_gravity =
       state.pose.orientation.inverse() * kGravity;
   // dot v_b + omega x vb
   const Eigen::Vector3d body_accel = (state.accel.linear - body_gravity);
   const Eigen::Vector3d dynamical_term =
-      (body_accel + body_rate.cross(velocity)) * vehicle_mass_;
+      (body_accel + body_rate.cross(velocity_body)) * vehicle_mass_;
 
   // The expected thrust/acc
   // f = [0, 0, 1] * thrust
