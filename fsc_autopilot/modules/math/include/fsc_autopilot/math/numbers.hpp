@@ -38,6 +38,10 @@ inline constexpr Scalar pi_v =
     static_cast<details::FltOnly<Scalar>>(3.14159265358979323846L);
 
 template <typename Scalar>
+inline constexpr Scalar sqrt2_v =
+    static_cast<details::FltOnly<Scalar>>(1.41421356237309504880L);
+
+template <typename Scalar>
 inline constexpr Scalar std_gravity_v =
     static_cast<details::FltOnly<Scalar>>(9.80665L);
 
@@ -50,6 +54,8 @@ inline constexpr Scalar deg_per_rad_v =
     static_cast<details::FltOnly<Scalar>>(57.2957795130823229L);
 
 inline constexpr double pi = pi_v<double>;
+
+inline constexpr double sqrt2 = sqrt2_v<double>;
 
 inline constexpr double std_gravity = std_gravity_v<double>;
 
