@@ -26,13 +26,16 @@
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 #include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/vehicle_model.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
+#include "fsc_autopilot/ude/ude_base.hpp"
+#include "fsc_autopilot/ude/ude_factory.hpp"
 #include "fsc_autopilot_msgs/AttitudeControllerState.h"
 #include "fsc_autopilot_msgs/TrackingError.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
 #include "fsc_autopilot_ros/msg_conversion.hpp"
-#include "geometry_msgs/Vector3Stamped.h"
+#include "fsc_autopilot_ros/ros_support.hpp"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "ros/exceptions.h"
 #include "tf2_eigen/tf2_eigen.h"
@@ -42,10 +45,29 @@ using namespace std::string_literals;  // NOLINT
 
 AutopilotClient::AutopilotClient() {
   ros::NodeHandle pnh("~");
+
+  if (fsc::VehicleModelParameters params;
+      !params.load(RosParamLoader{"~vehicle"}, logger_) ||
+      !mdl_.setParams(params, logger_)) {
+    throw ros::InvalidParameterException(
+        "Failed to get required vehicle model parameters");
+  }
+
   auto attitude_controller_type =
-      pnh.param("attitude_controller_type", "simple"s);
+      pnh.param("attitude_controller/type", "simple"s);
   att_ctrl_ =
       fsc::AttitudeControllerFactory::Create(attitude_controller_type, logger_);
+
+  RosParamLoader ude_params_loader{"~ude"};
+  const auto ude_type = ude_params_loader.param("ude/type", "velocity_based"s);
+  if (!ude_type.empty()) {
+    ude_ = fsc::UDEFactory::Create(ude_type, logger_);
+    if (fsc::UDEParameters params; !params.load(ude_params_loader, logger_) ||
+                                   !ude_->setParams(params, logger_)) {
+      throw ros::InvalidParameterException("Got invalid parameters");
+    }
+  }
+
   if (!loadParams()) {
     throw ros::InvalidParameterException("Got invalid parameters");
   }
@@ -129,11 +151,22 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   }
 
   // check drone status
-  tracking_ctrl_.toggleIntegration((mavrosState_.connected != 0U) &&
-                                   (mavrosState_.armed != 0U) &&
-                                   (mavrosState_.mode == "OFFBOARD"));
 
   fsc::TrackingControllerError pos_ctrl_err;
+  fsc::UDEState ude_state;
+  if (ude_->update(state_, input_, dt, &ude_state) != fsc::UDEErrc::kSuccess) {
+    ROS_ERROR("UDE Update failed");
+  }
+
+  ude_->ude_active() = (mavrosState_.connected != 0U) &&
+                       (mavrosState_.armed != 0U) &&
+                       (mavrosState_.mode == "OFFBOARD");
+
+  Eigen::Vector3d ude_output;
+  if (!ude_->getEstimate(ude_output)) {
+    ROS_WARN("Failed to get UDE estimate");
+  }
+  outer_ref_.thrust = -ude_output;
   // outerloop control
   const auto& [pos_ctrl_out, outer_success] =
       tracking_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
@@ -143,13 +176,15 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
     return;
   }
 
-  const auto& [thrust, orientation_sp] = pos_ctrl_out.input.thrust_attitude();
+  input_ = pos_ctrl_out.input;
+  const auto mapped_input = mdl_.transformInputs(input_);
+  const auto& [thrust, orientation_sp] = mapped_input.thrust_attitude();
 
   fsc_autopilot_msgs::TrackingError tracking_error_msg;
   toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""), tracking_error_msg);
+  toMsg(ude_state, tracking_error_msg.ude_state);
   tracking_error_pub_.publish(tracking_error_msg);
-  cmd_.thrust =
-      std::clamp(static_cast<float>(motor_curve_.vals(thrust)), 0.0F, 1.0F);
+  cmd_.thrust = static_cast<float>(thrust);
   // define output messages
   if (enable_inner_controller_) {
     inner_ref_.orientation = orientation_sp;
@@ -238,11 +273,6 @@ bool AutopilotClient::loadParams() {
   enable_inner_controller_ = pnh.param("enable_inner_controller", false);
 
   pnh.getParam("check_reconfiguration", check_reconfiguration_);
-
-  const auto mc_coeffs =
-      pnh.param("motor_curve", std::vector<double>{0.1, 0.05});
-  motor_curve_ = MotorCurveType(Eigen::VectorXd::Map(
-      mc_coeffs.data(), static_cast<Eigen::Index>(mc_coeffs.size())));
 
   // offboard control mode
   if (enable_inner_controller_) {
@@ -359,21 +389,21 @@ void AutopilotClient::dynamicReconfigureCb(
     }
     const Eigen::Vector3d k_vel_prev =
         std::exchange(tc_params->k_vel, k_vel_new);
+    tracking_ctrl_.setParams(*tc_params, logger_);
 
-    auto ude_height_threshold_prev = std::exchange(
-        tc_params->ude_params.ude_height_threshold, ude.height_threshold);
+    auto ude_params = ude_->getParams(false);
 
-    const auto ude_gain_step =
-        std::abs(ude.gain - tc_params->ude_params.ude_gain);
+    auto ude_height_threshold_prev =
+        std::exchange(ude_params.ude_height_threshold, ude.height_threshold);
+
+    const auto ude_gain_step = std::abs(ude.gain - ude_params.ude_gain);
     if (check_reconfiguration_ && ude_gain_step > kMaxParamStep) {
       ROS_ERROR("Refusing reconfiguration: Δ ude_gain = %f > %f", ude_gain_step,
                 kMaxParamStep);
       return;
     }
-    auto ude_gain_prev =
-        std::exchange(tc_params->ude_params.ude_gain, ude.gain);
-
-    tracking_ctrl_.setParams(*tc_params, logger_);
+    auto ude_gain_prev = std::exchange(ude_params.ude_gain, ude.gain);
+    ude_->setParams(ude_params, logger_);
 
     // Display diff message after configuring position controller
     msg << "Position Error Saturation: " << apply_pos_err_saturation_prev
@@ -387,9 +417,8 @@ void AutopilotClient::dynamicReconfigureCb(
         << "\nUDE "
            "height threshold: "
         << ude_height_threshold_prev << " -> "
-        << tc_params->ude_params.ude_height_threshold
-        << "\nUDE gain: " << ude_gain_prev << " -> "
-        << tc_params->ude_params.ude_gain;
+        << ude_params.ude_height_threshold << "\nUDE gain: " << ude_gain_prev
+        << " -> " << ude_params.ude_gain;
   }
   ROS_INFO_STREAM_THROTTLE(1.0, msg.str());
 }

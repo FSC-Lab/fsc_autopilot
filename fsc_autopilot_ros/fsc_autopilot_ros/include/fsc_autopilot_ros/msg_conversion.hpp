@@ -67,7 +67,6 @@ inline fsc_autopilot_msgs::TrackingError& toMsg(
   tf2::toMsg(in.velocity_error, out.velocity_error);
   tf2::toMsg(in.feedback, out.feedback);
   tf2::toMsg(in.thrust_setpoint, out.thrust_setpoint);
-  toMsg(in.ude_state, out.ude_state);
   return out;
 }
 

@@ -30,7 +30,6 @@
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
-#include "fsc_autopilot/ude/ude_base.hpp"
 
 namespace fsc {
 struct TrackingControllerError : public ContextBase {
@@ -46,7 +45,6 @@ struct TrackingControllerError : public ContextBase {
   Eigen::Vector3d thrust_setpoint{Eigen::Vector3d::Zero()};
   double scalar_thrust_sp{0.0};  // thrust setpoint
   double thrust_per_rotor{0.0};  // thrust per rotor
-  UDEState ude_state;
 };
 
 struct TrackingControllerParameters : public ParameterBase {
@@ -72,10 +70,7 @@ struct TrackingControllerParameters : public ParameterBase {
   static constexpr double kVehicleMassSentinel{-1.0};
   double vehicle_mass{kVehicleMassSentinel};
 
-  uint32_t num_of_rotors{4};
-
   std::string ude_type;
-  UDEParameters ude_params;
 
   [[nodiscard]] bool valid(LoggerBase& logger) const override;
 
@@ -95,15 +90,9 @@ class TrackingController final : public ControllerBase {
   using ParametersConstSharedPtr =
       std::shared_ptr<const TrackingControllerParameters>;
 
-  using UDEConstSharedPtr = std::shared_ptr<const UDEBase>;
-  using UDESharedPtr = std::shared_ptr<UDEBase>;
-
   inline static const Eigen::Vector3d kGravity{Eigen::Vector3d::UnitZ() * 9.81};
 
   TrackingController() = default;
-  explicit TrackingController(ParametersSharedPtr params);
-
-  TrackingController(ParametersSharedPtr params, UDESharedPtr ude);
 
   ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     ContextBase* error) override;
@@ -121,7 +110,6 @@ class TrackingController final : public ControllerBase {
   double scalar_thrust_setpoint_{0.0};
   bool params_valid_;
 
-  std::uint32_t num_rotors_{4};
   bool apply_pos_err_saturation_{true};
   bool apply_vel_err_saturation_{false};
   double vehicle_mass_;
@@ -129,7 +117,6 @@ class TrackingController final : public ControllerBase {
   Eigen::Vector3d k_pos_;
   Eigen::Vector3d k_vel_;
   ThrustBounds<double> thrust_bnds_;
-  UDESharedPtr ude_;
 };
 }  // namespace fsc
 

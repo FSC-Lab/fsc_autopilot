@@ -21,6 +21,7 @@
 #ifndef FSC_AUTOPILOT_CORE_VEHICLE_INPUT_HPP_
 #define FSC_AUTOPILOT_CORE_VEHICLE_INPUT_HPP_
 
+#include <utility>
 #include <variant>
 
 #include "Eigen/Dense"
@@ -39,18 +40,21 @@ struct ThrustAttitude {
 
 class VehicleInput {
  public:
+  using CommandType = std::variant<ThrustRates, ThrustAttitude>;
+  VehicleInput() = default;
+
+  explicit VehicleInput(CommandType command) : command_(std::move(command)) {}
+
   explicit VehicleInput(const ThrustRates& thrust_rates)
       : command_(thrust_rates) {}
 
-  VehicleInput() = default;
+  explicit VehicleInput(const ThrustAttitude& thrust_rates)
+      : command_(thrust_rates) {}
 
   template <typename Derived>
   explicit VehicleInput(const double thrust,
                         const Eigen::MatrixBase<Derived>& body_rates)
       : command_(ThrustRates{thrust, body_rates}) {}
-
-  explicit VehicleInput(const ThrustAttitude& thrust_attitude)
-      : command_(thrust_attitude) {}
 
   template <typename Derived>
   explicit VehicleInput(const double thrust,
@@ -77,7 +81,7 @@ class VehicleInput {
   }
 
  private:
-  std::variant<ThrustRates, ThrustAttitude> command_;
+  CommandType command_;
 };
 
 }  // namespace fsc

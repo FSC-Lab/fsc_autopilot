@@ -23,6 +23,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "fsc_autopilot/core/logger_base.hpp"
 
@@ -52,9 +53,23 @@ class ParameterLoaderBase {
 
   virtual bool getParam(const std::string& key, int& value) const = 0;
 
+  virtual bool getParam(const std::string& key, std::vector<int>& value) const {
+    return false;
+  }
+
   virtual bool getParam(const std::string& key, double& value) const = 0;
 
+  virtual bool getParam(const std::string& key,
+                        std::vector<double>& value) const {
+    return false;
+  }
+
   virtual bool getParam(const std::string& key, std::string& value) const = 0;
+
+  virtual bool getParam(const std::string& key,
+                        std::vector<std::string>& value) const {
+    return false;
+  }
 };
 
 class ParameterBase {

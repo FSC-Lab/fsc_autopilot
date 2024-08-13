@@ -18,57 +18,48 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#ifndef FSC_AUTOPILOT_CORE_DEFINITIONS_HPP_
-#define FSC_AUTOPILOT_CORE_DEFINITIONS_HPP_
+#ifndef FSC_AUTOPILOT_CORE_VEHICLE_MODEL_HPP_
+#define FSC_AUTOPILOT_CORE_VEHICLE_MODEL_HPP_
+
 #include <string>
 
-#include "Eigen/Core"      // IWYU pragma: keep
-#include "Eigen/Geometry"  // IWYU pragma: keep
+#include "fsc_autopilot/core/logger_base.hpp"
+#include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
+#include "fsc_autopilot/math/polynomial.hpp"
 
 namespace fsc {
-struct Pose {
-  Eigen::Vector3d position{Eigen::Vector3d::Zero()};
-  Eigen::Quaterniond orientation{Eigen::Quaterniond::Identity()};
+
+class VehicleModelParameters final : public ParameterBase {
+ public:
+  int num_rotors;
+  Eigen::VectorXd motor_curve_coeffs;
+
+  [[nodiscard]] bool valid(LoggerBase& logger) const override;
+
+  [[nodiscard]] std::string parameterFor() const override {
+    return "vehicle_model";
+  }
+
+  bool load(const ParameterLoaderBase& loader, LoggerBase& logger) override;
+
+  [[nodiscard]] std::string toString() const override;
 };
 
-struct Twist {
-  Eigen::Vector3d linear{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d angular{Eigen::Vector3d::Zero()};
-};
+struct VehicleModel {
+ public:
+  using MotorCurveType = math::Polynomial<double>;
 
-struct Accel {
-  Eigen::Vector3d linear{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d angular{Eigen::Vector3d::Zero()};
-};
+  [[nodiscard]] VehicleInput transformInputs(const VehicleInput& input) const;
 
-struct VehicleState {
-  double stamp;
-  Pose pose;
-  Twist twist;
-  Accel accel;
-};
+  [[nodiscard]] VehicleModelParameters getParams() const;
 
-struct Reference {
-  VehicleState state;
-  Eigen::Vector3d thrust;
-  double yaw{0.0};
-  double yaw_rate{0.0};
-};
+  bool setParams(const VehicleModelParameters& params, LoggerBase& logger);
 
-struct Setpoint {
-  VehicleState state;
-  VehicleInput input;
-};
-
-struct ContextBase {
-  virtual ~ContextBase() = default;
-
-  [[nodiscard]] virtual std::string message() const { return ""; }
-
-  [[nodiscard]] virtual std::string name() const = 0;
+  int num_rotors;
+  MotorCurveType motor_curve;
 };
 
 }  // namespace fsc
 
-#endif  // FSC_AUTOPILOT_CORE_DEFINITIONS_HPP_
+#endif  // FSC_AUTOPILOT_CORE_VEHICLE_MODEL_HPP_

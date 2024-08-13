@@ -12,8 +12,7 @@ target_include_directories(
 target_compile_features(${MAIN_PROJECT_NAME}_${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
-  PUBLIC Eigen3::Eigen ${MAIN_PROJECT_NAME}::core ${MAIN_PROJECT_NAME}::math
-         $<LINK_LIBRARY:WHOLE_ARCHIVE,${MAIN_PROJECT_NAME}::ude>)
+  PUBLIC Eigen3::Eigen ${MAIN_PROJECT_NAME}::core ${MAIN_PROJECT_NAME}::math)
 
 add_library(${MAIN_PROJECT_NAME}::${PROJECT_NAME} ALIAS
             ${MAIN_PROJECT_NAME}_${PROJECT_NAME})

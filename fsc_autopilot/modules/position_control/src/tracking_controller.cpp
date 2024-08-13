@@ -28,7 +28,6 @@
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
-#include "fsc_autopilot/ude/ude_factory.hpp"
 
 namespace fsc {
 
@@ -78,28 +77,11 @@ ControlResult TrackingController::run(const VehicleState& state,
   const Eigen::Vector3d feedback =
       k_vel_.cwiseProduct(velocity_error + k_pos_.cwiseProduct(position_error));
 
-  Eigen::Vector3d ude_value = Eigen::Vector3d::Zero();
-  if (ude_) {
-    auto ude_result = ude_->update(
-        state, VehicleInput{ThrustAttitude{scalar_thrust_setpoint_}}, dt,
-        err ? &err->ude_state : nullptr);
-    if (ude_result != UDEErrc::kSuccess) {
-      return {getFallBackSetpoint(), ControllerErrc::kSubcomponentError};
-    }
-
-    if (!ude_->getEstimate(ude_value)) {
-      return {getFallBackSetpoint(), ControllerErrc::kSubcomponentError};
-    }
-  } else {
-    return {getFallBackSetpoint(), ControllerErrc::kSubcomponentMissing};
-  }
-
   // m * g * [0,0,1]
   const Eigen::Vector3d vehicle_weight = -vehicle_mass_ * kGravity;
 
-  // virtual control force: TO DO: check this function so that it take bounds
-  // as arguments
-  Eigen::Vector3d thrust_setpoint_raw = -feedback - vehicle_weight - ude_value;
+  Eigen::Vector3d thrust_setpoint_raw =
+      -feedback - vehicle_weight + refs.thrust;
   Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
       thrust_setpoint_raw, thrust_bnds_, max_tilt_angle_);
 
@@ -107,28 +89,18 @@ ControlResult TrackingController::run(const VehicleState& state,
   Eigen::Matrix3d attitude_sp =
       thrustVectorToRotation(thrust_setpoint, ref_yaw);
 
-  // total required thrust
-  scalar_thrust_setpoint_ =
-      thrust_setpoint.dot(attitude_sp * Eigen::Vector3d::UnitZ());
-  // std::cout << "thrust setpoint (N) is: " << thrust_sp_ << '\n';
-  //  required thrust per rotor
-  double thrust_per_rotor =
-      scalar_thrust_setpoint_ / static_cast<double>(num_rotors_);
-  // std::cout << "thrust per rotor (N) is: " << thrust_per_rotor << '\n';
+  double thrust = thrust_setpoint.dot(attitude_sp * Eigen::Vector3d::UnitZ());
 
   ControlResult result;
   result.ec = ControllerErrc::kSuccess;
-  result.setpoint.input =
-      VehicleInput{thrust_per_rotor, Eigen::Quaterniond(attitude_sp)};
+  result.setpoint.input = VehicleInput{thrust, Eigen::Quaterniond(attitude_sp)};
   if (err) {
     err->position_error = raw_position_error;
     err->velocity_error = raw_velocity_error;
     err->feedback = feedback;
     err->thrust_setpoint = thrust_setpoint;
     // msg output
-    err->scalar_thrust_sp = scalar_thrust_setpoint_;
-    err->thrust_per_rotor =
-        scalar_thrust_setpoint_ / static_cast<double>(num_rotors_);
+    err->scalar_thrust_sp = thrust;
   }
 
   return result;
@@ -147,7 +119,6 @@ bool TrackingController::setParams(const ParameterBase& params,
   }
 
   const auto& p = static_cast<const TrackingControllerParameters&>(params);
-  num_rotors_ = p.num_of_rotors;
   apply_pos_err_saturation_ = p.apply_pos_err_saturation;
   apply_vel_err_saturation_ = p.apply_vel_err_saturation;
   vehicle_mass_ = p.vehicle_mass;
@@ -155,18 +126,6 @@ bool TrackingController::setParams(const ParameterBase& params,
   k_pos_ = p.k_pos;
   k_vel_ = p.k_vel;
   thrust_bnds_ = {p.min_thrust, p.max_thrust};
-
-  if (!ude_) {
-    auto ude = UDEFactory::Create(p.ude_type, logger);
-    if (!ude) {
-      return false;
-    }
-    ude_ = std::move(ude);
-  }
-  if (!ude_->setParams(p.ude_params, logger)) {
-    logger.log(Severity::kError, "Failed to set UDE parameters");
-    return false;
-  }
 
   params_valid_ = true;
   return true;
@@ -187,19 +146,11 @@ std::shared_ptr<ParameterBase> TrackingController::getParams(
   params.max_thrust = thrust_bnds_.upper;
   params.max_tilt_angle = max_tilt_angle_;
   params.vehicle_mass = vehicle_mass_;
-  params.num_of_rotors = num_rotors_;
-  if (ude_) {
-    params.ude_params = ude_->getParams(false);
-  }
 
   return std::make_shared<TrackingControllerParameters>(std::move(params));
 }
 
-void TrackingController::toggleIntegration(bool value) {
-  if (ude_) {
-    ude_->ude_active() = value;
-  }
-}
+void TrackingController::toggleIntegration(bool value) {}
 
 std::string TrackingControllerParameters::toString() const {
   const Eigen::IOFormat f{
@@ -210,8 +161,7 @@ std::string TrackingControllerParameters::toString() const {
       << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
       << "Tracking Controller parameters:\nk_pos: "
       << k_pos.transpose().format(f)  //
-      << "\nk_vel: " << k_vel.transpose().format(f) << "\n"
-      << ude_params.toString();
+      << "\nk_vel: " << k_vel.transpose().format(f);
 
   return oss.str();
 }
@@ -245,10 +195,6 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
       loader.param("k_vel/y", kDefaultKvXY),
       loader.param("k_vel/z", kDefaultKvZ);
 
-  int num_of_rotors_param;
-  std::ignore = loader.getParam("num_of_rotors", num_of_rotors_param);
-  num_of_rotors = num_of_rotors_param;
-
   if (!loader.getParam("vehicle_mass", vehicle_mass)) {
     logger.log(Severity::kError, "Failed to load parameter `vehicle_mass`");
     return false;
@@ -260,13 +206,7 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
 
   std::ignore = loader.getParam("max_tilt_angle", max_tilt_angle);
 
-  auto sub_loader = loader.getChildLoader("de");
-  if (!sub_loader) {
-    return false;
-  }
-
-  sub_loader->getParam("type", ude_type);
-  return ude_params.load(*sub_loader, logger);
+  return true;
 }
 
 }  // namespace fsc

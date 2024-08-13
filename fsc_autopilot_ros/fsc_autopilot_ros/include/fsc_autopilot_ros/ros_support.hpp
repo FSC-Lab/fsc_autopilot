@@ -23,6 +23,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
@@ -55,9 +56,17 @@ class RosParamLoader : public fsc::ParameterLoaderBase {
 
   bool getParam(const std::string& key, int& value) const override;
 
+  bool getParam(const std::string& key, std::vector<int>& value) const override;
+
   bool getParam(const std::string& key, double& value) const override;
 
+  bool getParam(const std::string& key,
+                std::vector<double>& value) const override;
+
   bool getParam(const std::string& key, std::string& value) const override;
+
+  bool getParam(const std::string& key,
+                std::vector<std::string>& value) const override;
 
  private:
   ros::NodeHandle pnh_;
