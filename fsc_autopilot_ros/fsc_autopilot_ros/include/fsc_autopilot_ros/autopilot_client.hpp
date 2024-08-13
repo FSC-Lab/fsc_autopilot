@@ -29,6 +29,7 @@
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/core/vehicle_model.hpp"
+#include "fsc_autopilot/math/low_pass_filter.hpp"
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
@@ -101,6 +102,7 @@ class AutopilotClient {
 
   mavros_msgs::AttitudeTarget cmd_;
 
+  fsc::BatchLowPassFilter<Eigen::Vector3d> imu_filter_;
   ros::Timer outer_loop_;
   ros::Timer inner_loop_;
   ros::Timer watchdog_;

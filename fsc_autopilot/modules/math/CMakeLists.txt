@@ -12,7 +12,7 @@ target_include_directories(
 target_compile_features(${MAIN_PROJECT_NAME}_${PROJECT_NAME}
                         INTERFACE cxx_std_17)
 target_link_libraries(${MAIN_PROJECT_NAME}_${PROJECT_NAME}
-                      INTERFACE Eigen3::Eigen)
+                      INTERFACE Eigen3::Eigen ${MAIN_PROJECT_NAME}::utils)
 
 add_library(${MAIN_PROJECT_NAME}::${PROJECT_NAME} ALIAS
             ${MAIN_PROJECT_NAME}_${PROJECT_NAME})
