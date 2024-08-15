@@ -59,7 +59,7 @@ AutopilotClient::AutopilotClient() {
       fsc::AttitudeControllerFactory::Create(attitude_controller_type, logger_);
 
   RosParamLoader ude_params_loader{"~ude"};
-  const auto ude_type = ude_params_loader.param("ude/type", "velocity_based"s);
+  const auto ude_type = ude_params_loader.param("type", "velocity_based"s);
   if (!ude_type.empty()) {
     ude_ = fsc::UDEFactory::Create(ude_type, logger_);
     if (fsc::UDEParameters params; !params.load(ude_params_loader, logger_) ||
@@ -139,7 +139,7 @@ void AutopilotClient::setpointCb(
 
 void AutopilotClient::mavrosStateCb(const mavros_msgs::State& msg) {
   state_last_recv_time_ = msg.header.stamp;
-  mavrosState_ = msg;
+  vehicle_state_ = msg;
 }
 
 void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
@@ -158,9 +158,9 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
     ROS_ERROR("UDE Update failed");
   }
 
-  ude_->ude_active() = (mavrosState_.connected != 0U) &&
-                       (mavrosState_.armed != 0U) &&
-                       (mavrosState_.mode == "OFFBOARD");
+  ude_->ude_active() =
+      (vehicle_state_.connected != 0U) && (vehicle_state_.armed != 0U) &&
+      (vehicle_state_.mode == "OFFBOARD" || vehicle_state_.mode == "GUIDED");
 
   Eigen::Vector3d ude_output;
   if (!ude_->getEstimate(ude_output)) {

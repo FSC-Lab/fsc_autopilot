@@ -93,7 +93,7 @@ class AutopilotClient {
   dynamic_reconfigure::Server<fsc_autopilot_ros::TrackingControlConfig>
       cfg_srv_;
 
-  mavros_msgs::State mavrosState_;
+  mavros_msgs::State vehicle_state_;
 
   mavros_msgs::AttitudeTarget cmd_;
 
