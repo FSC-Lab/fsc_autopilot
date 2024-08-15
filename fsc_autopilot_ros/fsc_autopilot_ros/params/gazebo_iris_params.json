@@ -1,13 +1,12 @@
 {
+  "enable_inner_controller": true,
   "vehicle": {
     "motor_curve": [
-      0.36,
-      0.105
+      0.105,
+      0.36
     ],
     "num_rotors": 4
   },
-  "enable_inner_controller": true,
-  "check_reconfiguration": false,
   "position_controller": {
     "type": "tracking_controller",
     "min_thrust": 0.0,
@@ -36,10 +35,10 @@
     "type": "apm",
     "rate": 250,
     "enable_rate_feedforward": true,
-    "input_tc": 0.1,
-    "roll_p": 8.0,
-    "pitch_p": 8.0,
-    "yaw_p": 6.0,
+    "input_tc": 0.05,
+    "roll_p": 11.0,
+    "pitch_p": 11.0,
+    "yaw_p": 8.0,
     "yawrate_p": 0.2,
     "rollrate_max": 360,
     "pitchrate_max": 360,

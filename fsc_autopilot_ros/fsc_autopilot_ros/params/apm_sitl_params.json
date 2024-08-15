@@ -2,8 +2,8 @@
   "enable_inner_controller": true,
   "vehicle": {
     "motor_curve": [
-      0.08970438,
-      0.08922857
+      0.06795,
+      0.0
     ],
     "num_rotors": 4
   },
@@ -19,17 +19,17 @@
     "k_vel": {
       "x": 5.0,
       "y": 5.0,
-      "z": 3.0
+      "z": 8.0
     },
-    "vehicle_mass": 1.7,
+    "vehicle_mass": 3,
     "rate": 100
   },
   "ude": {
-    "type": "velocity_based",
-    "gain": 5.0,
+    "type": "body_accel_based",
+    "gain": 6.0,
     "height_threshold": 0.2,
     "is_velocity_based": true,
-    "vehicle_mass": 1.7,
+    "vehicle_mass": 3,
     "lbx": -10.0,
     "lby": -10.0,
     "lbz": -10.0,
@@ -41,11 +41,16 @@
     "type": "apm",
     "rate": 250,
     "enable_rate_feedforward": true,
-    "input_tc": 0.2,
+    "input_tc": 0.1,
     "roll_p": 8.0,
     "pitch_p": 8.0,
     "yaw_p": 6.0,
     "yawrate_p": 0.2,
-    "yawrate_max": 360.0
+    "rollrate_max": 360,
+    "pitchrate_max": 360,
+    "yawrate_max": 60,
+    "roll_accel_max": 1080,
+    "pitch_accel_max": 1080,
+    "yaw_accel_max": 360
   }
 }
