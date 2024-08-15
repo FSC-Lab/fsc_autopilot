@@ -2,7 +2,7 @@
   "vehicle": {
     "motor_curve": [
       0.36,
-      0.082
+      0.105
     ],
     "num_rotors": 4
   },
@@ -21,15 +21,15 @@
       "y": 5.0,
       "z": 6.0
     },
-    "vehicle_mass": 1.7,
+    "vehicle_mass": 1.535,
     "rate": 100
   },
   "ude": {
-    "type": "velocity_based",
+    "type": "body_accel_based",
     "gain": 4.0,
     "height_threshold": 0.2,
     "is_velocity_based": true,
-    "vehicle_mass": 1.7
+    "vehicle_mass": 1.535
   },
   "attitude_controller": {
     "type": "apm",
