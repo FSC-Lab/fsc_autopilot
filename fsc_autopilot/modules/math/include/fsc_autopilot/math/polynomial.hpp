@@ -32,12 +32,13 @@ template <typename Scalar,
 class Polynomial {
  public:
   using Coefficients = CoefficientType;
-  Polynomial() = default;
+  Polynomial() : Polynomial(Eigen::Matrix<Scalar, 1, 1>::Zero()) {}
 
   template <typename Derived>
   explicit Polynomial(const Eigen::MatrixBase<Derived>& coeffs)
       : coeffs_(coeffs), n_cfs_(coeffs.size()), power_seq_(n_cfs_) {
     std::iota(power_seq_.data(), power_seq_.data() + n_cfs_, Scalar(0));
+    power_seq_.reverseInPlace();
   }
 
   Scalar vals(const Scalar& x) const {
