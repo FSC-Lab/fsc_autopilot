@@ -26,10 +26,10 @@
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
-#include "fsc_autopilot/core/meta.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
+#include "fsc_autopilot/utils/meta.hpp"
 
 namespace fsc {
 

@@ -21,8 +21,8 @@
 // This code is adapted from the Microsoft Guidelines Support Library
 // (https://github.com/microsoft/FSC)'s `assert` header
 
-#ifndef FSC_AUTOPILOT_CORE_ASSERTS_HPP_
-#define FSC_AUTOPILOT_CORE_ASSERTS_HPP_
+#ifndef FSC_AUTOPILOT_UTILS_ASSERTS_HPP_
+#define FSC_AUTOPILOT_UTILS_ASSERTS_HPP_
 
 #if defined(_MSC_VER)
 #error This library does not support MSVC/windows
@@ -66,4 +66,4 @@
 #define Expects(cond) FSC_CONTRACT_CHECK("Precondition", cond)
 #define Ensures(cond) FSC_CONTRACT_CHECK("Postcondition", cond)
 
-#endif  // FSC_AUTOPILOT_CORE_ASSERTS_HPP_
+#endif  // FSC_AUTOPILOT_UTILS_ASSERTS_HPP_

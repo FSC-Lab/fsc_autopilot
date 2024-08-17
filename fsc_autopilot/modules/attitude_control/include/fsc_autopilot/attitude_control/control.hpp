@@ -24,10 +24,10 @@
 #include <algorithm>
 
 #include "Eigen/Dense"
-#include "fsc_autopilot/core/asserts.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
 #include "fsc_autopilot/math/numbers.hpp"
 #include "fsc_autopilot/math/rotation.hpp"
+#include "fsc_autopilot/utils/asserts.hpp"
 
 namespace fsc {
 

@@ -5,6 +5,8 @@
 #include <string>
 #include <type_traits>
 
+#include "fsc_autopilot/utils/meta.hpp"
+
 namespace fsc {
 template <typename T, typename Factory>
 class Registrar {
@@ -17,7 +19,7 @@ class Registrar {
       "This registrar can only register classes derived from UDEBase");
 
   explicit Registrar(std::string name) {
-    Factory::Register(static_cast<std::string&&>(name), std::make_unique<T>);
+    Factory::Register(FWD(name), std::make_unique<T>);
   }
 };
 

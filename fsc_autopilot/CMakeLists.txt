@@ -8,10 +8,10 @@ add_subdirectory(modules)
 set(PROJECT_INCLUDE_DIRS
     modules/attitude_control/include/ modules/core/include/
     modules/math/include/ modules/position_control/include/
-    modules/ude/include/)
+    modules/ude/include/ modules/utils/include/)
 
 set(PROJECT_TARGETS
     ${MAIN_PROJECT_NAME}_core ${MAIN_PROJECT_NAME}_math
     ${MAIN_PROJECT_NAME}_position_control ${MAIN_PROJECT_NAME}_attitude_control
-    ${MAIN_PROJECT_NAME}_ude)
+    ${MAIN_PROJECT_NAME}_ude ${MAIN_PROJECT_NAME}_utils)
 include(cmake/install_rules.cmake)
