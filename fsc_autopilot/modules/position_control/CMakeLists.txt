@@ -4,7 +4,8 @@ project(position_control)
 # TODO(Hs293Go): Support FetchContent
 find_package(Eigen3 REQUIRED)
 
-add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/tracking_controller.cpp)
+add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME}
+            src/tracking_controller.cpp src/position_controller_factory.cpp)
 target_include_directories(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

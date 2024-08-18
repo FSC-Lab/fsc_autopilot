@@ -29,6 +29,7 @@
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/core/vehicle_model.hpp"
+#include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot_msgs/TrackingReference.h"
@@ -70,18 +71,19 @@ class AutopilotClient {
 
   bool loadParams();
   void setupRosTopics();
+  std::unique_ptr<fsc::PositionControllerBase> setupPositionController();
 
   bool initialized_{false};
   bool check_reconfiguration_{true};
   ros::NodeHandle nh_;
-  TrackingController tracking_ctrl_;
+  std::unique_ptr<fsc::PositionControllerBase> pos_ctrl_;
   std::unique_ptr<fsc::UDEBase> ude_;
   std::unique_ptr<fsc::AttitudeControllerBase> att_ctrl_;
 
   fsc::VehicleModel mdl_;
   fsc::VehicleState state_;
 
-  fsc::Reference outer_ref_;
+  fsc::PositionControlReference outer_ref_;
   fsc::AttitudeReference inner_ref_;
   fsc::VehicleInput input_;
 

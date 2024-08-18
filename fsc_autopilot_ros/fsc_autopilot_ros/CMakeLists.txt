@@ -21,11 +21,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC include
                                                   ${catkin_INCLUDE_DIRS})
 target_link_libraries(
   ${PROJECT_NAME}
-  PUBLIC ${catkin_LIBRARIES}
-         fsc_autopilot::core
-         fsc_autopilot::position_control
-         $<LINK_LIBRARY:WHOLE_ARCHIVE,fsc_autopilot::attitude_control
-         fsc_autopilot::ude>)
+  PUBLIC ${catkin_LIBRARIES} fsc_autopilot::core
+         $<LINK_LIBRARY:WHOLE_ARCHIVE,fsc_autopilot::position_control
+         fsc_autopilot::attitude_control fsc_autopilot::ude>)
 
 add_executable(autopilot_node src/autopilot_node.cpp)
 target_link_libraries(autopilot_node PRIVATE ${PROJECT_NAME})

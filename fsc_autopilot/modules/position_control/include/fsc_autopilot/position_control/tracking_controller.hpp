@@ -25,11 +25,11 @@
 #include <string>
 
 #include "Eigen/Dense"
-#include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
 #include "fsc_autopilot/core/parameter_base.hpp"
 #include "fsc_autopilot/position_control/control.hpp"
+#include "fsc_autopilot/position_control/position_controller_base.hpp"
 
 namespace fsc {
 struct TrackingControllerError : public ContextBase {
@@ -84,7 +84,7 @@ struct TrackingControllerParameters : public ParameterBase {
   }
 };
 
-class TrackingController final : public ControllerBase {
+class TrackingController final : public PositionControllerBase {
  public:
   using ParametersSharedPtr = std::shared_ptr<TrackingControllerParameters>;
   using ParametersConstSharedPtr =
@@ -94,8 +94,9 @@ class TrackingController final : public ControllerBase {
 
   TrackingController() = default;
 
-  ControlResult run(const VehicleState& state, const Reference& refs, double dt,
-                    ContextBase* error) override;
+  PositionControlResult run(const VehicleState& state,
+                            const PositionControlReference& refs, double dt,
+                            ContextBase* error) override;
 
   bool setParams(const ParameterBase& params, LoggerBase& logger) override;
 

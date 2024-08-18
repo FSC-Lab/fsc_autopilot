@@ -9,6 +9,7 @@
   "enable_inner_controller": true,
   "check_reconfiguration": false,
   "position_controller": {
+    "type": "tracking_controller",
     "min_thrust": 0.0,
     "max_thrust": 100.0,
     "k_pos": {

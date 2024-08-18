@@ -26,9 +26,11 @@
 #include "fsc_autopilot/attitude_control/apm_attitude_controller.hpp"
 #include "fsc_autopilot/attitude_control/attitude_controller_factory.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
+#include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/core/vehicle_model.hpp"
 #include "fsc_autopilot/math/math_extras.hpp"
-#include "fsc_autopilot/position_control/tracking_controller.hpp"
+#include "fsc_autopilot/position_control/position_controller_base.hpp"
+#include "fsc_autopilot/position_control/position_controller_factory.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot/ude/ude_factory.hpp"
 #include "fsc_autopilot_msgs/AttitudeControllerState.h"
@@ -68,6 +70,10 @@ AutopilotClient::AutopilotClient() {
     }
   }
 
+  pos_ctrl_ = setupPositionController();
+  if (!pos_ctrl_) {
+    throw ros::Exception("Failed to setup position controller");
+  }
   if (!loadParams()) {
     throw ros::InvalidParameterException("Got invalid parameters");
   }
@@ -134,18 +140,38 @@ void AutopilotClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
 
 void AutopilotClient::setpointCb(
     const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg) {
-  tf2::fromMsg(msg->pose.position, outer_ref_.state.pose.position);
-  tf2::fromMsg(msg->pose.orientation, outer_ref_.state.pose.orientation);
-  tf2::fromMsg(msg->twist.linear, outer_ref_.state.twist.linear);
-  tf2::fromMsg(msg->twist.angular, outer_ref_.state.twist.angular);
-  tf2::fromMsg(msg->accel.linear, outer_ref_.state.accel.linear);
-  tf2::fromMsg(msg->accel.angular, outer_ref_.state.accel.angular);
+  tf2::fromMsg(msg->pose.position, outer_ref_.position);
+  tf2::fromMsg(msg->twist.linear, outer_ref_.velocity);
   outer_ref_.yaw = fsc::deg2rad(msg->yaw);
 }
 
 void AutopilotClient::mavrosStateCb(const mavros_msgs::State& msg) {
   state_last_recv_time_ = msg.header.stamp;
   vehicle_state_ = msg;
+}
+
+std::unique_ptr<fsc::PositionControllerBase>
+AutopilotClient::setupPositionController() {
+  RosParamLoader loader{"~position_controller"};
+  const auto type = loader.param("type", "tracking_controller"s);
+  if (type.empty()) {
+    throw ros::InvalidParameterException(
+        "Position controller type cannot be empty");
+  }
+
+  auto ctl = fsc::PositionControllerFactory::Create(type, logger_);
+
+  auto params = ctl->getParams(true);
+  if (!params->load(loader, logger_)) {
+    ROS_FATAL("Failed to load tracking controller parameters");
+    return nullptr;
+  }
+  if (!ctl->setParams(*params, logger_)) {
+    ROS_FATAL("Failed to set tracking controller parameters");
+    return nullptr;
+  }
+  ROS_INFO_STREAM(params->toString());
+  return ctl;
 }
 
 void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
@@ -172,17 +198,18 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   if (!ude_->getEstimate(ude_output)) {
     ROS_WARN("Failed to get UDE estimate");
   }
-  outer_ref_.thrust = -ude_output;
+  outer_ref_.feedforward = {
+      fsc::PositionControlReference::FeedForward::Type::kThrust, -ude_output};
   // outerloop control
   const auto& [pos_ctrl_out, outer_success] =
-      tracking_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
+      pos_ctrl_->run(state_, outer_ref_, dt, &pos_ctrl_err);
 
   if (outer_success != fsc::ControllerErrc::kSuccess) {
     ROS_ERROR("Outer controller failed!: %s", outer_success.message().c_str());
     return;
   }
 
-  input_ = pos_ctrl_out.input;
+  input_ = fsc::VehicleInput{pos_ctrl_out};
   const auto mapped_input = mdl_.transformInputs(input_);
   const auto& [thrust, orientation_sp] = mapped_input.thrust_attitude();
 
@@ -251,16 +278,6 @@ void AutopilotClient::watchdog(const ros::TimerEvent& /*event*/) {
 
 bool AutopilotClient::loadParams() {
   // Position controller parameters
-  auto tc_params = tracking_ctrl_.getParams(true);
-  if (!tc_params->load(RosParamLoader{"~position_controller"}, logger_)) {
-    ROS_FATAL("Failed to load tracking controller parameters");
-    return false;
-  }
-
-  if (!tracking_ctrl_.setParams(*tc_params, logger_)) {
-    ROS_FATAL("Failed to set tracking controller parameters");
-    return false;
-  }
 
   // Attitude controller parameters
   auto ac_params = att_ctrl_->getParams(true);
@@ -288,7 +305,6 @@ bool AutopilotClient::loadParams() {
     ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
   }
 
-  ROS_INFO_STREAM(tc_params->toString());
   return true;
 }
 
@@ -354,7 +370,7 @@ void AutopilotClient::dynamicReconfigureCb(
         << " -> " << kp_angle_new.transpose().format(matlab_fmt) << "\n";
   }
 
-  auto tc_params_raw = tracking_ctrl_.getParams(false);
+  auto tc_params_raw = pos_ctrl_->getParams(false);
   if (tc_params_raw->parameterFor() == "tracking_controller") {
     auto tc_params =
         std::static_pointer_cast<fsc::TrackingControllerParameters>(
@@ -395,7 +411,7 @@ void AutopilotClient::dynamicReconfigureCb(
     }
     const Eigen::Vector3d k_vel_prev =
         std::exchange(tc_params->k_vel, k_vel_new);
-    tracking_ctrl_.setParams(*tc_params, logger_);
+    pos_ctrl_->setParams(*tc_params, logger_);
 
     auto ude_params = ude_->getParams(false);
 
