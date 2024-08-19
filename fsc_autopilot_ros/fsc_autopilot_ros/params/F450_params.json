@@ -1,6 +1,7 @@
 {
   "enable_inner_controller": true,
   "vehicle": {
+    "name": "F450",
     "motor_curve": [
       0.08970438,
       0.08922857

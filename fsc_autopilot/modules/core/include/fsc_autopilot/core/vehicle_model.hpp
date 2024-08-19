@@ -32,6 +32,7 @@ namespace fsc {
 
 class VehicleModelParameters final : public ParameterBase {
  public:
+  std::string vehicle_name;
   int num_rotors;
   Eigen::VectorXd motor_curve_coeffs;
 
@@ -56,6 +57,7 @@ struct VehicleModel {
 
   bool setParams(const VehicleModelParameters& params, LoggerBase& logger);
 
+  std::string vehicle_name;
   int num_rotors;
   MotorCurveType motor_curve;
 };

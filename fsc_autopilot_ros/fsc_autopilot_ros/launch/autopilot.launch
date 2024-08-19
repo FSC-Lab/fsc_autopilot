@@ -1,8 +1,11 @@
+<?xml version="1.0"?>
 <launch>
   <!-- Tracking Control Node -->
   <arg name="launch_prefix" default=""/>
   <arg name="uav_prefix" default=""/>
-  <arg name="builtin_param_file" default="gazebo_iris_params.json"/>
+
+  <!-- No default param file. Users must consciously load the correct params -->
+  <arg name="builtin_param_file"/>
   <arg name="param_file" default="$(find fsc_autopilot_ros)/params/$(arg builtin_param_file)"/>
   <node pkg="fsc_autopilot_ros" type="autopilot_node" name="fsc_autopilot_ros" output="screen" launch-prefix="$(arg launch_prefix)">
     <rosparam command="load" file="$(arg param_file)" />

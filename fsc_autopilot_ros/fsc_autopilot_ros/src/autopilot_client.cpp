@@ -42,7 +42,9 @@
 #include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/State.h"
 #include "nav_msgs/Odometry.h"
+#include "ros/exception.h"
 #include "ros/exceptions.h"
+#include "ros/master.h"
 #include "tf2_eigen/tf2_eigen.h"
 
 namespace nodelib {
@@ -137,6 +139,7 @@ bool CheckSensorAge(const std::string& type, ros::Time now, ros::Time then,
   }
   return true;
 }
+
 }  // namespace details
 
 static constexpr double kDefaultPositionControllerRate = 30.0;
@@ -151,6 +154,12 @@ AutopilotClient::AutopilotClient() {
     throw ros::InvalidParameterException(
         "Failed to get required vehicle model parameters");
   }
+
+  // Call out the type of the vehicle to the user
+  const std::string ruler(80, '#');
+  ROS_INFO("\033[1;32m\n%s\n    Starting autopilot for vehicle: %-45s\n%s",
+           ruler.c_str(), mdl_.vehicle_name.c_str(), ruler.c_str());
+
   auto outer_rate = kDefaultPositionControllerRate;
   if (!details::setupPositionController(pos_ctrl_, outer_rate, logger_)) {
     throw ros::Exception("Failed to setup position controller");

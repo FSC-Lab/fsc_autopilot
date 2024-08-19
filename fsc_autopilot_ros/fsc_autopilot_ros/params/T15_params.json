@@ -1,6 +1,7 @@
 {
   "enable_inner_controller": false,
   "vehicle": {
+    "name": "T15",
     "motor_curve": [
       0.05,
       0.12

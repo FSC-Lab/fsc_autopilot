@@ -1,6 +1,7 @@
 {
   "enable_inner_controller": true,
   "vehicle": {
+    "name": "sitl_apm",
     "motor_curve": [
       0.06795,
       0.0
