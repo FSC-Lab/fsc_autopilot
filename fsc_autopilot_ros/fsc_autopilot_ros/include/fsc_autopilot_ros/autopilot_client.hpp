@@ -68,7 +68,6 @@ class AutopilotClient {
   bool loadParams();
 
   bool initialized_{false};
-  bool check_reconfiguration_{true};
   ros::NodeHandle nh_;
   std::unique_ptr<fsc::PositionControllerBase> pos_ctrl_;
   std::unique_ptr<fsc::UDEBase> ude_;

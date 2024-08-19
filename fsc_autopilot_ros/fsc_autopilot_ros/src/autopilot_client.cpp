@@ -179,10 +179,6 @@ AutopilotClient::AutopilotClient() {
       ROS_WARN("No attitude controller specified");
   }
 
-  if (!loadParams()) {
-    throw ros::InvalidParameterException("Got invalid parameters");
-  }
-
   const auto uav_prefix = pnh.param("uav_prefix", ""s);
 
   setupPubSub(uav_prefix);
@@ -342,21 +338,6 @@ void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
   }
 }
 
-bool AutopilotClient::loadParams() {
-  // Position controller parameters
-
-  // Attitude controller parameters
-
-  // Core client lib parameters
-  ros::NodeHandle pnh("~");
-  // put load parameters into a function
-
-  pnh.getParam("check_reconfiguration", check_reconfiguration_);
-
-  // offboard control mode
-  return true;
-}
-
 void AutopilotClient::dynamicReconfigureCb(
     const fsc_autopilot_ros::TrackingControlConfig& config,
     [[maybe_unused]] std::uint32_t level) {
@@ -381,42 +362,40 @@ void AutopilotClient::dynamicReconfigureCb(
       << enable_inner_controller_prev << " -> " << enable_inner_controller_
       << "\n";
 
-  auto ac_params_raw = att_ctrl_->getParams(false);
-  if (ac_params_raw->parameterFor() == "apm_attitude_controller") {
-    auto ac_params = std::static_pointer_cast<fsc::APMAttitudeControllerParams>(
-        ac_params_raw);
-    const auto use_sqrt_controller_prev = std::exchange(
-        ac_params->use_sqrt_controller, attitude_tracking.use_sqrt_controller);
-    const auto enable_rate_feedforward_prev =
-        std::exchange(ac_params->rate_bf_ff_enabled,
-                      attitude_tracking.enable_rate_feedforward);
+  if (att_ctrl_) {
+    auto ac_params_raw = att_ctrl_->getParams(false);
+    if (ac_params_raw->parameterFor() == "apm_attitude_controller") {
+      auto ac_params =
+          std::static_pointer_cast<fsc::APMAttitudeControllerParams>(
+              ac_params_raw);
+      const auto use_sqrt_controller_prev =
+          std::exchange(ac_params->use_sqrt_controller,
+                        attitude_tracking.use_sqrt_controller);
+      const auto enable_rate_feedforward_prev =
+          std::exchange(ac_params->rate_bf_ff_enabled,
+                        attitude_tracking.enable_rate_feedforward);
 
-    const auto input_tc_prev =
-        std::exchange(ac_params->input_tc, attitude_tracking.input_tc);
-    const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
-                                       attitude_tracking.pitch_p,
-                                       attitude_tracking.yaw_p};
+      const auto input_tc_prev =
+          std::exchange(ac_params->input_tc, attitude_tracking.input_tc);
+      const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
+                                         attitude_tracking.pitch_p,
+                                         attitude_tracking.yaw_p};
 
-    const auto max_kp_angle_step =
-        (kp_angle_new - ac_params->kp_angle).cwiseAbs().maxCoeff(&max_idx);
-    if (check_reconfiguration_ && max_kp_angle_step > kMaxParamStep) {
-      constexpr char const* kAxname[] = {"roll", "pitch", "yaw"};
-      ROS_ERROR("Refusing reconfiguration: delta Kp[%s] = %f > %f",
-                kAxname[max_idx], max_kp_angle_step, kMaxParamStep);
+      const auto max_kp_angle_step =
+          (kp_angle_new - ac_params->kp_angle).cwiseAbs().maxCoeff(&max_idx);
+      const Eigen::Vector3d kp_angle_prev =
+          std::exchange(ac_params->kp_angle, kp_angle_new);
+      att_ctrl_->setParams(*ac_params, logger_);
+
+      // Display diff message after configuring attitude controller
+      msg << "Using sqrt controller: " << use_sqrt_controller_prev << " -> "
+          << ac_params->use_sqrt_controller << "\nenable_rate_feedforward"
+          << enable_rate_feedforward_prev << " -> "
+          << ac_params->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
+          << " -> " << ac_params->input_tc
+          << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
+          << " -> " << kp_angle_new.transpose().format(matlab_fmt) << "\n";
     }
-
-    const Eigen::Vector3d kp_angle_prev =
-        std::exchange(ac_params->kp_angle, kp_angle_new);
-    att_ctrl_->setParams(*ac_params, logger_);
-
-    // Display diff message after configuring attitude controller
-    msg << "Using sqrt controller: " << use_sqrt_controller_prev << " -> "
-        << ac_params->use_sqrt_controller << "\nenable_rate_feedforward"
-        << enable_rate_feedforward_prev << " -> "
-        << ac_params->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
-        << " -> " << ac_params->input_tc
-        << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
-        << " -> " << kp_angle_new.transpose().format(matlab_fmt) << "\n";
   }
 
   auto tc_params_raw = pos_ctrl_->getParams(false);
@@ -432,13 +411,6 @@ void AutopilotClient::dynamicReconfigureCb(
     const Eigen::Vector3d k_pos_new{position_tracking.pos_p_x,  //
                                     position_tracking.pos_p_y,  //
                                     position_tracking.pos_p_z};
-    const auto max_k_pos_step =
-        (k_pos_new - tc_params->k_pos).cwiseAbs().maxCoeff(&max_idx);
-    if (check_reconfiguration_ && max_k_pos_step > kMaxParamStep) {
-      ROS_ERROR("Refusing reconfiguration: ΔKp[%d] = %f > %f", max_idx,
-                max_k_pos_step, kMaxParamStep);
-      return;
-    }
 
     const Eigen::Vector3d k_pos_prev =
         std::exchange(tc_params->k_pos, k_pos_new);
@@ -451,13 +423,7 @@ void AutopilotClient::dynamicReconfigureCb(
     const Eigen::Vector3d k_vel_new{velocity_tracking.vel_p_x,  //
                                     velocity_tracking.vel_p_y,  //
                                     velocity_tracking.vel_p_z};
-    const auto max_k_vel_step =
-        (k_vel_new - tc_params->k_vel).cwiseAbs().maxCoeff(&max_idx);
-    if (check_reconfiguration_ && max_k_vel_step > kMaxParamStep) {
-      ROS_ERROR("Refusing reconfiguration: ΔKv[%d] = %f > %f", max_idx,
-                max_k_vel_step, kMaxParamStep);
-      return;
-    }
+
     const Eigen::Vector3d k_vel_prev =
         std::exchange(tc_params->k_vel, k_vel_new);
     pos_ctrl_->setParams(*tc_params, logger_);
@@ -467,12 +433,6 @@ void AutopilotClient::dynamicReconfigureCb(
     auto ude_height_threshold_prev =
         std::exchange(ude_params.ude_height_threshold, ude.height_threshold);
 
-    const auto ude_gain_step = std::abs(ude.gain - ude_params.ude_gain);
-    if (check_reconfiguration_ && ude_gain_step > kMaxParamStep) {
-      ROS_ERROR("Refusing reconfiguration: Δ ude_gain = %f > %f", ude_gain_step,
-                kMaxParamStep);
-      return;
-    }
     auto ude_gain_prev = std::exchange(ude_params.ude_gain, ude.gain);
     ude_->setParams(ude_params, logger_);
 
