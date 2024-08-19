@@ -63,9 +63,9 @@ struct APMAttitudeControllerParams final : public ParameterBase {
   double kp_yawrate{kDefaultYawRateP};
 
   Eigen::Vector3d kp_angle{Eigen::Vector3d::Constant(kDefaultAngleP)};
-  Eigen::Vector3d ang_accel_max{deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
-                                deg2rad(kMaxRollPitchAccelDefaultCdss / 100.0),
-                                deg2rad(kMaxYawAccelDefaultCdss / 100.0)};
+  Eigen::Vector3d ang_accel_max{kMaxRollPitchAccelDefaultCdss / 100.0,
+                                kMaxRollPitchAccelDefaultCdss / 100.0,
+                                kMaxYawAccelDefaultCdss / 100.0};
   Eigen::Vector3d ang_vel_max{Eigen::Vector3d::Zero()};
 };
 
