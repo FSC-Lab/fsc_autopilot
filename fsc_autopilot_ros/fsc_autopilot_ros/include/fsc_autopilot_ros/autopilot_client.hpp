@@ -33,12 +33,10 @@
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
-#include "fsc_autopilot_msgs/TrackingReference.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
 #include "fsc_autopilot_ros/ros_support.hpp"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/State.h"
-#include "nav_msgs/Odometry.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
 #include "sensor_msgs/Imu.h"
@@ -55,10 +53,7 @@ class AutopilotClient {
  private:
   void setupPubSub(const std::string& uav_prefix);
 
-  void odomCb(const nav_msgs::OdometryConstPtr& msg);
   void imuCb(const sensor_msgs::ImuConstPtr& msg);
-  void setpointCb(const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg);
-  void mavrosStateCb(const mavros_msgs::State& msg);
 
   void dynamicReconfigureCb(
       const fsc_autopilot_ros::TrackingControlConfig& config,
@@ -71,8 +66,6 @@ class AutopilotClient {
   void watchdog(const ros::TimerEvent& event);
 
   bool loadParams();
-  void setupRosTopics();
-  std::unique_ptr<fsc::PositionControllerBase> setupPositionController();
 
   bool initialized_{false};
   bool check_reconfiguration_{true};
@@ -88,9 +81,8 @@ class AutopilotClient {
   fsc::AttitudeReference inner_ref_;
   fsc::VehicleInput input_;
 
-  ros::Time odom_last_recv_time_;
-  ros::Time imu_last_recv_time_;
-  ros::Time state_last_recv_time_;
+  ros::Time odom_last_recv_time_{0.0};
+  ros::Time imu_last_recv_time_{0.0};
   std::unordered_map<std::string, ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
   ros::Publisher attitude_error_pub_;
@@ -103,9 +95,10 @@ class AutopilotClient {
   mavros_msgs::AttitudeTarget cmd_;
 
   fsc::BatchLowPassFilter<Eigen::Vector3d> imu_filter_;
+  double outer_period_;
+  double inner_period_;
   ros::Timer outer_loop_;
   ros::Timer inner_loop_;
-  ros::Timer watchdog_;
   bool enable_inner_controller_{
       false};  // flag indicating wether inner atttiude controller is on
 

@@ -35,15 +35,112 @@
 #include "fsc_autopilot/ude/ude_factory.hpp"
 #include "fsc_autopilot_msgs/AttitudeControllerState.h"
 #include "fsc_autopilot_msgs/TrackingError.h"
+#include "fsc_autopilot_msgs/TrackingReference.h"
 #include "fsc_autopilot_ros/TrackingControlConfig.h"
 #include "fsc_autopilot_ros/msg_conversion.hpp"
 #include "fsc_autopilot_ros/ros_support.hpp"
 #include "mavros_msgs/AttitudeTarget.h"
+#include "mavros_msgs/State.h"
+#include "nav_msgs/Odometry.h"
 #include "ros/exceptions.h"
 #include "tf2_eigen/tf2_eigen.h"
 
 namespace nodelib {
 using namespace std::string_literals;  // NOLINT
+
+namespace details {
+
+bool setupPositionController(std::unique_ptr<fsc::PositionControllerBase>& ctl,
+                             double& rate, RosLogger& logger) {
+  RosParamLoader loader{"~position_controller"};
+  const auto type = loader.param("type", "tracking_controller"s);
+  if (type.empty()) {
+    throw ros::InvalidParameterException(
+        "Position controller type cannot be empty");
+  }
+
+  ctl = fsc::PositionControllerFactory::Create(type, logger);
+
+  auto params = ctl->getParams(true);
+  if (!params->load(loader, logger)) {
+    ROS_FATAL("Failed to load tracking controller parameters");
+    return false;
+  }
+  if (!ctl->setParams(*params, logger)) {
+    ROS_FATAL("Failed to set tracking controller parameters");
+    return false;
+  }
+  loader.getParam("rate", rate);
+  ROS_INFO_STREAM(params->toString());
+  return true;
+}
+
+std::unique_ptr<fsc::UDEBase> setupUDE(RosLogger& logger) {
+  RosParamLoader loader{"~ude"};
+  const auto type = loader.param("type", "velocity_based"s);
+
+  if (type.empty()) {
+    return nullptr;
+  }
+  auto res = fsc::UDEFactory::Create(type, logger);
+  fsc::UDEParameters params;
+  if (!params.load(loader, logger) || !res->setParams(params, logger)) {
+    ROS_ERROR("Got invalid parameters");
+    return nullptr;
+  }
+  ROS_INFO_STREAM(params.toString());
+  return res;
+}
+
+enum class AttitudeControllerSetupStatus { kSuccess, kFailed, kRejected };
+
+AttitudeControllerSetupStatus setupAttitudeController(
+    std::unique_ptr<fsc::AttitudeControllerBase>& ctl, double& rate,
+    RosLogger& logger) {
+  RosParamLoader loader{"~attitude_controller"};
+  const auto type = loader.param("type", "simple"s);
+  if (type.empty()) {
+    return AttitudeControllerSetupStatus::kRejected;
+  }
+  ctl = fsc::AttitudeControllerFactory::Create(type, logger);
+
+  auto params = ctl->getParams(true);
+  if (!params->load(loader, logger)) {
+    ROS_FATAL("Failed to load attitude controller parameters");
+    return AttitudeControllerSetupStatus::kFailed;
+  }
+
+  if (!ctl->setParams(*params, logger)) {
+    ROS_FATAL("Failed to set attitude controller parameters");
+    return AttitudeControllerSetupStatus::kFailed;
+  }
+  loader.getParam("rate", rate);
+
+  ROS_INFO_STREAM(params->toString());
+  return AttitudeControllerSetupStatus::kSuccess;
+}
+
+bool CheckSensorAge(const std::string& type, ros::Time now, ros::Time then,
+                    double period) {
+  constexpr int kMeasurementStaleFactor = 5;
+
+  if (then == ros::Time{0}) {
+    ROS_WARN_THROTTLE(1, "First %s measurement not yet received", type.c_str());
+    return false;
+  }
+
+  const auto imu_data_age = (now - then).toSec();
+  if (imu_data_age > kMeasurementStaleFactor * period) {
+    ROS_WARN_THROTTLE(
+        1, "Age of the last %s measurement is %fs > %dx control period %fs",
+        type.c_str(), imu_data_age, kMeasurementStaleFactor, period);
+  }
+  return true;
+}
+}  // namespace details
+
+static constexpr double kDefaultPositionControllerRate = 30.0;
+static constexpr double kDefaultAttitudeControllerRate = 250.0;
 
 AutopilotClient::AutopilotClient() {
   ros::NodeHandle pnh("~");
@@ -54,31 +151,37 @@ AutopilotClient::AutopilotClient() {
     throw ros::InvalidParameterException(
         "Failed to get required vehicle model parameters");
   }
-
-  auto attitude_controller_type =
-      pnh.param("attitude_controller/type", "simple"s);
-  att_ctrl_ =
-      fsc::AttitudeControllerFactory::Create(attitude_controller_type, logger_);
-
-  RosParamLoader ude_params_loader{"~ude"};
-  const auto ude_type = ude_params_loader.param("type", "velocity_based"s);
-  if (!ude_type.empty()) {
-    ude_ = fsc::UDEFactory::Create(ude_type, logger_);
-    if (fsc::UDEParameters params; !params.load(ude_params_loader, logger_) ||
-                                   !ude_->setParams(params, logger_)) {
-      throw ros::InvalidParameterException("Got invalid parameters");
-    }
-  }
-
-  pos_ctrl_ = setupPositionController();
-  if (!pos_ctrl_) {
+  auto outer_rate = kDefaultPositionControllerRate;
+  if (!details::setupPositionController(pos_ctrl_, outer_rate, logger_)) {
     throw ros::Exception("Failed to setup position controller");
   }
+  outer_period_ = ros::Duration{ros::Rate{outer_rate}}.toSec();
+  outer_loop_ = nh_.createTimer(outer_rate, &AutopilotClient::outerLoop, this);
+  ROS_INFO("Running position controller at %f hz", outer_rate);
+
+  ude_ = details::setupUDE(logger_);
+
+  auto inner_rate = kDefaultAttitudeControllerRate;
+  switch (details::setupAttitudeController(att_ctrl_, inner_rate, logger_)) {
+    case details::AttitudeControllerSetupStatus::kSuccess:
+      inner_period_ = ros::Duration{ros::Rate{inner_rate}}.toSec();
+      inner_loop_ =
+          nh_.createTimer(inner_rate, &AutopilotClient::innerLoop, this);
+
+      enable_inner_controller_ = pnh.param("enable_inner_controller", true);
+      ROS_INFO("Running position controller at %f hz; Initially %sabled",
+               inner_rate, enable_inner_controller_ ? "en" : "dis");
+
+      break;
+    case details::AttitudeControllerSetupStatus::kFailed:
+      throw ros::Exception("Failed to setup attitude controller");
+    case details::AttitudeControllerSetupStatus::kRejected:
+      ROS_WARN("No attitude controller specified");
+  }
+
   if (!loadParams()) {
     throw ros::InvalidParameterException("Got invalid parameters");
   }
-  const ros::Rate outer_rate = pnh.param("position_controller/rate", 30);
-  const ros::Rate inner_rate = pnh.param("attitude_controller/rate", 250);
 
   const auto uav_prefix = pnh.param("uav_prefix", ""s);
 
@@ -89,29 +192,35 @@ AutopilotClient::AutopilotClient() {
                          std::forward<decltype(PH2)>(PH2));
   });
 
-  outer_loop_ = nh_.createTimer(outer_rate, &AutopilotClient::outerLoop, this);
-  inner_loop_ = nh_.createTimer(inner_rate, &AutopilotClient::innerLoop, this);
-
-  watchdog_ = nh_.createTimer(outer_rate, &AutopilotClient::watchdog, this);
-
   initialized_ = true;
 }
 
 void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
   subs_.emplace(
-      "odom"s,
-      nh_.subscribe(uav_prefix + "/state_estimator/local_position/odom", 1,
-                    &AutopilotClient::odomCb, this));
+      "odometry"s,
+      nh_.subscribe<nav_msgs::Odometry>(
+          uav_prefix + "/state_estimator/local_position/odom", 1,
+          [this](auto&& msg) {
+            odom_last_recv_time_ = ros::Time::now();
+            tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
+            tf2::fromMsg(msg->twist.twist.linear, state_.twist.linear);
+          }));
 
   subs_.emplace("accel"s, nh_.subscribe(uav_prefix + "/mavros/imu/data", 1,
                                         &AutopilotClient::imuCb, this));
 
-  subs_.emplace("target"s,
-                nh_.subscribe(uav_prefix + "/position_controller/target", 1,
-                              &AutopilotClient::setpointCb, this));
+  subs_.emplace(
+      "target"s,
+      nh_.subscribe<fsc_autopilot_msgs::TrackingReference>(
+          uav_prefix + "/position_controller/target", 1, [this](auto&& msg) {
+            tf2::fromMsg(msg->pose.position, outer_ref_.position);
+            tf2::fromMsg(msg->twist.linear, outer_ref_.velocity);
+            outer_ref_.yaw = fsc::deg2rad(msg->yaw);
+          }));
 
-  subs_.emplace("state"s, nh_.subscribe(uav_prefix + "/mavros/state", 1,
-                                        &AutopilotClient::mavrosStateCb, this));
+  subs_.emplace("state"s, nh_.subscribe<mavros_msgs::State>(
+                              uav_prefix + "/mavros/state", 1,
+                              [this](auto&& msg) { vehicle_state_ = *msg; }));
 
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       uav_prefix + "/mavros/setpoint_raw/attitude", 1);
@@ -124,15 +233,8 @@ void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
       uav_prefix + "/position_controller/output_data", 1);
 }
 
-void AutopilotClient::odomCb(const nav_msgs::OdometryConstPtr& msg) {
-  // the estimation only provides position measurement
-  odom_last_recv_time_ = msg->header.stamp;
-  tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
-  tf2::fromMsg(msg->twist.twist.linear, state_.twist.linear);
-}
-
 void AutopilotClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
-  imu_last_recv_time_ = msg->header.stamp;
+  imu_last_recv_time_ = ros::Time::now();
   auto dt = msg->header.stamp - imu_last_recv_time_;
   auto dt_s = dt.toSec();
   if (dt_s > 0.0) {
@@ -146,44 +248,12 @@ void AutopilotClient::imuCb(const sensor_msgs::ImuConstPtr& msg) {
   tf2::fromMsg(msg->orientation, state_.pose.orientation);
 }
 
-void AutopilotClient::setpointCb(
-    const fsc_autopilot_msgs::TrackingReferenceConstPtr& msg) {
-  tf2::fromMsg(msg->pose.position, outer_ref_.position);
-  tf2::fromMsg(msg->twist.linear, outer_ref_.velocity);
-  outer_ref_.yaw = fsc::deg2rad(msg->yaw);
-}
-
-void AutopilotClient::mavrosStateCb(const mavros_msgs::State& msg) {
-  state_last_recv_time_ = msg.header.stamp;
-  vehicle_state_ = msg;
-}
-
-std::unique_ptr<fsc::PositionControllerBase>
-AutopilotClient::setupPositionController() {
-  RosParamLoader loader{"~position_controller"};
-  const auto type = loader.param("type", "tracking_controller"s);
-  if (type.empty()) {
-    throw ros::InvalidParameterException(
-        "Position controller type cannot be empty");
-  }
-
-  auto ctl = fsc::PositionControllerFactory::Create(type, logger_);
-
-  auto params = ctl->getParams(true);
-  if (!params->load(loader, logger_)) {
-    ROS_FATAL("Failed to load tracking controller parameters");
-    return nullptr;
-  }
-  if (!ctl->setParams(*params, logger_)) {
-    ROS_FATAL("Failed to set tracking controller parameters");
-    return nullptr;
-  }
-  ROS_INFO_STREAM(params->toString());
-  return ctl;
-}
-
 void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
   using tf2::toMsg;
+  if (!details::CheckSensorAge("odometry", event.current_real,
+                               odom_last_recv_time_, outer_period_)) {
+    return;
+  }
   // calculate time step
   const auto dt = (event.current_real - event.last_real).toSec();
   if (dt <= 0.0 || dt > 1.0) {
@@ -244,6 +314,11 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
 
 void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
   using tf2::toMsg;
+  if (!details::CheckSensorAge("IMU", event.current_real, imu_last_recv_time_,
+                               inner_period_)) {
+    return;
+  }
+
   const auto dt = (event.current_real - event.last_real).toSec();
   if (dt <= 0.0 || dt > 1.0) {
     return;
@@ -267,52 +342,18 @@ void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
   }
 }
 
-void AutopilotClient::watchdog(const ros::TimerEvent& /*event*/) {
-  auto now = ros::Time::now();
-  std::map<std::string, ros::Duration> elapsed_since_last_recv = {
-      {"Odometry", now - odom_last_recv_time_},
-      {"Imu", now - imu_last_recv_time_},
-      {"Mavros State", now - state_last_recv_time_},
-  };
-  auto threshold = ros::Duration(3);
-  for (const auto& [key, value] : elapsed_since_last_recv) {
-    if (value > threshold) {
-      ROS_ERROR_THROTTLE(3,
-                         "Time since %s was last received exceeded %f seconds",
-                         key.c_str(), threshold.toSec());
-    }
-  }
-}
-
 bool AutopilotClient::loadParams() {
   // Position controller parameters
 
   // Attitude controller parameters
-  auto ac_params = att_ctrl_->getParams(true);
-  if (!ac_params->load(RosParamLoader{"~attitude_controller"}, logger_)) {
-    ROS_FATAL("Failed to load attitude controller parameters");
-  }
-
-  if (!att_ctrl_->setParams(*ac_params, logger_)) {
-    ROS_FATAL("Failed to set attitude controller parameters");
-    return false;
-  }
 
   // Core client lib parameters
   ros::NodeHandle pnh("~");
   // put load parameters into a function
-  enable_inner_controller_ = pnh.param("enable_inner_controller", false);
 
   pnh.getParam("check_reconfiguration", check_reconfiguration_);
 
   // offboard control mode
-  if (enable_inner_controller_) {
-    ROS_INFO("Inner controller (rate mode) enabled!");
-    ROS_INFO_STREAM(ac_params->toString());
-  } else {
-    ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
-  }
-
   return true;
 }
 
