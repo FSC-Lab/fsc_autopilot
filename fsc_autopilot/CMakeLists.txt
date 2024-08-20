@@ -5,6 +5,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(MAIN_PROJECT_NAME ${PROJECT_NAME})
 add_subdirectory(modules)
 
+include(CTest)
+option(BUILD_TESTING "Toggles building unit tests" ON)
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()
+
 set(PROJECT_INCLUDE_DIRS
     modules/attitude_control/include/ modules/core/include/
     modules/math/include/ modules/position_control/include/
