@@ -104,32 +104,6 @@ Eigen::Quaternion<typename Derived::Scalar> RotationMatrixToQuaternion(
     const Eigen::MatrixBase<Derived>& rotation_matrix);
 
 /**
- * @brief Convert a rotation matrix into the equivalent Euler-angle sequence
- * Sequence of axes for rotations is specified by the triple (a0, a1, a2), where
- * the integers {0, 1, 2} are mapped to the {x, y, z}-axes.
- *
- * Leaving `a0`, `a1`, `a2`, `extrinsic` at default values uses the ZYX
- * aerospace convention for Euler Angles. Note that the output `euler` will be
- * ordered as \f$ \{\psi,\,\theta,\,\phi\} \f$ i.e. z-axis rotation angle (yaw)
- * is given first and x-axis rotation angle (roll) is given last
- *
- * If the values in `euler` are in \f$[-\pi, \pi] \times [0, \frac{\pi}{2}]
- * \times [-\pi, \pi] \f$, then this function and `EulerAnglesToRotationMatrix`
- * are inverses of each other.
- *
- * @param R The rotation matrix, a 3-by-3 matrix that is orthonormal
- * @param a0 Integer specifying the principal axis for the first rotation,
- * @param a1 Integer specifying the principal axis for the second rotation,
- * @param a2 Integer specifying the principal axis for the third rotation,
- * @param extrinsic Toggles treating the Euler-angles as representing an
- * extrinsic or intrinsic rotation.
- * @return `euler` The equivalent euler angle sequence stored in a 3-vector
- */
-template <typename EulerSystem, typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 1> RotationMatrixToEulerAngles(
-    const Eigen::MatrixBase<Derived>& R);
-
-/**
  * @brief Convert an unit quaternion into the equivalent angle-axis vector (c.f.
  * rotation vector / Rodrigues vector)
  *
@@ -151,82 +125,6 @@ Eigen::Matrix<typename Derived::Scalar, 3, 1> QuaternionToAngleAxis(
 template <typename Derived>
 Eigen::Matrix<typename Derived::Scalar, 3, 3> QuaternionToRotationMatrix(
     const Eigen::QuaternionBase<Derived>& quaternion);
-
-/**
- * @brief Convert a quaternion into the equivalent Euler-angle sequence
- * Sequence of axes for rotations is specified by the triple (a0, a1, a2), where
- * the integers {0, 1, 2} are mapped to the {x, y, z}-axes.
- *
- * Default values for (a0, a1, a2, extrinsic) correspond to the aerospace
- * convention
- *
- * @param quaternion A unit quaternion
- * @param a0 Integer specifying the principal axis for the first rotation,
- * @param a1 Integer specifying the principal axis for the second rotation,
- * @param a2 Integer specifying the principal axis for the third rotation,
- * @param extrinsic Toggles treating the Euler-angles as representing an
- * extrinsic or intrinsic rotation.
- * @return `euler` The equivalent euler angle sequence stored in a 3-vector
- */
-template <typename EulerSystem, typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 1> QuaternionToEulerAngles(
-    const Eigen::QuaternionBase<Derived>& quaternion);
-
-/**
- * @brief Convert an Euler-angle sequence into the equivalent rotation
- * matrix. Sequence of axes for rotations is specified by the triple (a0, a1,
- * a2), where the integers {0, 1, 2} are mapped to the {x, y, z}-axes, and the
- * order of angles in the input vector must follow the sequence of axes.
- *
- * WHEN USING THE DEFAULT AEROSPACE CONVENTION, LEAVE `a0`, `a1`, `a2`,
- * `extrinsic` at default values! Note that the input `euler` is ordered as \f$
- * \{\psi,\,\theta,\,\phi\} \f$, i.e. z-axis rotation angle (yaw) is given first
- * and x-axis rotation angle (roll) is given last. For reference, the output
- * rotation matrix will then be
- *
- * `R` = \f$ \left[\begin{array}{ccc}
- *  \cos\phi \cos\psi & \cos\theta \sin\psi & -\sin\theta \\
- *  \sin\phi \sin\theta \cos\psi - \cos\phi \sin\psi & \sin\phi \sin\theta
- * \sin\psi + \cos\phi \cos\psi & \sin\phi \cos\theta \\ \cos\phi \sin\theta
- * \cos\psi + \sin\phi \sin\psi & \cos\phi \sin\theta \sin\psi - \sin\phi
- * \cos\psi & \cos\phi \cos\theta \end{array}\right]\f$
- *
- * If the values in `euler` are in \f$[-\pi, \pi] \times [0, \frac{\pi}{2}]
- * \times [-\pi, \pi] \f$, then this function and `RotationMatrixToEulerAngles`
- * are inverses of each other.
- *
- * @param euler Euler angles specified in radians
- * @param a0 Integer specifying the principal axis for the first rotation,
- * @param a1 Integer specifying the principal axis for the second rotation,
- * @param a2 Integer specifying the principal axis for the third rotation,
- * @param extrinsic Toggles treating the Euler-angles as representing an
- * extrinsic or intrinsic rotation.
- * @return `R` The equivalent rotation matrix, a 3-by-3 matrix that is
- * orthonormal with determinant 1
- */
-template <typename EulerSystem, typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> EulerAnglesToRotationMatrix(
-    const Eigen::MatrixBase<Derived>& euler);
-
-/**
- * @brief Convert an Euler-angle sequence into the equivalent quaternion.
- * Sequence of axes for rotations is specified by the triple (a0, a1, a2), where
- * the integers {0, 1, 2} are mapped to the {x, y, z}-axes.
- *
- * Default values for (a0, a1, a2, extrinsic) correspond to the aerospace
- * convention
- *
- * @param euler Euler angles specified in radians
- * @param a0 Integer specifying the principal axis for the first rotation,
- * @param a1 Integer specifying the principal axis for the second rotation,
- * @param a2 Integer specifying the principal axis for the third rotation,
- * @param extrinsic Toggles treating the Euler-angles as representing an
- * extrinsic or intrinsic rotation.
- * @return `quaternion` The equivalent quaternion
- */
-template <typename EulerSystem, typename Derived>
-Eigen::Quaternion<typename Derived::Scalar> EulerAnglesToQuaternion(
-    const Eigen::MatrixBase<Derived>& euler);
 
 /***************************BEGIN OF IMPLEMENTATION****************************/
 

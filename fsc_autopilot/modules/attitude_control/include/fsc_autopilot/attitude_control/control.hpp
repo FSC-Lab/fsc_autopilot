@@ -180,8 +180,8 @@ T InvPiecewiseProportionalSqrt(T output, T p, T D_max) {
     return output / p;
   }
 
-  const T linear_dist = D_max / pow<2>(p);
-  const T stopping_dist = linear_dist / T{2} + pow<2>(output) / (T{2} * D_max);
+  const T linear_dist = D_max / pown<2>(p);
+  const T stopping_dist = linear_dist / T{2} + pown<2>(output) / (T{2} * D_max);
   return copysign(stopping_dist, output);
 }
 
@@ -302,7 +302,7 @@ template <typename Derived1, typename Derived2,
   const Scalar qe_y = att_target_to_body.y();
   const Scalar qe_z = att_target_to_body.z();
   const Scalar qe_w = att_target_to_body.w();
-  const Scalar qt_w_sq = pow<2>(qe_w) + pow<2>(qe_z);
+  const Scalar qt_w_sq = pown<2>(qe_w) + pown<2>(qe_z);
   Scalar heading_error_angle;
 
   Quaternion thrust_vector_correction;

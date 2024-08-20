@@ -163,7 +163,7 @@ constexpr T wrapTo2Pi(T angle) {
  * @return constexpr T Angle in [-180, 180]
  */
 template <typename T>
-constexpr T WrapTo180(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
+constexpr T wrapTo180(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
   using std::fmod;
   const T res = fmod(angle + T(180), T(360), tols);
   return res <= T(0) ? res + T(180) : res - T(180);
@@ -178,7 +178,7 @@ constexpr T WrapTo180(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
  * @return constexpr T Angle in [0, 360]
  */
 template <typename T>
-constexpr T WrapTo360(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
+constexpr T wrapTo360(T angle, const Tolerances<T>& tols = Tolerances<T>()) {
   using std::fmod;
   T res = fmod(angle, T(360), tols);
   return res < T{0} ? res + T{360} : res;
@@ -206,16 +206,24 @@ constexpr T rad2deg(T rad) noexcept {
   return T(180) / numbers::pi_v<T> * rad;
 }
 
+/**
+ * @brief Power function with compile-time integral power
+ *
+ * @details The name 'pown' is chosen to echo IEEE-754-18's extended power
+ * functions
+ *
+ * @tparam IntPow Integral power value
+ * @param value The power to be raised to power
+ * @return constexpr Scalar `value` raised to `IntPow`-th power
+ */
 template <int IntPow, typename Scalar>
-constexpr Scalar pow(Scalar value) {
-  static_assert(IntPow >= 0, "Negative powers are not supported");
-
+constexpr Scalar pown(Scalar value) {
   if constexpr (IntPow == 0) {
     return Scalar(1);
   } else if constexpr (IntPow == 1) {
     return value;
   } else {
-    return pow<IntPow - 1>(value) * value;
+    return pown<IntPow - 1>(value) * value;
   }
 }
 

@@ -79,7 +79,7 @@ Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
   // back maximally allowed lateral thrusteration subject
   // to either thrusteration limits or tilt limits
   const auto max_lateral_thrust =
-      min(sqrt(pow<2>(max_z_thrust) - pow<2>(z_sp)), lat_acc_at_full_tilt);
+      min(sqrt(pown<2>(max_z_thrust) - pown<2>(z_sp)), lat_acc_at_full_tilt);
 
   using Vector2 = Eigen::Matrix<Scalar, 2, 1>;
   using Vector3 = Eigen::Matrix<Scalar, 3, 1>;
@@ -90,7 +90,7 @@ Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
 
   // Scale back desired lateral thrusteration if it exceeds allowed maximum
   const auto lateral_thrust_sqnorm = lateral_thrust.squaredNorm();
-  if (lateral_thrust_sqnorm > pow<2>(max_lateral_thrust)) {
+  if (lateral_thrust_sqnorm > pown<2>(max_lateral_thrust)) {
     const auto lateral_thrust_scale =
         max_lateral_thrust / sqrt(lateral_thrust_sqnorm);
     shaped_thrust_sp.template head<2>() = lateral_thrust_scale * lateral_thrust;
