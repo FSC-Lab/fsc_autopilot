@@ -9,14 +9,11 @@
 
 namespace fsc {
 
-struct PositionControlReference {
-  struct FeedForward {
-    enum class Type { kNone, kAcceleration, kThrust } type;
-    Eigen::Vector3d value{Eigen::Vector3d::Zero()};
-  };
+struct PositionControllerReference {
   Eigen::Vector3d position{Eigen::Vector3d::Zero()};
   Eigen::Vector3d velocity{Eigen::Vector3d::Zero()};
-  FeedForward feedforward{};
+  Eigen::Vector3d acceleration{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d thrust{Eigen::Vector3d::Zero()};
   double yaw;
 };
 
@@ -34,6 +31,23 @@ class PositionControllerState : public ContextBase {
   [[nodiscard]] std::string name() const override {
     return "position_controller_state";
   }
+
+  Eigen::Vector3d position_reference;
+  Eigen::Vector3d velocity_reference;
+
+  // The current vehicle absolute position/velocity/acceleration
+  Eigen::Vector3d position;
+  Eigen::Vector3d velocity;
+  Eigen::Vector3d acceleration;
+
+  // Absolute position error
+  Eigen::Vector3d position_error;
+
+  // Absolute velocity error
+  Eigen::Vector3d velocity_error;
+
+  // Current output of the position controller
+  Eigen::Vector3d output;
 };
 
 class PositionControllerBase : public ControllerBase {
@@ -41,14 +55,14 @@ class PositionControllerBase : public ControllerBase {
   ControlResult run(const VehicleState& state, const Reference& refs, double dt,
                     ContextBase* error) override {
     auto res = run(state,
-                   PositionControlReference{refs.state.pose.position,
-                                            refs.state.twist.linear},
+                   PositionControllerReference{refs.state.pose.position,
+                                               refs.state.twist.linear},
                    dt, error);
     return {Setpoint{{}, VehicleInput{res.input}}, res.ec};
   }
 
   virtual PositionControlResult run(const VehicleState& state,
-                                    const PositionControlReference& refs,
+                                    const PositionControllerReference& refs,
                                     double dt, ContextBase* error) = 0;
 };
 

@@ -21,11 +21,14 @@
 #ifndef FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
 #define FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
 
+#include <fsc_autopilot/math/math_extras.hpp>
+#include <fsc_autopilot/position_control/position_controller_base.hpp>
+
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
-#include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot_msgs/AttitudeControllerState.h"
-#include "fsc_autopilot_msgs/TrackingError.h"
+#include "fsc_autopilot_msgs/PositionControllerReference.h"
+#include "fsc_autopilot_msgs/PositionControllerState.h"
 #include "fsc_autopilot_msgs/UDEState.h"
 #include "tf2_eigen/tf2_eigen.h"
 
@@ -57,16 +60,34 @@ inline fsc_autopilot_msgs::UDEState& toMsg(const fsc::UDEState& in,
   return out;
 }
 
-inline fsc_autopilot_msgs::TrackingError& toMsg(
-    const tf2::Stamped<fsc::TrackingControllerError>& in,
-    fsc_autopilot_msgs::TrackingError& out) {
+inline void fromMsg(const fsc_autopilot_msgs::PositionControllerReference& in,
+                    tf2::Stamped<PositionControllerReference>& out) {
+  out.stamp_ = in.header.stamp;
+  tf2::fromMsg(in.position, out.position);
+  tf2::fromMsg(in.velocity, out.velocity);
+  tf2::fromMsg(in.acceleration, out.acceleration);
+  tf2::fromMsg(in.thrust, out.thrust);
+  const bool convert_degrees =
+      in.yaw_unit == fsc_autopilot_msgs::PositionControllerReference::DEGREES;
+  out.yaw = convert_degrees ? deg2rad(in.yaw) : in.yaw;
+}
+
+inline fsc_autopilot_msgs::PositionControllerState& toMsg(
+    const tf2::Stamped<fsc::PositionControllerState>& in,
+    fsc_autopilot_msgs::PositionControllerState& out) {
   out.header.stamp = in.stamp_;
-  out.scalar_thrust_setpoint = in.scalar_thrust_sp;
-  out.thrust_per_rotor = in.thrust_per_rotor;
+
+  out.position_reference = tf2::toMsg(in.position_reference);
+  tf2::toMsg(in.velocity_reference, out.velocity_reference);
+
+  out.position = tf2::toMsg(in.position);
+  tf2::toMsg(in.velocity, out.velocity);
+  tf2::toMsg(in.acceleration, out.acceleration);
+
   tf2::toMsg(in.position_error, out.position_error);
   tf2::toMsg(in.velocity_error, out.velocity_error);
-  tf2::toMsg(in.feedback, out.feedback);
-  tf2::toMsg(in.thrust_setpoint, out.thrust_setpoint);
+
+  tf2::toMsg(in.output, out.output);
   return out;
 }
 

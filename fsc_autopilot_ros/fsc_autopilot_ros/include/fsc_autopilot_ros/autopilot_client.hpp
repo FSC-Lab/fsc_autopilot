@@ -23,7 +23,7 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
+#include <vector>
 
 #include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
@@ -39,7 +39,7 @@
 #include "mavros_msgs/State.h"
 #include "ros/forwards.h"
 #include "ros/node_handle.h"
-#include "sensor_msgs/Imu.h"
+#include "tf2/transform_datatypes.h"
 
 namespace nodelib {
 
@@ -52,8 +52,6 @@ class AutopilotClient {
 
  private:
   void setupPubSub(const std::string& uav_prefix);
-
-  void imuCb(const sensor_msgs::ImuConstPtr& msg);
 
   void dynamicReconfigureCb(
       const fsc_autopilot_ros::TrackingControlConfig& config,
@@ -76,16 +74,20 @@ class AutopilotClient {
   fsc::VehicleModel mdl_;
   fsc::VehicleState state_;
 
-  fsc::PositionControlReference outer_ref_;
+  tf2::Stamped<fsc::PositionControllerReference> outer_ref_;
   fsc::AttitudeReference inner_ref_;
   fsc::VehicleInput input_;
 
-  ros::Time odom_last_recv_time_{0.0};
-  ros::Time imu_last_recv_time_{0.0};
-  std::unordered_map<std::string, ros::Subscriber> subs_;
+  ros::Time last_odom_timestamp_{0.0};
+  ros::Time last_imu_timestamp_{0.0};
+
+  // Only need to save the Subscribers to keep them alive => stuff them all
+  // without distinguishment in a vector
+  std::vector<ros::Subscriber> subs_;
   ros::Publisher setpoint_pub_;
   ros::Publisher attitude_error_pub_;
   ros::Publisher tracking_error_pub_;
+  ros::Publisher ude_state_pub_;
   dynamic_reconfigure::Server<fsc_autopilot_ros::TrackingControlConfig>
       cfg_srv_;
 

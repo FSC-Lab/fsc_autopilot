@@ -20,8 +20,6 @@
 
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 
-#include <iostream>
-
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
@@ -35,19 +33,19 @@
 namespace fsc {
 
 PositionControlResult TrackingController::run(
-    const VehicleState& state, const PositionControlReference& refs, double dt,
-    ContextBase* error) {
+    const VehicleState& state, const PositionControllerReference& refs,
+    double dt, ContextBase* error) {
   if (!params_valid_) {
     return {{}, ControllerErrc::kInvalidParameters};
   }
 
   const auto& curr_position = state.pose.position;
   const auto& curr_velocity = state.twist.linear;
-  const auto& curr_acceleration = state.accel.linear;
-  const auto& [ref_position, ref_velocity, feedforward, ref_yaw] = refs;
+  const auto& [ref_position, ref_velocity, ref_accel, ref_thrust, ref_yaw] =
+      refs;
 
-  TrackingControllerError* err = nullptr;
-  if ((error != nullptr) && error->name() == "tracking_controller.error") {
+  PositionControllerState* err = nullptr;
+  if ((error != nullptr) && error->name() == "position_controller_state") {
     err = static_cast<decltype(err)>(error);
   }
   const Eigen::Vector3d raw_position_error = curr_position - ref_position;
@@ -77,15 +75,18 @@ PositionControlResult TrackingController::run(
       k_vel_.cwiseProduct(velocity_error + k_pos_.cwiseProduct(position_error));
 
   // m * g * [0,0,1]
-  const Eigen::Vector3d vehicle_weight = -vehicle_mass_ * kGravity;
+  const Eigen::Vector3d vehicle_weight =
+      -vehicle_mass_ * Eigen::Vector3d::UnitZ() * numbers::std_gravity;
 
-  using FFType = PositionControlReference::FeedForward::Type;
-  const Eigen::Vector3d ff =
-      refs.feedforward.type == FFType::kThrust
-          ? refs.feedforward.value
-          : refs.feedforward.value * numbers::std_gravity;
-  Eigen::Vector3d thrust_setpoint_raw = -feedback - vehicle_weight + ff;
-  Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
+  // Our controller operates in the thrust world
+  Eigen::Vector3d feedforward = ref_thrust;
+
+  if (!ref_accel.isZero()) {  // Avoid the extra ops if possible
+    feedforward += ref_accel * numbers::std_gravity;
+  }
+  const Eigen::Vector3d thrust_setpoint_raw =
+      -feedback - vehicle_weight + feedforward;
+  const Eigen::Vector3d thrust_setpoint = MultirotorThrustLimiting(
       thrust_setpoint_raw, thrust_bnds_, max_tilt_angle_);
 
   // attitude target
@@ -98,12 +99,18 @@ PositionControlResult TrackingController::run(
   result.ec = ControllerErrc::kSuccess;
   result.input = {thrust, Eigen::Quaterniond(attitude_sp)};
   if (err) {
+    err->position_reference = ref_position;
+    err->velocity_reference = ref_velocity;
+
+    err->position = curr_position;
+    err->velocity = curr_velocity;
+    err->acceleration = state.accel.linear;
+
     err->position_error = raw_position_error;
     err->velocity_error = raw_velocity_error;
-    err->feedback = feedback;
-    err->thrust_setpoint = thrust_setpoint;
+
     // msg output
-    err->scalar_thrust_sp = thrust;
+    err->output = thrust_setpoint;
   }
 
   return result;
@@ -152,8 +159,6 @@ std::shared_ptr<ParameterBase> TrackingController::getParams(
 
   return std::make_shared<TrackingControllerParameters>(std::move(params));
 }
-
-void TrackingController::toggleIntegration(bool value) {}
 
 std::string TrackingControllerParameters::toString() const {
   const Eigen::IOFormat f{
