@@ -142,8 +142,8 @@ T PiecewiseProportionalSqrt(T error, T p, T second_ord_lim, T dt) {
   }
   // this ensures we do not get small oscillations by over shooting the error
   // correction in the last time step.
-  const T bounds = abs(error) / dt;
-  return std::clamp(correction_rate, -bounds, bounds);
+  const T bound = abs(error) / dt;
+  return std::clamp(correction_rate, -bound, bound);
 }
 
 /**

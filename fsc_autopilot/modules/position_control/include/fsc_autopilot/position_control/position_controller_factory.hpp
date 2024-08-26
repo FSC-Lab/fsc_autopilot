@@ -55,7 +55,7 @@ template <typename T>
 using PositionControllerRegistrar = Registrar<T, PositionControllerFactory>;
 
 #define REGISTER_POSITION_CONTROLLER(PC, name) \
-  static const PositionControllerRegistrar<PC> kRegistrarFor##AC((name))
+  static const PositionControllerRegistrar<PC> kRegistrarFor##PC((name))
 
 }  // namespace fsc
 

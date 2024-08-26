@@ -66,11 +66,11 @@ bool setupPositionController(std::unique_ptr<fsc::PositionControllerBase>& ctl,
 
   auto params = ctl->getParams(true);
   if (!params->load(loader, logger)) {
-    ROS_FATAL("Failed to load tracking controller parameters");
+    ROS_FATAL("Failed to load position controller parameters");
     return false;
   }
   if (!ctl->setParams(*params, logger)) {
-    ROS_FATAL("Failed to set tracking controller parameters");
+    ROS_FATAL("Failed to set position controller parameters");
     return false;
   }
   loader.getParam("rate", rate);
@@ -179,7 +179,7 @@ AutopilotClient::AutopilotClient() {
           nh_.createTimer(inner_rate, &AutopilotClient::innerLoop, this);
 
       enable_inner_controller_ = pnh.param("enable_inner_controller", true);
-      ROS_INFO("Running position controller at %f hz; Initially %sabled",
+      ROS_INFO("Running attitude controller at %f hz; Initially %sabled",
                inner_rate, enable_inner_controller_ ? "en" : "dis");
 
       break;
@@ -323,7 +323,8 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
       pos_ctrl_->run(state_, outer_ref_, dt, &pos_ctrl_err);
 
   if (outer_success != fsc::ControllerErrc::kSuccess) {
-    ROS_ERROR("Outer controller failed!: %s", outer_success.message().c_str());
+    ROS_ERROR("Position controller failed!: %s",
+              outer_success.message().c_str());
     return;
   }
 
@@ -375,6 +376,11 @@ void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
       att_ctrl_->run(state_, inner_ref_, dt, &att_ctrl_err);
 
   if (enable_inner_controller_) {
+    if (!inner_success) {
+      ROS_ERROR("Attitude controller failed!: %s",
+                inner_success.message().c_str());
+      return;
+    }
     cmd_.header.stamp = event.current_real;
     cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
     toMsg(att_ctrl_out.thrust_rates().body_rates, cmd_.body_rate);
