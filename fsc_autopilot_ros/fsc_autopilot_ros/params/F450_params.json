@@ -12,6 +12,7 @@
     "type": "tracking_controller",
     "min_thrust": 0.0,
     "max_thrust": 100.0,
+    "form": "nested",
     "k_pos": {
       "x": 1.5,
       "y": 1.5,
