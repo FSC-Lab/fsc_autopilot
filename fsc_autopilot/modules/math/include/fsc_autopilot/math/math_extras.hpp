@@ -23,7 +23,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <type_traits>
 
 #include "fsc_autopilot/math/numbers.hpp"
@@ -45,6 +44,11 @@ struct Tolerances {
  *
  * https://stackoverflow.com/questions/4915462/how-should-i-do-floating-point-comparison
  *
+ * This implementation is equivalent to python's math.isclose, per
+ * docs.python.org
+ *
+ * `the result will be: abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)`
+ *
  * Note that calling IsClose(value, 0) is NOT substantially slower than a
  * hypothetical IsZero() function implementing value < absolute_tolerance
  *
@@ -65,7 +69,7 @@ constexpr bool IsClose(const T& a, const T& b,
   }
 
   const T diff = abs(a - b);
-  const T norm = min(abs(a) + abs(b), std::numeric_limits<T>::max());
+  const T norm = max(abs(a), abs(b));
   return diff < max(tols.absolute, tols.relative * norm);
 }
 
@@ -94,7 +98,7 @@ bool IsSameSign(const T& x, const T& y) {
  * @return T modulus after division
  */
 template <typename T>
-constexpr T Mod(const T& x, const T& y,
+constexpr T mod(const T& x, const T& y,
                 const Tolerances<T>& tols = Tolerances<T>()) {
   static_assert(std::is_floating_point_v<T>, "EXPECTED_FLOATING_POINT_NUMBERS");
   using std::floor;
