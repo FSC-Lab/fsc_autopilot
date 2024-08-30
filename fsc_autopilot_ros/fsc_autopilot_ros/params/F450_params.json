@@ -9,7 +9,7 @@
     "num_rotors": 4
   },
   "position_controller": {
-    "type": "tracking_controller",
+    "type": "robust_controller",
     "min_thrust": 0.0,
     "max_thrust": 100.0,
     "form": "nested",

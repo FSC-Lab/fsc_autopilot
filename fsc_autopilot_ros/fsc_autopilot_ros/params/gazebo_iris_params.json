@@ -9,7 +9,7 @@
     "num_rotors": 4
   },
   "position_controller": {
-    "type": "tracking_controller",
+    "type": "robust_controller",
     "min_thrust": 0.0,
     "max_thrust": 100.0,
     "form": "nested",
@@ -35,7 +35,7 @@
   },
   "attitude_controller": {
     "type": "apm",
-    "rate": 250,
+    "rate": 150,
     "enable_rate_feedforward": true,
     "input_tc": 0.05,
     "roll_p": 11.0,

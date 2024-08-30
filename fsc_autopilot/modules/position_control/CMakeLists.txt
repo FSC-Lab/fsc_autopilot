@@ -6,7 +6,7 @@ find_package(Eigen3 REQUIRED)
 
 add_library(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}
-  src/tracking_controller.cpp src/pd_controller.cpp
+  src/robust_controller.cpp src/pd_controller.cpp
   src/position_controller_factory.cpp)
 target_include_directories(
   ${MAIN_PROJECT_NAME}_${PROJECT_NAME}

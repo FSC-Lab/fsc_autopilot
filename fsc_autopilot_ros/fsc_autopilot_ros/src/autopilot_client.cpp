@@ -455,9 +455,8 @@ void AutopilotClient::dynamicReconfigureCb(
 
   auto tc_params_raw = pos_ctrl_->getParams(false);
   if (tc_params_raw->parameterFor() == "tracking_controller") {
-    auto tc_params =
-        std::static_pointer_cast<fsc::TrackingControllerParameters>(
-            tc_params_raw);
+    auto tc_params = std::static_pointer_cast<fsc::RobustControllerParameters>(
+        tc_params_raw);
     const auto& position_tracking = tracker.position_tracking;
     const auto apply_pos_err_saturation_prev =
         std::exchange(tc_params->apply_pos_err_saturation,

@@ -18,8 +18,6 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include "fsc_autopilot/position_control/tracking_controller.hpp"
-
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
@@ -29,10 +27,11 @@
 #include "fsc_autopilot/position_control/control.hpp"
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/position_control/position_controller_factory.hpp"
+#include "fsc_autopilot/position_control/robust_controller.hpp"
 
 namespace fsc {
 
-PositionControlResult TrackingController::run(
+PositionControlResult RobustController::run(
     const VehicleState& state, const PositionControllerReference& refs,
     double dt, ContextBase* error) {
   // * Implement checks INDEPENDENTLY from ParameterBase::valid, with an eye
@@ -116,9 +115,9 @@ PositionControlResult TrackingController::run(
   return result;
 }
 
-bool TrackingController::setParams(const ParameterBase& params,
-                                   LoggerBase& logger) {
-  if (params.parameterFor() != "tracking_controller") {
+bool RobustController::setParams(const ParameterBase& params,
+                                 LoggerBase& logger) {
+  if (params.parameterFor() != "robust_controller") {
     logger.log(Severity::kError, "Mismatch in parameter and receiver");
 
     return true;
@@ -128,7 +127,7 @@ bool TrackingController::setParams(const ParameterBase& params,
     return false;
   }
 
-  const auto& p = static_cast<const TrackingControllerParameters&>(params);
+  const auto& p = static_cast<const RobustControllerParameters&>(params);
   apply_pos_err_saturation_ = p.apply_pos_err_saturation;
   apply_vel_err_saturation_ = p.apply_vel_err_saturation;
   vehicle_mass_ = p.vehicle_mass;
@@ -141,12 +140,12 @@ bool TrackingController::setParams(const ParameterBase& params,
   return true;
 }
 
-std::shared_ptr<ParameterBase> TrackingController::getParams(
+std::shared_ptr<ParameterBase> RobustController::getParams(
     bool use_default) const {
   if (use_default) {
-    return std::make_shared<TrackingControllerParameters>();
+    return std::make_shared<RobustControllerParameters>();
   }
-  TrackingControllerParameters params;
+  RobustControllerParameters params;
 
   params.apply_pos_err_saturation = apply_pos_err_saturation_;
   params.apply_vel_err_saturation = apply_vel_err_saturation_;
@@ -158,23 +157,23 @@ std::shared_ptr<ParameterBase> TrackingController::getParams(
   params.max_tilt_angle = max_tilt_angle_;
   params.vehicle_mass = vehicle_mass_;
 
-  return std::make_shared<TrackingControllerParameters>(std::move(params));
+  return std::make_shared<RobustControllerParameters>(std::move(params));
 }
 
-std::string TrackingControllerParameters::toString() const {
+std::string RobustControllerParameters::toString() const {
   const Eigen::IOFormat f{
       Eigen::StreamPrecision, 0, ",", ";\n", "", "", "[", "]"};
   std::ostringstream oss;
 
   oss << "Quadrotor Mass: " << vehicle_mass << "\n"
       << "thrust bounds: [" << min_thrust << "," << max_thrust << "]\n"
-      << "Tracking Controller parameters:\nform: " << to_string(form)
+      << "robust Controller parameters:\nform: " << to_string(form)
       << "\nk_pos: " << k_pos.transpose().format(f)  //
       << "\nk_vel: " << k_vel.transpose().format(f);
 
   return oss.str();
 }
-bool TrackingControllerParameters::valid(LoggerBase& logger) const {
+bool RobustControllerParameters::valid(LoggerBase& logger) const {
   if (min_thrust >= max_thrust) {
     logger.log(Severity::kError,
                "`min_thrust` must be strictly less than `max_thrust`");
@@ -198,8 +197,8 @@ bool TrackingControllerParameters::valid(LoggerBase& logger) const {
   return true;
 }
 
-bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
-                                        LoggerBase& logger) {
+bool RobustControllerParameters::load(const ParameterLoaderBase& loader,
+                                      LoggerBase& logger) {
   using namespace std::string_literals;  // NOLINT
   std::ignore =
       loader.getParam("apply_pos_err_saturation", apply_pos_err_saturation);
@@ -243,6 +242,6 @@ bool TrackingControllerParameters::load(const ParameterLoaderBase& loader,
   return true;
 }
 
-REGISTER_POSITION_CONTROLLER(TrackingController, "tracking_controller");
+REGISTER_POSITION_CONTROLLER(RobustController, "robust_controller");
 
 }  // namespace fsc
