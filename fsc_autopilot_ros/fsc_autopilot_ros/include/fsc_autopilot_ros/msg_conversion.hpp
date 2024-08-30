@@ -72,6 +72,17 @@ inline void fromMsg(const fsc_autopilot_msgs::PositionControllerReference& in,
   out.yaw = convert_degrees ? deg2rad(in.yaw) : in.yaw;
 }
 
+inline void toMsg(const tf2::Stamped<PositionControllerReference>& in,
+                  fsc_autopilot_msgs::PositionControllerReference& out) {
+  out.header.stamp = in.stamp_;
+  out.position = tf2::toMsg(in.position);
+  tf2::toMsg(in.velocity, out.velocity);
+  tf2::toMsg(in.acceleration, out.acceleration);
+  tf2::toMsg(in.thrust, out.thrust);
+  out.yaw_unit = fsc_autopilot_msgs::PositionControllerReference::RADIANS;
+  out.yaw = in.yaw;
+}
+
 inline fsc_autopilot_msgs::PositionControllerState& toMsg(
     const tf2::Stamped<fsc::PositionControllerState>& in,
     fsc_autopilot_msgs::PositionControllerState& out) {
