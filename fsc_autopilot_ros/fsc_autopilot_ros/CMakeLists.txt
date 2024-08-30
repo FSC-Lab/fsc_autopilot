@@ -14,7 +14,8 @@ find_package(
 
 generate_dynamic_reconfigure_options(cfg/TrackingControl.cfg)
 
-catkin_package(CATKIN_DEPENDS std_msgs geometry_msgs message_runtime)
+catkin_package(INCLUDE_DIRS include CATKIN_DEPENDS std_msgs geometry_msgs
+               message_runtime)
 
 add_library(${PROJECT_NAME} src/ros_support.cpp src/autopilot_client.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC include
