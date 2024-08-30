@@ -5,5 +5,8 @@
     "cmake.configureOnOpen": false,
     "files.associations": {
         "**/cfg/*.cfg": "python",
+        "core": "cpp",
+        "cmath": "cpp",
+        "complex": "cpp"
     }
 }

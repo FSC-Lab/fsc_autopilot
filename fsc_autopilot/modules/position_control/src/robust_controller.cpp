@@ -18,6 +18,8 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#include "fsc_autopilot/position_control/robust_controller.hpp"
+
 #include "fsc_autopilot/core/controller_base.hpp"
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/logger_base.hpp"
@@ -27,7 +29,6 @@
 #include "fsc_autopilot/position_control/control.hpp"
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/position_control/position_controller_factory.hpp"
-#include "fsc_autopilot/position_control/robust_controller.hpp"
 
 namespace fsc {
 
@@ -111,7 +112,6 @@ PositionControlResult RobustController::run(
 
     err->output = thrust_setpoint;
   }
-
   return result;
 }
 

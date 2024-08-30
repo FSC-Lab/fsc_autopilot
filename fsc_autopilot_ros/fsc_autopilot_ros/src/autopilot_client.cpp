@@ -20,6 +20,8 @@
 
 #include "fsc_autopilot_ros/autopilot_client.hpp"
 
+#include <std_msgs/Float64MultiArray.h>
+
 #include <memory>
 #include <utility>
 
@@ -28,8 +30,9 @@
 #include "fsc_autopilot/core/definitions.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/core/vehicle_model.hpp"
-#include "fsc_autopilot/position_control/position_controller_base.hpp"
-#include "fsc_autopilot/position_control/position_controller_factory.hpp"
+#include "fsc_autopilot/math/math_extras.hpp"
+#include "fsc_autopilot/position_control/lqg_controller.hpp"
+#include "fsc_autopilot/position_control/pid_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot/ude/ude_factory.hpp"
 #include "fsc_autopilot_msgs/AttitudeControllerState.h"
@@ -193,6 +196,9 @@ AutopilotClient::AutopilotClient() {
 
   setupPubSub(uav_prefix);
 
+  estimated_state_pub_ = nh_.advertise<std_msgs::Float64MultiArray>(
+      uav_prefix + "/estimated_state", 1);
+
   cfg_srv_.setCallback([this](auto&& PH1, auto&& PH2) {
     dynamicReconfigureCb(std::forward<decltype(PH1)>(PH1),
                          std::forward<decltype(PH2)>(PH2));
@@ -279,6 +285,9 @@ void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
   subs_.emplace_back(nh_.subscribe<mavros_msgs::State>(
       mavros_ns + "/state", 1, [this](auto&& msg) { vehicle_state_ = *msg; }));
 
+  subs_.emplace(nh_.subscribe("position_controller/control_option", 1,
+                              &AutopilotClient::controllerOptionCb, this));
+
   setpoint_pub_ = nh_.advertise<mavros_msgs::AttitudeTarget>(
       mavros_ns + "/setpoint_raw/attitude", 1);
 
@@ -287,6 +296,18 @@ void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
   attitude_error_pub_ =
       nh_.advertise<fsc_autopilot_msgs::AttitudeControllerState>(
           attctl_ns + "/state", 1);
+}
+
+void AutopilotClient::controllerOptionCb(const std_msgs::Int64::ConstPtr& msg) {
+  ROS_INFO("Controller option received: %ld", msg->data);
+  if (previousControllerOption == 0 && msg->data == 1) {
+    switched = true;
+  } else {
+    switched = false;
+  }
+  previousControllerOption =
+      msg->data;  // update the previous controller option
+  controllerOption = msg->data;
 }
 
 void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
@@ -301,7 +322,13 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
     return;
   }
 
-  // check drone status
+  bool switched_sent = false;
+
+  if (switched) {
+    switched = false;
+    switched_sent = true;
+    // std::cout << "switched" << "\n\n";
+  }
 
   fsc::PositionControllerState pos_ctrl_err;
   fsc::UDEState ude_state;
@@ -351,160 +378,350 @@ void AutopilotClient::outerLoop(const ros::TimerEvent& event) {
                      mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
     cmd_.orientation = tf2::toMsg(orientation_sp);
 
-    setpoint_pub_.publish(cmd_);
+    // convert thrust command to normalized thrust input
+    // if the thrust is an acc command, then the thrust curve must change as
+    // well
+    // check drone status
+
+    if (controllerOption == 1) {
+      lqg_ctrl_.toggleIntegration(switched_sent);
+      estimated_state_ = lqg_ctrl_.getEstimatedState();
+      std_msgs::Float64MultiArray estimated_state_msg;
+      estimated_state_msg.data.resize(estimated_state_.size());
+
+      for (int i = 0; i < estimated_state_.size(); ++i) {
+        estimated_state_msg.data[i] = estimated_state_(i);
+      }
+
+      estimated_state_pub_.publish(estimated_state_msg);
+      // std::cout << "estimated_state_ = " << estimated_state_(0) << ", "
+      //           << estimated_state_(1) << ", " << estimated_state_(2);
+      fsc::LQGControllerError pos_ctrl_err;
+      // outerloop control
+      const auto& [pos_ctrl_out, outer_success] =
+          lqg_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
+      if (outer_success != fsc::ControllerErrc::kSuccess) {
+        ROS_ERROR("Outer controller failed!: %s",
+                  outer_success.message().c_str());
+        return;
+      }
+      input_ = pos_ctrl_out.input;
+      const auto mapped_input = mdl_.transformInputs(input_);
+      const auto& [thrust, orientation_sp] = mapped_input.thrust_attitude();
+
+      fsc_autopilot_msgs::TrackingError tracking_error_msg;
+      toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
+            tracking_error_msg);
+      toMsg(ude_state, tracking_error_msg.ude_state);
+      tracking_error_pub_.publish(tracking_error_msg);
+      cmd_.thrust = static_cast<float>(thrust);
+      // define output messages
+      if (enable_inner_controller_) {
+        inner_ref_.orientation = orientation_sp;
+      } else {
+        cmd_.header.stamp = event.current_real;
+        cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
+                         mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
+                         mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+        cmd_.orientation = tf2::toMsg(orientation_sp);
+
+        setpoint_pub_.publish(cmd_);
+      }
+    } else if (controllerOption == 0) {
+      // check drone status
+      fsc::TrackingControllerError pos_ctrl_err;
+      // outerloop control
+      const auto& [pos_ctrl_out, outer_success] =
+          tracking_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
+      if (outer_success != fsc::ControllerErrc::kSuccess) {
+        ROS_ERROR("Outer controller failed!: %s",
+                  outer_success.message().c_str());
+        return;
+      }
+      input_ = pos_ctrl_out.input;
+      const auto mapped_input = mdl_.transformInputs(input_);
+      const auto& [thrust, orientation_sp] = mapped_input.thrust_attitude();
+
+      fsc_autopilot_msgs::TrackingError tracking_error_msg;
+      toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
+            tracking_error_msg);
+      toMsg(ude_state, tracking_error_msg.ude_state);
+      tracking_error_pub_.publish(tracking_error_msg);
+      cmd_.thrust = static_cast<float>(thrust);
+      // define output messages
+      if (enable_inner_controller_) {
+        inner_ref_.orientation = orientation_sp;
+      } else {
+        cmd_.header.stamp = event.current_real;
+        cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
+                         mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
+                         mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+        cmd_.orientation = tf2::toMsg(orientation_sp);
+
+        setpoint_pub_.publish(cmd_);
+      }
+    } else if (controllerOption == 2) {
+      // pid_ctrl_.toggleIntegration(switched_sent);
+      // estimated_state_ = lqg_ctrl_.getEstimatedState();
+      // std_msgs::Float64MultiArray estimated_state_msg;
+      // estimated_state_msg.data.resize(estimated_state_.size());
+
+      // for (int i = 0; i < estimated_state_.size(); ++i) {
+      //   estimated_state_msg.data[i] = estimated_state_(i);
+      // }
+
+      // estimated_state_pub_.publish(estimated_state_msg);
+      // std::cout << "estimated_state_ = " << estimated_state_(0) << ", "
+      //           << estimated_state_(1) << ", " << estimated_state_(2);
+      fsc::LQGControllerError pos_ctrl_err;
+      // outerloop control
+      const auto& [pos_ctrl_out, outer_success] =
+          pid_ctrl_.run(state_, outer_ref_, dt, &pos_ctrl_err);
+      if (outer_success != fsc::ControllerErrc::kSuccess) {
+        ROS_ERROR("Outer controller failed!: %s",
+                  outer_success.message().c_str());
+        return;
+      }
+      input_ = pos_ctrl_out.input;
+      const auto mapped_input = mdl_.transformInputs(input_);
+      const auto& [thrust, orientation_sp] = mapped_input.thrust_attitude();
+
+      fsc_autopilot_msgs::TrackingError tracking_error_msg;
+      toMsg(tf2::Stamped(pos_ctrl_err, event.current_real, ""),
+            tracking_error_msg);
+      toMsg(ude_state, tracking_error_msg.ude_state);
+      tracking_error_pub_.publish(tracking_error_msg);
+      cmd_.thrust = static_cast<float>(thrust);
+      // define output messages
+      if (enable_inner_controller_) {
+        inner_ref_.orientation = orientation_sp;
+      } else {
+        cmd_.header.stamp = event.current_real;
+        cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ROLL_RATE |
+                         mavros_msgs::AttitudeTarget::IGNORE_PITCH_RATE |
+                         mavros_msgs::AttitudeTarget::IGNORE_YAW_RATE;
+        cmd_.orientation = tf2::toMsg(orientation_sp);
+
+        setpoint_pub_.publish(cmd_);
+      }
+    }
   }
-  // convert thrust command to normalized thrust input
-  // if the thrust is an acc command, then the thrust curve must change as
-  // well
-}
 
-void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
-  using tf2::toMsg;
-  if (!details::CheckSensorAge("IMU", event.current_real, last_imu_timestamp_,
-                               inner_period_)) {
-    return;
-  }
-
-  const auto dt = (event.current_real - event.last_real).toSec();
-  if (dt <= 0.0 || dt > 1.0) {
-    return;
-  }
-
-  fsc::AttitudeControllerState att_ctrl_err;
-
-  const auto& [att_ctrl_out, inner_success] =
-      att_ctrl_->run(state_, inner_ref_, dt, &att_ctrl_err);
-
-  if (enable_inner_controller_) {
-    if (!inner_success) {
-      ROS_ERROR("Attitude controller failed!: %s",
-                inner_success.message().c_str());
+  void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
+    using tf2::toMsg;
+    if (!details::CheckSensorAge("IMU", event.current_real, last_imu_timestamp_,
+                                 inner_period_)) {
       return;
     }
-    cmd_.header.stamp = event.current_real;
-    cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
-    toMsg(att_ctrl_out.thrust_rates().body_rates, cmd_.body_rate);
-    setpoint_pub_.publish(cmd_);
 
-    fsc_autopilot_msgs::AttitudeControllerState attitude_error_msg;
-    toMsg(tf2::Stamped{att_ctrl_err, event.current_real, ""},
-          attitude_error_msg);
-    attitude_error_pub_.publish(attitude_error_msg);
-  }
-}
+    const auto dt = (event.current_real - event.last_real).toSec();
+    if (dt <= 0.0 || dt > 1.0) {
+      return;
+    }
 
-void AutopilotClient::dynamicReconfigureCb(
-    const fsc_autopilot_ros::TrackingControlConfig& config,
-    [[maybe_unused]] std::uint32_t level) {
-  constexpr double kMaxParamStep = 1.0;
+    fsc::AttitudeControllerState att_ctrl_err;
 
-  if (!initialized_) {
-    return;
-  }
-  const Eigen::IOFormat matlab_fmt{
-      Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+    const auto& [att_ctrl_out, inner_success] =
+        att_ctrl_->run(state_, inner_ref_, dt, &att_ctrl_err);
 
-  const auto enable_inner_controller_prev = std::exchange(
-      enable_inner_controller_, config.groups.project.enable_inner_controller);
-  const auto& tracker = config.groups.tracker;
-  const auto& ude = config.groups.ude;
-  const auto& attitude_tracking = config.groups.attitude_tracking;
-  int max_idx;
+    if (enable_inner_controller_) {
+      if (!inner_success) {
+        ROS_ERROR("Attitude controller failed!: %s",
+                  inner_success.message().c_str());
+        return;
+      }
+      cmd_.header.stamp = event.current_real;
+      cmd_.type_mask = mavros_msgs::AttitudeTarget::IGNORE_ATTITUDE;
+      toMsg(att_ctrl_out.thrust_rates().body_rates, cmd_.body_rate);
+      setpoint_pub_.publish(cmd_);
 
-  std::stringstream msg;
-  msg << std::boolalpha
-      << "Dynamical Reconfigure Results:\nEnabled inner controller"
-      << enable_inner_controller_prev << " -> " << enable_inner_controller_
-      << "\n";
-
-  if (att_ctrl_) {
-    auto ac_params_raw = att_ctrl_->getParams(false);
-    if (ac_params_raw->parameterFor() == "apm_attitude_controller") {
-      auto ac_params =
-          std::static_pointer_cast<fsc::APMAttitudeControllerParams>(
-              ac_params_raw);
-      const auto use_sqrt_controller_prev =
-          std::exchange(ac_params->use_sqrt_controller,
-                        attitude_tracking.use_sqrt_controller);
-      const auto enable_rate_feedforward_prev =
-          std::exchange(ac_params->rate_bf_ff_enabled,
-                        attitude_tracking.enable_rate_feedforward);
-
-      const auto input_tc_prev =
-          std::exchange(ac_params->input_tc, attitude_tracking.input_tc);
-      const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
-                                         attitude_tracking.pitch_p,
-                                         attitude_tracking.yaw_p};
-
-      const auto max_kp_angle_step =
-          (kp_angle_new - ac_params->kp_angle).cwiseAbs().maxCoeff(&max_idx);
-      const Eigen::Vector3d kp_angle_prev =
-          std::exchange(ac_params->kp_angle, kp_angle_new);
-      att_ctrl_->setParams(*ac_params, logger_);
-
-      // Display diff message after configuring attitude controller
-      msg << "Using sqrt controller: " << use_sqrt_controller_prev << " -> "
-          << ac_params->use_sqrt_controller << "\nenable_rate_feedforward"
-          << enable_rate_feedforward_prev << " -> "
-          << ac_params->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
-          << " -> " << ac_params->input_tc
-          << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
-          << " -> " << kp_angle_new.transpose().format(matlab_fmt) << "\n";
+      fsc_autopilot_msgs::AttitudeControllerState attitude_error_msg;
+      toMsg(tf2::Stamped{att_ctrl_err, event.current_real, ""},
+            attitude_error_msg);
+      attitude_error_pub_.publish(attitude_error_msg);
     }
   }
 
-  auto tc_params_raw = pos_ctrl_->getParams(false);
-  if (tc_params_raw->parameterFor() == "tracking_controller") {
-    auto tc_params = std::static_pointer_cast<fsc::RobustControllerParameters>(
-        tc_params_raw);
-    const auto& position_tracking = tracker.position_tracking;
-    const auto apply_pos_err_saturation_prev =
-        std::exchange(tc_params->apply_pos_err_saturation,
-                      position_tracking.apply_pos_err_saturation);
+  bool AutopilotClient::loadParams() {
+    // Position controller parameters
+    auto tc_params = tracking_ctrl_.getParams(true);
+    if (!tc_params->load(RosParamLoader{"~position_controller"}, logger_)) {
+      ROS_FATAL("Failed to load tracking controller parameters");
+      return false;
+    }
 
-    const Eigen::Vector3d k_pos_new{position_tracking.pos_p_x,  //
-                                    position_tracking.pos_p_y,  //
-                                    position_tracking.pos_p_z};
+    if (!tracking_ctrl_.setParams(*tc_params, logger_)) {
+      ROS_FATAL("Failed to set tracking controller parameters");
+      return false;
+    }
 
-    const Eigen::Vector3d k_pos_prev =
-        std::exchange(tc_params->k_pos, k_pos_new);
+    auto lqg_params = lqg_ctrl_.getParams(true);
+    if (!lqg_params->load(RosParamLoader{"~position_controller"}, logger_)) {
+      ROS_FATAL("Failed to load tracking controller parameters");
+      return false;
+    }
+    if (!lqg_ctrl_.setParams(*lqg_params, logger_)) {
+      ROS_FATAL("Failed to set LQG controller parameters");
+      return false;
+    }
 
-    const auto& velocity_tracking = tracker.velocity_tracking;
-    const auto apply_vel_err_saturation_prev =
-        std::exchange(tc_params->apply_vel_err_saturation,
-                      velocity_tracking.apply_vel_err_saturation);
+    auto pid_params = pid_ctrl_.getParams(true);
+    if (!pid_params->load(RosParamLoader{"~position_controller"}, logger_)) {
+      ROS_FATAL("Failed to load tracking controller parameters");
+      return false;
+    }
+    if (!pid_ctrl_.setParams(*pid_params, logger_)) {
+      ROS_FATAL("Failed to set PID controller parameters");
+      return false;
+    }
 
-    const Eigen::Vector3d k_vel_new{velocity_tracking.vel_p_x,  //
-                                    velocity_tracking.vel_p_y,  //
-                                    velocity_tracking.vel_p_z};
+    // Attitude controller parameters
+    auto ac_params = att_ctrl_->getParams(true);
+    if (!ac_params->load(RosParamLoader{"~attitude_controller"}, logger_)) {
+      ROS_FATAL("Failed to load attitude controller parameters");
+    }
 
-    const Eigen::Vector3d k_vel_prev =
-        std::exchange(tc_params->k_vel, k_vel_new);
-    pos_ctrl_->setParams(*tc_params, logger_);
+    if (!att_ctrl_->setParams(*ac_params, logger_)) {
+      ROS_FATAL("Failed to set attitude controller parameters");
+      return false;
+    }
 
-    auto ude_params = ude_->getParams(false);
+    // Core client lib parameters
+    ros::NodeHandle pnh("~");
+    // put load parameters into a function
+    enable_inner_controller_ = pnh.param("enable_inner_controller", false);
 
-    auto ude_height_threshold_prev =
-        std::exchange(ude_params.ude_height_threshold, ude.height_threshold);
+    pnh.getParam("check_reconfiguration", check_reconfiguration_);
 
-    auto ude_gain_prev = std::exchange(ude_params.ude_gain, ude.gain);
-    ude_->setParams(ude_params, logger_);
+    // offboard control mode
+    if (enable_inner_controller_) {
+      ROS_INFO("Inner controller (rate mode) enabled!");
+      ROS_INFO_STREAM(ac_params->toString());
+    } else {
+      ROS_INFO("Inner controller bypassed! (attitude setpoint mode)");
+    }
 
-    // Display diff message after configuring position controller
-    msg << "Position Error Saturation: " << apply_pos_err_saturation_prev
-        << " -> " << tc_params->apply_pos_err_saturation
-        << "\nKp: " << k_pos_prev.transpose().format(matlab_fmt) << " -> "
-        << tc_params->k_pos.transpose().format(matlab_fmt)
-        << "\nVelocity Error Saturation: " << apply_vel_err_saturation_prev
-        << " -> " << tc_params->apply_vel_err_saturation
-        << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt) << " -> "
-        << tc_params->k_vel.transpose().format(matlab_fmt)
-        << "\nUDE "
-           "height threshold: "
-        << ude_height_threshold_prev << " -> "
-        << ude_params.ude_height_threshold << "\nUDE gain: " << ude_gain_prev
-        << " -> " << ude_params.ude_gain;
+    ROS_INFO_STREAM(tc_params->toString());
+    return true;
   }
-  ROS_INFO_STREAM_THROTTLE(1.0, msg.str());
-}
+
+  void AutopilotClient::dynamicReconfigureCb(
+      const fsc_autopilot_ros::TrackingControlConfig& config,
+      [[maybe_unused]] std::uint32_t level) {
+    constexpr double kMaxParamStep = 1.0;
+
+    if (!initialized_) {
+      return;
+    }
+    const Eigen::IOFormat matlab_fmt{
+        Eigen::StreamPrecision, 0, ",", "\n;", "", "", "[", "]"};
+
+    const auto enable_inner_controller_prev =
+        std::exchange(enable_inner_controller_,
+                      config.groups.project.enable_inner_controller);
+    const auto& tracker = config.groups.tracker;
+    const auto& ude = config.groups.ude;
+    const auto& attitude_tracking = config.groups.attitude_tracking;
+    int max_idx;
+
+    std::stringstream msg;
+    msg << std::boolalpha
+        << "Dynamical Reconfigure Results:\nEnabled inner controller"
+        << enable_inner_controller_prev << " -> " << enable_inner_controller_
+        << "\n";
+
+    if (att_ctrl_) {
+      auto ac_params_raw = att_ctrl_->getParams(false);
+      if (ac_params_raw->parameterFor() == "apm_attitude_controller") {
+        auto ac_params =
+            std::static_pointer_cast<fsc::APMAttitudeControllerParams>(
+                ac_params_raw);
+        const auto use_sqrt_controller_prev =
+            std::exchange(ac_params->use_sqrt_controller,
+                          attitude_tracking.use_sqrt_controller);
+        const auto enable_rate_feedforward_prev =
+            std::exchange(ac_params->rate_bf_ff_enabled,
+                          attitude_tracking.enable_rate_feedforward);
+
+        const auto input_tc_prev =
+            std::exchange(ac_params->input_tc, attitude_tracking.input_tc);
+        const Eigen::Vector3d kp_angle_new{attitude_tracking.roll_p,
+                                           attitude_tracking.pitch_p,
+                                           attitude_tracking.yaw_p};
+
+        const auto max_kp_angle_step =
+            (kp_angle_new - ac_params->kp_angle).cwiseAbs().maxCoeff(&max_idx);
+        const Eigen::Vector3d kp_angle_prev =
+            std::exchange(ac_params->kp_angle, kp_angle_new);
+        att_ctrl_->setParams(*ac_params, logger_);
+
+        // Display diff message after configuring attitude controller
+        msg << "Using sqrt controller: " << use_sqrt_controller_prev << " -> "
+            << ac_params->use_sqrt_controller << "\nenable_rate_feedforward"
+            << enable_rate_feedforward_prev << " -> "
+            << ac_params->rate_bf_ff_enabled << "\ninput_tc: " << input_tc_prev
+            << " -> " << ac_params->input_tc
+            << "\nAttitude Kp: " << kp_angle_prev.transpose().format(matlab_fmt)
+            << " -> " << kp_angle_new.transpose().format(matlab_fmt) << "\n";
+      }
+    }
+
+    // should lqg copy paste this part as well?
+    auto tc_params_raw = tracking_ctrl_.getParams(false);
+    if (tc_params_raw->parameterFor() == "tracking_controller") {
+      auto tc_params =
+          std::static_pointer_cast<fsc::RobustControllerParameters>(
+              tc_params_raw);
+      const auto& position_tracking = tracker.position_tracking;
+      const auto apply_pos_err_saturation_prev =
+          std::exchange(tc_params->apply_pos_err_saturation,
+                        position_tracking.apply_pos_err_saturation);
+
+      const Eigen::Vector3d k_pos_new{position_tracking.pos_p_x,  //
+                                      position_tracking.pos_p_y,  //
+                                      position_tracking.pos_p_z};
+
+      const Eigen::Vector3d k_pos_prev =
+          std::exchange(tc_params->k_pos, k_pos_new);
+
+      const auto& velocity_tracking = tracker.velocity_tracking;
+      const auto apply_vel_err_saturation_prev =
+          std::exchange(tc_params->apply_vel_err_saturation,
+                        velocity_tracking.apply_vel_err_saturation);
+
+      const Eigen::Vector3d k_vel_new{velocity_tracking.vel_p_x,  //
+                                      velocity_tracking.vel_p_y,  //
+                                      velocity_tracking.vel_p_z};
+
+      const Eigen::Vector3d k_vel_prev =
+          std::exchange(tc_params->k_vel, k_vel_new);
+      tracking_ctrl_.setParams(*tc_params, logger_);
+      lqg_ctrl_.setParams(*tc_params, logger_);
+      pid_ctrl_.setParams(*tc_params, logger_);
+
+      auto ude_params = ude_->getParams(false);
+
+      auto ude_height_threshold_prev =
+          std::exchange(ude_params.ude_height_threshold, ude.height_threshold);
+
+      auto ude_gain_prev = std::exchange(ude_params.ude_gain, ude.gain);
+      ude_->setParams(ude_params, logger_);
+
+      // Display diff message after configuring position controller
+      msg << "Position Error Saturation: " << apply_pos_err_saturation_prev
+          << " -> " << tc_params->apply_pos_err_saturation
+          << "\nKp: " << k_pos_prev.transpose().format(matlab_fmt) << " -> "
+          << tc_params->k_pos.transpose().format(matlab_fmt)
+          << "\nVelocity Error Saturation: " << apply_vel_err_saturation_prev
+          << " -> " << tc_params->apply_vel_err_saturation
+          << "\nKv: " << k_vel_prev.transpose().format(matlab_fmt) << " -> "
+          << tc_params->k_vel.transpose().format(matlab_fmt)
+          << "\nUDE "
+             "height threshold: "
+          << ude_height_threshold_prev << " -> "
+          << ude_params.ude_height_threshold << "\nUDE gain: " << ude_gain_prev
+          << " -> " << ude_params.ude_gain;
+    }
+    ROS_INFO_STREAM_THROTTLE(1.0, msg.str());
+  }
 }  // namespace nodelib

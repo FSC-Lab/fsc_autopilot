@@ -95,6 +95,42 @@ struct ThrustBounds {
   [[nodiscard]] bool valid() const { return upper > lower; }
 };
 
+template <typename Scalar>
+Eigen::Matrix<Scalar, 3, 3> eulerAnglesToRotationMatrix(
+    const Eigen::Matrix<Scalar, 3, 1>& euler_angles) {
+  using std::cos;
+  using std::sin;
+
+  Scalar roll = euler_angles(0);   // phi
+  Scalar pitch = euler_angles(1);  // theta
+  Scalar yaw = euler_angles(2);    // psi
+
+  Eigen::Matrix<Scalar, 3, 3> R;
+
+  R = Eigen::AngleAxis<Scalar>(yaw, Eigen::Matrix<Scalar, 3, 1>::UnitZ()) *
+      Eigen::AngleAxis<Scalar>(pitch, Eigen::Matrix<Scalar, 3, 1>::UnitY()) *
+      Eigen::AngleAxis<Scalar>(roll, Eigen::Matrix<Scalar, 3, 1>::UnitX());
+
+  return R;
+}
+
+template <typename Scalar>
+Eigen::Matrix<Scalar, 3, 3> pitchRollToRotation(Scalar roll, Scalar pitch) {
+  using std::cos;
+  using std::sin;
+  using VectorType = Eigen::Matrix<Scalar, 3, 1>;
+
+  const VectorType xb_des{cos(pitch), Scalar(0), sin(pitch)};
+  const VectorType yb_des{sin(roll) * sin(pitch), cos(roll),
+                          -sin(roll) * cos(pitch)};
+  const VectorType zb_des{-cos(roll) * sin(pitch), sin(roll),
+                          cos(roll) * cos(pitch)};
+
+  Eigen::Matrix<Scalar, 3, 3> rotmat;
+  rotmat << xb_des, yb_des, zb_des;
+  return rotmat;
+}
+
 template <typename Derived, typename Scalar = typename Derived::Scalar>
 Eigen::Matrix<Scalar, 3, 1> MultirotorThrustLimiting(
     const Eigen::MatrixBase<Derived>& thrust_sp,

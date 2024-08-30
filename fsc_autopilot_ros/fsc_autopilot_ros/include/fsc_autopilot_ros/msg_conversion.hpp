@@ -102,6 +102,19 @@ inline fsc_autopilot_msgs::PositionControllerState& toMsg(
   return out;
 }
 
+inline fsc_autopilot_msgs::TrackingError& toMsg(
+    const tf2::Stamped<fsc::LQGControllerError>& in,
+    fsc_autopilot_msgs::TrackingError& out) {
+  out.header.stamp = in.stamp_;
+  out.scalar_thrust_setpoint = in.scalar_thrust_sp;
+  out.thrust_per_rotor = in.thrust_per_rotor;
+  tf2::toMsg(in.position_error, out.position_error);
+  tf2::toMsg(in.velocity_error, out.velocity_error);
+  tf2::toMsg(in.feedback, out.feedback);
+  tf2::toMsg(in.thrust_setpoint, out.thrust_setpoint);
+  return out;
+}
+
 }  // namespace fsc
 
 #endif  // FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_

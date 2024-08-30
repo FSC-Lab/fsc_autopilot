@@ -21,6 +21,8 @@
 #ifndef FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
 #define FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
 
+#include <std_msgs/Int64.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -30,6 +32,8 @@
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/core/vehicle_model.hpp"
 #include "fsc_autopilot/math/low_pass_filter.hpp"
+#include "fsc_autopilot/position_control/lqg_controller.hpp"
+#include "fsc_autopilot/position_control/pid_controller.hpp"
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
@@ -45,8 +49,6 @@ namespace nodelib {
 
 class AutopilotClient {
  public:
-  using TrackingController = fsc::RobustController;
-
   using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
   AutopilotClient();
 
@@ -67,9 +69,13 @@ class AutopilotClient {
 
   bool initialized_{false};
   ros::NodeHandle nh_;
-  std::unique_ptr<fsc::PositionControllerBase> pos_ctrl_;
+  LQGController lqg_ctrl_;
+  PIDController pid_ctrl_;
+  TrackingController tracking_ctrl_;
   std::unique_ptr<fsc::UDEBase> ude_;
   std::unique_ptr<fsc::AttitudeControllerBase> att_ctrl_;
+
+  Eigen::Matrix<double, 6, 1> estimated_state_;
 
   fsc::VehicleModel mdl_;
   fsc::VehicleState state_;
@@ -88,12 +94,19 @@ class AutopilotClient {
   ros::Publisher attitude_error_pub_;
   ros::Publisher tracking_error_pub_;
   ros::Publisher ude_state_pub_;
+  ros::Publisher estimated_state_pub_;
   dynamic_reconfigure::Server<fsc_autopilot_ros::TrackingControlConfig>
       cfg_srv_;
 
   mavros_msgs::State vehicle_state_;
 
   mavros_msgs::AttitudeTarget cmd_;
+
+  long int controllerOption;
+
+  int64_t previousControllerOption =
+      -1;                 // to store the previous controller option
+  bool switched = false;  // to store the switch status
 
   fsc::BatchLowPassFilter<Eigen::Vector3d> imu_filter_;
   double outer_period_;
