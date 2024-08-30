@@ -32,7 +32,7 @@
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 
 namespace fsc {
-struct TrackingControllerParameters : public ParameterBase {
+struct RobustControllerParameters : public ParameterBase {
   using ParameterBase::load;
   static constexpr double kDefaultMaxThrust{20};     // In Newtons
   static constexpr double kDefaultMaxTiltAngle{45};  // In Degrees
@@ -59,15 +59,15 @@ struct TrackingControllerParameters : public ParameterBase {
   [[nodiscard]] std::string toString() const override;
 
   [[nodiscard]] std::string parameterFor() const override {
-    return "tracking_controller";
+    return "robust_controller";
   }
 };
 
-class TrackingController final : public PositionControllerBase {
+class RobustController final : public PositionControllerBase {
  public:
-  using Parameters = TrackingControllerParameters;
+  using Parameters = RobustControllerParameters;
 
-  TrackingController() = default;
+  RobustController() = default;
 
   PositionControlResult run(const VehicleState& state,
                             const PositionControllerReference& refs, double dt,
@@ -78,7 +78,7 @@ class TrackingController final : public PositionControllerBase {
   [[nodiscard]] std::shared_ptr<ParameterBase> getParams(
       bool use_default) const override;
 
-  [[nodiscard]] std::string name() const final { return "tracking_controller"; }
+  [[nodiscard]] std::string name() const final { return "robust_controller"; }
 
  private:
   bool apply_pos_err_saturation_{true};

@@ -45,9 +45,6 @@ namespace nodelib {
 
 class AutopilotClient {
  public:
-  using TrackingController = fsc::TrackingController;
-
-  using ControllerSharedPtr = std::shared_ptr<fsc::ControllerBase>;
   AutopilotClient();
 
  private:
