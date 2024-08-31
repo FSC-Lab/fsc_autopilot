@@ -20,6 +20,7 @@
 
 #include "fsc_autopilot_ros/autopilot_client.hpp"
 
+#include <fsc_autopilot/core/controller_base.hpp>
 #include <memory>
 #include <utility>
 
@@ -220,7 +221,8 @@ void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
         last_odom_timestamp_ = ros::Time::now();
         tf2::fromMsg(msg->pose.pose.position, state_.pose.position);
 
-        if (msg->header.frame_id == "base_link") {  // body-frame velocity
+        if (msg->child_frame_id == "base_link") {  // body-frame velocity
+          ROS_WARN_ONCE("Using odometry feedback with body-frame velocity!");
           Eigen::Vector3d velocity_body;
           tf2::fromMsg(msg->twist.twist.linear, velocity_body);
           Eigen::Quaterniond body_to_inertial;
@@ -370,7 +372,7 @@ void AutopilotClient::innerLoop(const ros::TimerEvent& event) {
       att_ctrl_->run(state_, inner_ref_, dt, &att_ctrl_err);
 
   if (enable_inner_controller_) {
-    if (!inner_success) {
+    if (inner_success != fsc::ControllerErrc::kSuccess) {
       ROS_ERROR("Attitude controller failed!: %s",
                 inner_success.message().c_str());
       return;
