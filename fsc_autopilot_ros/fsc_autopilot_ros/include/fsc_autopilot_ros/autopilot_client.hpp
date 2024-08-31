@@ -25,15 +25,12 @@
 #include <string>
 #include <vector>
 
-#include "dynamic_reconfigure/server.h"
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/core/vehicle_input.hpp"
 #include "fsc_autopilot/core/vehicle_model.hpp"
 #include "fsc_autopilot/math/low_pass_filter.hpp"
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
-#include "fsc_autopilot/position_control/tracking_controller.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
-#include "fsc_autopilot_ros/TrackingControlConfig.h"
 #include "fsc_autopilot_ros/ros_support.hpp"
 #include "mavros_msgs/AttitudeTarget.h"
 #include "mavros_msgs/State.h"
@@ -49,10 +46,6 @@ class AutopilotClient {
 
  private:
   void setupPubSub(const std::string& uav_prefix);
-
-  void dynamicReconfigureCb(
-      const fsc_autopilot_ros::TrackingControlConfig& config,
-      std::uint32_t level);
 
   void outerLoop(const ros::TimerEvent& event);
 
@@ -85,8 +78,6 @@ class AutopilotClient {
   ros::Publisher attitude_error_pub_;
   ros::Publisher tracking_error_pub_;
   ros::Publisher ude_state_pub_;
-  dynamic_reconfigure::Server<fsc_autopilot_ros::TrackingControlConfig>
-      cfg_srv_;
 
   mavros_msgs::State vehicle_state_;
 

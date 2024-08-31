@@ -2,17 +2,8 @@ cmake_minimum_required(VERSION 3.20.0)
 project(fsc_autopilot_ros VERSION 0.3.0)
 
 find_package(fsc_autopilot REQUIRED)
-find_package(
-  catkin REQUIRED
-  COMPONENTS roscpp
-             tf2_eigen
-             geometry_msgs
-             std_msgs
-             std_srvs
-             dynamic_reconfigure
-             fsc_autopilot_msgs)
-
-generate_dynamic_reconfigure_options(cfg/TrackingControl.cfg)
+find_package(catkin REQUIRED COMPONENTS roscpp tf2_eigen geometry_msgs std_msgs
+                                        std_srvs fsc_autopilot_msgs)
 
 catkin_package(INCLUDE_DIRS include CATKIN_DEPENDS std_msgs geometry_msgs
                message_runtime)
