@@ -260,12 +260,12 @@ void AutopilotClient::setupPubSub(const std::string& uav_prefix) {
 
         tf2::fromMsg(msg->angular_velocity, state_.twist.angular);
         tf2::fromMsg(msg->orientation, state_.pose.orientation);
-        if (last_imu_timestamp_ == ros::Time{0}) {
+        const auto dt = (timestamp - last_imu_timestamp_).toSec();
+        if (last_imu_timestamp_ == ros::Time(0) || dt <= 0.0) {
           tf2::fromMsg(msg->linear_acceleration, state_.accel.linear);
         } else {
           Eigen::Vector3d output;
           tf2::fromMsg(msg->linear_acceleration, output);
-          const auto dt = (timestamp - last_imu_timestamp_).toSec();
           state_.accel.linear = imu_filter_.update(output, dt, 40.0);
         }
 
