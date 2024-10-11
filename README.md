@@ -9,7 +9,7 @@ Compared to [previous controller packages](https://github.com/jaeyoung-lim/mavro
   1. Motor thrust mismatch
   2. Vehicle weight mismatch
   3. Strong winds and aerodynamic effects
-  
+
   thanks to a UDE (uncertainty and disturbance estimator)-based design
 
 - **Cross-Platform**: Our framework works on drones running either Ardupilot or PX4
@@ -22,11 +22,11 @@ We depend on `Eigen>=3.7` and a few standard ROS packages
 
 ``` bash
 sudo apt-get install libeigen3-dev \
-  ros-$ROS1_DISTRO_name-mavros \
-  ros-$ROS1_DISTRO_name-mavros-msgs \
-  ros-$ROS1_DISTRO_name-geometry-msgs \
-  ros-$ROS1_DISTRO_name-nav-msgs \
-  ros-$ROS1_DISTRO_name-sensor-msgs \
+  ros-$ROS1_DISTRO_NAME-mavros \
+  ros-$ROS1_DISTRO_NAME-mavros-msgs \
+  ros-$ROS1_DISTRO_NAME-geometry-msgs \
+  ros-$ROS1_DISTRO_NAME-nav-msgs \
+  ros-$ROS1_DISTRO_NAME-sensor-msgs \
   ros-$ROS1_DISTRO_NAME-tf2-eigen
 ```
 
