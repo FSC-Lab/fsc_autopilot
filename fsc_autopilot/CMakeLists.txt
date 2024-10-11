@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20.0)
+cmake_minimum_required(VERSION 3.24.0)
 project(fsc_autopilot VERSION 0.4.0)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

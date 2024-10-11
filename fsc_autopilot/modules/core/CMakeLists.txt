@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20.0)
+cmake_minimum_required(VERSION 3.24.0)
 project(core)
 
 add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} src/logger_base.cpp

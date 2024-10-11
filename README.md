@@ -18,6 +18,9 @@ Compared to [previous controller packages](https://github.com/jaeyoung-lim/mavro
 
 ## Dependencies
 
+We depend on cmake 3.24+. Follow [these instructions here](https://apt.kitware.com/) to install the latest CMake.
+Remember, [*Recent versions of CMake are available absolutely everywhere*](https://alexreinking.com/blog/how-to-use-cmake-without-the-agonizing-pain-part-1.html).
+
 We depend on `Eigen>=3.7` and a few standard ROS packages
 
 ``` bash
