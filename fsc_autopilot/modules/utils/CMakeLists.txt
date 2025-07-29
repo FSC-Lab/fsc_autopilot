@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24.0)
+cmake_minimum_required(VERSION 3.22)
 project(utils)
 
 add_library(${MAIN_PROJECT_NAME}_${PROJECT_NAME} INTERFACE)

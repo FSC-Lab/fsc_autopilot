@@ -26,18 +26,19 @@
 
 #include "fsc_autopilot/attitude_control/attitude_controller_base.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
-#include "fsc_autopilot_msgs/AttitudeControllerState.h"
-#include "fsc_autopilot_msgs/PositionControllerReference.h"
-#include "fsc_autopilot_msgs/PositionControllerState.h"
-#include "fsc_autopilot_msgs/UDEState.h"
-#include "tf2_eigen/tf2_eigen.h"
+#include "fsc_autopilot_msgs/msg/attitude_controller_state.hpp"
+#include "fsc_autopilot_msgs/msg/position_controller_reference.hpp"
+#include "fsc_autopilot_msgs/msg/position_controller_state.hpp"
+#include "fsc_autopilot_msgs/msg/ude_state.hpp"
+#include "tf2_eigen/tf2_eigen.hpp"
+#include "builtin_interfaces/msg/time.hpp"
 
 namespace fsc {
 
-inline fsc_autopilot_msgs::AttitudeControllerState& toMsg(
+inline fsc_autopilot_msgs::msg::AttitudeControllerState& toMsg(
     const tf2::Stamped<fsc::AttitudeControllerState>& in,
-    fsc_autopilot_msgs::AttitudeControllerState& out) {
-  out.header.stamp = in.stamp_;
+    fsc_autopilot_msgs::msg::AttitudeControllerState& out) {
+  out.header.stamp = builtin_interfaces::msg::Time(in.stamp_);
   out.reference = tf2::toMsg(in.reference);
   out.feedback = tf2::toMsg(in.feedback);
   out.attitude_error = tf2::toMsg(in.attitude_error);
@@ -47,8 +48,8 @@ inline fsc_autopilot_msgs::AttitudeControllerState& toMsg(
   return out;
 }
 
-inline fsc_autopilot_msgs::UDEState& toMsg(const fsc::UDEState& in,
-                                           fsc_autopilot_msgs::UDEState& out) {
+inline fsc_autopilot_msgs::msg::UDEState& toMsg(const fsc::UDEState& in,
+                                           fsc_autopilot_msgs::msg::UDEState& out) {
   out.type = in.type_str;
   out.is_flying = static_cast<std::uint8_t>(in.is_flying);
   out.is_active = static_cast<std::uint8_t>(in.is_active);
@@ -60,33 +61,33 @@ inline fsc_autopilot_msgs::UDEState& toMsg(const fsc::UDEState& in,
   return out;
 }
 
-inline void fromMsg(const fsc_autopilot_msgs::PositionControllerReference& in,
+inline void fromMsg(const fsc_autopilot_msgs::msg::PositionControllerReference& in,
                     tf2::Stamped<PositionControllerReference>& out) {
-  out.stamp_ = in.header.stamp;
+  out.stamp_ = tf2_ros::fromMsg(in.header.stamp);
   tf2::fromMsg(in.position, out.position);
   tf2::fromMsg(in.velocity, out.velocity);
   tf2::fromMsg(in.acceleration, out.acceleration);
   tf2::fromMsg(in.thrust, out.thrust);
   const bool convert_degrees =
-      in.yaw_unit == fsc_autopilot_msgs::PositionControllerReference::DEGREES;
+      in.yaw_unit == fsc_autopilot_msgs::msg::PositionControllerReference::DEGREES;
   out.yaw = convert_degrees ? deg2rad(in.yaw) : in.yaw;
 }
 
 inline void toMsg(const tf2::Stamped<PositionControllerReference>& in,
-                  fsc_autopilot_msgs::PositionControllerReference& out) {
-  out.header.stamp = in.stamp_;
+                  fsc_autopilot_msgs::msg::PositionControllerReference& out) {
+  out.header.stamp = tf2_ros::toMsg(in.stamp_);
   out.position = tf2::toMsg(in.position);
   tf2::toMsg(in.velocity, out.velocity);
   tf2::toMsg(in.acceleration, out.acceleration);
   tf2::toMsg(in.thrust, out.thrust);
-  out.yaw_unit = fsc_autopilot_msgs::PositionControllerReference::RADIANS;
+  out.yaw_unit = fsc_autopilot_msgs::msg::PositionControllerReference::RADIANS;
   out.yaw = in.yaw;
 }
 
-inline fsc_autopilot_msgs::PositionControllerState& toMsg(
+inline fsc_autopilot_msgs::msg::PositionControllerState& toMsg(
     const tf2::Stamped<fsc::PositionControllerState>& in,
-    fsc_autopilot_msgs::PositionControllerState& out) {
-  out.header.stamp = in.stamp_;
+    fsc_autopilot_msgs::msg::PositionControllerState& out) {
+  out.header.stamp = tf2_ros::toMsg(in.stamp_);
 
   out.position_reference = tf2::toMsg(in.position_reference);
   tf2::toMsg(in.velocity_reference, out.velocity_reference);
@@ -102,6 +103,6 @@ inline fsc_autopilot_msgs::PositionControllerState& toMsg(
   return out;
 }
 
-}  // namespace fsc
+} 
 
-#endif  // FSC_AUTOPILOT_ROS_MSG_CONVERSION_HPP_
+#endif  

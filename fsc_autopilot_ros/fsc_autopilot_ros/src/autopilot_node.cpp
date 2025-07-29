@@ -19,12 +19,23 @@
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "fsc_autopilot_ros/autopilot_client.hpp"
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "fsc_autopilot_ros_node");
-
-  nodelib::AutopilotClient client;
-
-  ros::spin();
+  // Initialize ROS 2
+  rclcpp::init(argc, argv);
+  
+  // Create node
+  auto node = std::make_shared<rclcpp::Node>("fsc_autopilot_ros_node");
+  
+  // Create autopilot client instance
+  nodelib::AutopilotClient client(node);
+  
+  // Spin the node
+  rclcpp::spin(node);
+  
+  // Shutdown ROS 2
+  rclcpp::shutdown();
+  
+  return 0;
 }

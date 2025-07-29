@@ -22,66 +22,94 @@
 
 namespace nodelib {
 
-RosLogger::RosLogger(std::string name) : name_(std::move(name)) {}
+RosLogger::RosLogger(rclcpp::Logger logger) : logger_(logger) {}
 
 void RosLogger::log(fsc::Severity severity, const char* msg) noexcept {
   switch (severity) {
     case fsc::Severity::kInternalError:
-      ROS_FATAL("%s", msg);
+      RCLCPP_FATAL(logger_, "%s", msg);
       break;
     case fsc::Severity::kError:
-      ROS_ERROR("%s", msg);
+      RCLCPP_ERROR(logger_, "%s", msg);
       break;
     case fsc::Severity::kWarning:
-      ROS_WARN("%s", msg);
+      RCLCPP_WARN(logger_, "%s", msg);
       break;
     case fsc::Severity::kInfo:
-      ROS_INFO("%s", msg);
+      RCLCPP_INFO(logger_, "%s", msg);
+      break;  // Added missing break statement
     case fsc::Severity::kVerbose:
-      ROS_DEBUG("%s", msg);
+      RCLCPP_DEBUG(logger_, "%s", msg);
       break;
   }
 }
 
-RosParamLoader::RosParamLoader(const ros::NodeHandle& pnh) : pnh_(pnh) {}
-
-RosParamLoader::RosParamLoader(const std::string& pnh) : pnh_(pnh) {}
+RosParamLoader::RosParamLoader(rclcpp::Node::SharedPtr node, const std::string& prefix) 
+  : node_(node), prefix_(prefix) {}
 
 std::shared_ptr<fsc::ParameterLoaderBase> RosParamLoader::getChildLoader(
     const std::string& ns) const {
-  return std::make_shared<RosParamLoader>(ros::NodeHandle(pnh_, ns));
+  return std::make_shared<RosParamLoader>(node_, prefix_ + ns + ".");
 }
 
 bool RosParamLoader::getParam(const std::string& key, bool& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_bool();
+  return true;
 }
 
 bool RosParamLoader::getParam(const std::string& key, int& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_int();
+  return true;
 }
 
 bool RosParamLoader::getParam(const std::string& key,
                               std::vector<int>& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_integer_array();
+  return true;
 }
 
 bool RosParamLoader::getParam(const std::string& key, double& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_double();
+  return true;
 }
 
 bool RosParamLoader::getParam(const std::string& key,
                               std::vector<double>& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_double_array();
+  return true;
 }
 
 bool RosParamLoader::getParam(const std::string& key,
                               std::string& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_string();
+  return true;
 }
 
 bool RosParamLoader::getParam(const std::string& key,
                               std::vector<std::string>& value) const {
-  return pnh_.getParam(key, value);
+  if (!node_->has_parameter(prefix_ + key)) {
+    return false;
+  }
+  value = node_->get_parameter(prefix_ + key).as_string_array();
+  return true;
 }
 
 }  // namespace nodelib

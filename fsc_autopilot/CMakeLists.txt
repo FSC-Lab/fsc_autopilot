@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.22)
 project(fsc_autopilot VERSION 0.4.0)
 
 # Default to C++17
@@ -47,7 +47,7 @@ include(cmake/install_rules.cmake)
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 ament_export_include_directories(${PROJECT_INCLUDE_DIRS})
 
-# Export ament dependencies (if any)
-# ament_export_dependencies(eigen3 rclcpp ...)  # Add if needed
+# Export ament dependencies
+ament_export_dependencies(eigen3 rclcpp ...)  # Add if needed
 
 ament_package()

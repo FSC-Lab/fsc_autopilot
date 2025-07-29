@@ -32,31 +32,30 @@
 #include "fsc_autopilot/position_control/position_controller_base.hpp"
 #include "fsc_autopilot/ude/ude_base.hpp"
 #include "fsc_autopilot_ros/ros_support.hpp"
-#include "mavros_msgs/AttitudeTarget.h"
-#include "mavros_msgs/State.h"
-#include "ros/forwards.h"
-#include "ros/node_handle.h"
+#include "mavros_msgs/msg/attitude_target.hpp"
+#include "mavros_msgs/msg/state.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "tf2/transform_datatypes.h"
 
 namespace nodelib {
 
 class AutopilotClient {
  public:
-  AutopilotClient();
+  explicit AutopilotClient(rclcpp::Node::SharedPtr node);
 
  private:
   void setupPubSub(const std::string& uav_prefix);
 
-  void outerLoop(const ros::TimerEvent& event);
+  void outerLoop();
 
-  void innerLoop(const ros::TimerEvent& event);
+  void innerLoop();
 
-  void watchdog(const ros::TimerEvent& event);
+  void watchdog();
 
   bool loadParams();
 
   bool initialized_{false};
-  ros::NodeHandle nh_;
+  rclcpp::Node::SharedPtr node_;
   std::unique_ptr<fsc::PositionControllerBase> pos_ctrl_;
   std::unique_ptr<fsc::UDEBase> ude_;
   std::unique_ptr<fsc::AttitudeControllerBase> att_ctrl_;
@@ -68,32 +67,36 @@ class AutopilotClient {
   fsc::AttitudeReference inner_ref_;
   fsc::VehicleInput input_;
 
-  ros::Time last_odom_timestamp_{0.0};
-  ros::Time last_imu_timestamp_{0.0};
+  rclcpp::Time last_odom_timestamp_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time last_imu_timestamp_{0, 0, RCL_ROS_TIME};
 
-  // Only need to save the Subscribers to keep them alive => stuff them all
-  // without distinguishment in a vector
-  std::vector<ros::Subscriber> subs_;
-  ros::Publisher setpoint_pub_;
-  ros::Publisher attitude_error_pub_;
-  ros::Publisher tracking_error_pub_;
-  ros::Publisher ude_state_pub_;
+  // ROS 2 subscribers
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Subscription<fsc_autopilot_msgs::msg::PositionControllerReference>::SharedPtr pos_ref_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+  rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr vehicle_state_sub_;
 
-  mavros_msgs::State vehicle_state_;
+  // ROS 2 publishers
+  rclcpp::Publisher<mavros_msgs::msg::AttitudeTarget>::SharedPtr setpoint_pub_;
+  rclcpp::Publisher<fsc_autopilot_msgs::msg::AttitudeControllerState>::SharedPtr attitude_error_pub_;
+  rclcpp::Publisher<fsc_autopilot_msgs::msg::PositionControllerState>::SharedPtr tracking_error_pub_;
+  rclcpp::Publisher<fsc_autopilot_msgs::msg::UDEState>::SharedPtr ude_state_pub_;
 
-  mavros_msgs::AttitudeTarget cmd_;
+  mavros_msgs::msg::State vehicle_state_;
+
+  mavros_msgs::msg::AttitudeTarget cmd_;
 
   fsc::BatchLowPassFilter<Eigen::Vector3d> imu_filter_;
   double outer_period_;
   double inner_period_;
-  ros::Timer outer_loop_;
-  ros::Timer inner_loop_;
-  bool enable_inner_controller_{
-      false};  // flag indicating wether inner atttiude controller is on
+  rclcpp::TimerBase::SharedPtr outer_loop_;
+  rclcpp::TimerBase::SharedPtr inner_loop_;
+  rclcpp::TimerBase::SharedPtr watchdog_timer_;
+  bool enable_inner_controller_{false};  // flag indicating whether inner attitude controller is on
 
-  RosLogger logger_{"fsc_autopilot_ros"};
+  RosLogger logger_;
 };
 
-}  // namespace nodelib
+}  
 
-#endif  // FSC_AUTOPILOT_ROS_AUTOPILOT_CLIENT_HPP_
+#endif  
